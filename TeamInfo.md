@@ -19,7 +19,7 @@
 
 |   Info      |        Description     |
 | ----------- | ---------------------- |
-|  Title      |       ProjectTitle     |
+|  Title      |       Unknown     |
 | System URL  |      N/A    |
 | Video Link  |      N/A     |
 
