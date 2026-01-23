@@ -1,4 +1,4 @@
-# team000-sample
+# team001-tableForFour
 
 ## Basic Information
 
@@ -20,9 +20,8 @@
 |   Info      |        Description     |
 | ----------- | ---------------------- |
 |  Title      |       ProjectTitle     |
-| System URL  |      link_to_system    |
-| Video Link  |      link_to_video     |
+| System URL  |      N/A    |
+| Video Link  |      N/A     |
 
 ## Project Summary
-
-This is a summary of the project!
+Soon™
