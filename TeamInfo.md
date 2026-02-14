@@ -24,4 +24,13 @@
 | Video Link  |      N/A     |
 
 ## Project Summary
-Soon™
+The Virtually Integrated Agenda, or VIA, is a centralized event management and logistics platform designed
+specifically for the Electrical and Computer Engineering (ECE) department at UIUC. Currently, Registered
+Student Organizations (RSOs) operate individually, relying on scattered communication channels like email
+lists, Instagram posts, and Discord servers to publicize events. This fragmentation leads to low student
+engagement and logistical conflicts, such as double-booked rooms or competing major events.
+
+Our platform solves this by providing a unified ”Public Feed” where students can discover events across
+all ECE RSOs in one place. Simultaneously, it provides RSO administrators with a ”Logistics Dashboard”
+that simplifies event creation. This will improve coordination between RSOs and foster better engagement
+among the ECE student community.
