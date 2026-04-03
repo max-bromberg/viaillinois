@@ -1,7 +1,3 @@
--- VIA Database Schema
--- Source of truth for Stage 3 DDL submission
--- MySQL 8.0+
-
 CREATE DATABASE IF NOT EXISTS via;
 USE via;
 
@@ -137,9 +133,6 @@ CREATE TABLE Midterm_Votes (
   CONSTRAINT chk_vote_value CHECK (vote_value IN (-1, 1))
 );
 
--- External campus room reservations scraped from the UIUC Facilities Tableau dashboard.
--- Populated continuously by the facilities poller service (server/services/facilitiesPoller.js).
--- Used by getOccupiedDuring() to block venue recommendations against external bookings.
 CREATE TABLE Facility_Reservations (
   reservation_id INT          NOT NULL AUTO_INCREMENT,
   location_id    INT          NOT NULL,
