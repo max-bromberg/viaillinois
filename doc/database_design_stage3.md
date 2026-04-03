@@ -181,7 +181,7 @@ CREATE TABLE Facility_Reservations (
 
 **Purpose:** Powers the Public Feed. Retrieves all public events with their location, RSO name, and comma-separated list of tags.
 
-**SQL Concepts Used:** Multiple JOINs (Events→RSOs, Events→Locations, Events→Event_Tags→Tags), GROUP BY with GROUP_CONCAT aggregation, WHERE with LIKE for optional keyword search
+**SQL Concepts Used:** Multiple JOINs, GROUP BY with GROUP_CONCAT aggregation, WHERE with LIKE for optional keyword search
 
 > The query below uses `NULL` for optional parameters (keyword, date range, tag filter). This demonstrates the full query structure with no active filters, returning all public events.
 
