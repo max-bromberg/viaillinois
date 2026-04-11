@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* VIA brand palette (hex for direct use) */
+    --via-50: #d7feff;
+    --via-100: #7df8fc;
+    --via-200: #68e4e8;
+    --via-300: #52d0d5;
+    --via-400: #39bdc1;
+    --via-500: #00aaaf;
+    --via-600: #008b8f;
+    --via-700: #006366;
+    --via-800: #003c3e;
+    --via-900: #001d1e;
+
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --border: 182 20% 88%;
+    --input: 182 20% 88%;
+    --primary: 182 100% 28%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 182 60% 94%;
+    --secondary-foreground: 182 100% 20%;
+    --accent: 182 100% 92%;
+    --accent-foreground: 182 100% 12%;
+    --destructive: 0 72.2% 50.6%;
+    --destructive-foreground: 0 0% 98%;
+    --ring: 182 100% 34%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 182 100% 28%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 182 100% 92%;
+    --sidebar-accent-foreground: 182 100% 12%;
+    --sidebar-border: 182 20% 88%;
+    --sidebar-ring: 182 100% 34%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --border: 182 30% 18%;
+    --input: 182 30% 18%;
+    --primary: 182 52% 49%;
+    --primary-foreground: 182 100% 6%;
+    --secondary: 182 40% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --accent: 182 100% 12%;
+    --accent-foreground: 182 100% 92%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --ring: 182 52% 49%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 182 52% 49%;
+    --sidebar-primary-foreground: 182 100% 6%;
+    --sidebar-accent: 182 100% 12%;
+    --sidebar-accent-foreground: 182 100% 92%;
+    --sidebar-border: 182 30% 18%;
+    --sidebar-ring: 182 52% 49%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@layer utilities {
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted))   0%,
+      hsl(var(--accent))  50%,
+      hsl(var(--muted))   100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+    animation-delay: -1s;
+    border-radius: var(--radius);
+  }
+}
