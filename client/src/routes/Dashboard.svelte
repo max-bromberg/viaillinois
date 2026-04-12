@@ -6,7 +6,7 @@
   import EventForm from '../lib/EventForm.svelte';
   import EventCard from '../lib/EventCard.svelte';
   import { Button } from '$lib/components/ui/button';
-  import { navigate } from 'svelte-routing';
+  import { navigate } from '../lib/router.js';
   import { showToast } from '../stores/ui.js';
   import EventCardSkeleton from '../lib/EventCardSkeleton.svelte';
 

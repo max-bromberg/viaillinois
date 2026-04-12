@@ -1,4 +1,4 @@
-import { navigate } from 'svelte-routing';
+import { navigate } from '../lib/router.js';
 
 /**
  * Base fetch wrapper. Attaches credentials (JWT cookie), parses JSON,

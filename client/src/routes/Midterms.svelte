@@ -68,6 +68,11 @@
   onMount(load);
 </script>
 
+<svelte:head>
+  <title>Midterms – VIA</title>
+  <meta name="description" content="Community-sourced ECE midterm exam schedule at UIUC. Help RSO boards avoid scheduling conflicts during exam weeks." />
+</svelte:head>
+
 <div class="space-y-6">
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-bold">Midterm Schedule</h1>
@@ -91,9 +96,9 @@
     </form>
   {/if}
 
-  <div class="border rounded-lg overflow-hidden">
+  <div class="border rounded-lg overflow-hidden bg-card">
     <table class="w-full text-left">
-      <thead class="bg-muted/50">
+      <thead class="bg-muted">
         <tr>
           <th class="py-2 px-4 text-xs font-semibold uppercase tracking-wide">Exam</th>
           <th class="py-2 px-4 text-xs font-semibold uppercase tracking-wide">Time</th>

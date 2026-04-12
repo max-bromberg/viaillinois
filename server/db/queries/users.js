@@ -47,11 +47,10 @@ export async function getLocalAccount(netId) {
 
 /**
  * Get all users who have a local (password-based) account, excluding global admins.
- * JOIN Users and LocalAccounts on net_id. Filter WHERE is_global_admin = FALSE.
  * @returns {Promise<Array<{ net_id, full_name, email }>>}
  */
 export async function getAllLocalUsers() {
-  throw new Error('Not implemented');
+  return query('SELECT u.net_id, u.full_name, u.email FROM Users u JOIN LocalAccounts la ON u.net_id = la.net_id WHERE u.is_global_admin = FALSE')
 }
 
 /**
@@ -60,27 +59,40 @@ export async function getAllLocalUsers() {
  * @returns {Promise<{ affectedRows: number }>}
  */
 export async function deleteUser(netId) {
-  throw new Error('Not implemented');
+  return query('DELETE FROM Users WHERE net_id = ?', [netId])
 }
 
 /**
  * Update the bcrypt password hash for a local account.
- * UPDATE LocalAccounts SET password_hash = ? WHERE net_id = ?
  * @param {string} netId
  * @param {string} passwordHash - bcrypt hash
  * @returns {Promise<{ affectedRows: number }>}
  */
 export async function updateLocalPassword(netId, passwordHash) {
-  throw new Error('Not implemented');
+  return query('UPDATE LocalAccounts SET password_hash = ? WHERE net_id = ?', [passwordHash, netId])
 }
 
 /**
  * Update mutable fields on a Users row.
- * UPDATE Users SET ... WHERE net_id = ?
  * @param {string} netId
  * @param {{ full_name?: string, email?: string }} updates
  * @returns {Promise<{ affectedRows: number }>}
  */
 export async function updateUser(netId, updates) {
-  throw new Error('Not implemented');
+  const fields = []
+  const values = []
+  if (updates.full_name !== undefined) {
+    fields.push('full_name = ?')
+    values.push(updates.full_name)
+  }
+  if (updates.email !== undefined) {
+    fields.push('email = ?')
+    values.push(updates.email)
+  }
+  if (fields.length === 0) {
+    return { affectedRows: 0 }
+  }
+  values.push(netId)
+  const sql = `UPDATE Users SET ${fields.join(', ')} WHERE net_id = ?`
+  return query(sql, values)
 }

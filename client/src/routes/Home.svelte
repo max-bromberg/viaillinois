@@ -25,6 +25,11 @@
   $: filters, fetchEvents();
 </script>
 
+<svelte:head>
+  <title>Events – VIA</title>
+  <meta name="description" content="Browse and filter upcoming ECE RSO events at UIUC. RSVP to events from your favourite student organizations." />
+</svelte:head>
+
 <div class="flex gap-6">
   <TagFilter on:change={e => { filters = e.detail; }} />
 

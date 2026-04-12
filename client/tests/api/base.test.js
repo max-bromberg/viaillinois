@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 global.fetch = vi.fn();
-// Mock navigate from svelte-routing
-vi.mock('svelte-routing', () => ({ navigate: vi.fn() }));
+vi.mock('../../src/lib/router.js', () => ({ navigate: vi.fn(), currentPath: { subscribe: vi.fn() } }));
 
 const { apiFetch } = await import('../../src/api/base.js');
 
@@ -35,7 +34,7 @@ describe('apiFetch()', () => {
 
   it('navigates to /login on 401', async () => {
     fetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: 'Unauthorized' }) });
-    const { navigate } = await import('svelte-routing');
+    const { navigate } = await import('../../src/lib/router.js');
     try { await apiFetch('/api/v1/protected'); } catch { /* expected */ }
     expect(navigate).toHaveBeenCalledWith('/login');
   });

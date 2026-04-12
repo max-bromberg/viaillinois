@@ -93,12 +93,15 @@ export function requireGlobalAdmin(req, res, next) {
 
 /**
  * Require the user to be an Admin or Board member of the specified RSO.
+ * Global admins bypass the RSO membership check entirely.
  * Reads rso_id from req.params.id when available; falls back to req.params.rsoId.
  */
 export function requireRSOAdmin(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  if (req.user.is_global_admin) return next();
   const rsoId = parseInt(req.params.id || req.params.rsoId);
   if (!rsoId) return res.status(400).json({ error: 'RSO ID required' });
-  checkRsoAdmin(req.user?.net_id, rsoId)
+  checkRsoAdmin(req.user.net_id, rsoId)
     .then(ok => ok ? next() : res.status(403).json({ error: 'RSO admin access required' }))
     .catch(next);
 }

@@ -11,7 +11,7 @@
   $: formatted = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 </script>
 
-<tr class="border-b hover:bg-muted/30 transition-colors">
+<tr class="border-b bg-card hover:bg-muted/50 transition-colors">
   <td class="py-3 px-4">
     <p class="font-medium text-sm">{midterm.title}</p>
     <p class="text-xs text-muted-foreground">{midterm.course_code} — {midterm.course_title}</p>

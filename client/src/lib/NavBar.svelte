@@ -1,5 +1,5 @@
 <script>
-  import { navigate } from 'svelte-routing';
+  import { navigate } from './router.js';
   import { currentUser, isGlobalAdmin } from '../stores/auth.js';
   import { apiFetch } from '../api/base.js';
 
@@ -24,7 +24,9 @@
         </span>
       </a>
       <a href="/" on:click|preventDefault={() => navigate('/')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Events</a>
+      <a href="/calendar" on:click|preventDefault={() => navigate('/calendar')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Calendar</a>
       <a href="/midterms" on:click|preventDefault={() => navigate('/midterms')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Midterms</a>
+      <a href="/about"    on:click|preventDefault={() => navigate('/about')}    class="text-sm text-muted-foreground hover:text-foreground transition-colors">About</a>
       {#if $currentUser}
         <a href="/dashboard" on:click|preventDefault={() => navigate('/dashboard')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Dashboard</a>
       {/if}

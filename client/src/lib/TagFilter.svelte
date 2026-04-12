@@ -30,7 +30,7 @@
   }
 </script>
 
-<aside class="space-y-4 w-56 shrink-0">
+<aside class="space-y-4 w-56 shrink-0 bg-card rounded-lg p-3 border">
   <div class="space-y-1">
     <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</p>
     <input

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { navigate } from 'svelte-routing';
+  import { navigate } from '../lib/router.js';
   import { isGlobalAdmin } from '../stores/auth.js';
   import { getRsos, getRso, createRso, updateRso, addMember, removeMember } from '../api/rsos.js';
   import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser } from '../api/admin.js';
@@ -351,7 +351,7 @@
 
                 <!-- Edit RSO panel -->
                 {#if editingRsoId === rso.rso_id}
-                  <div class="border-t px-4 py-4 space-y-4 bg-muted/30">
+                  <div class="border-t px-4 py-4 space-y-4 bg-card">
                     <h3 class="text-sm font-semibold">Edit RSO</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div class="space-y-1">
@@ -403,7 +403,7 @@
 
                 <!-- Manage Members panel -->
                 {#if managingRsoId === rso.rso_id}
-                  <div class="border-t px-4 py-4 space-y-4 bg-muted/30">
+                  <div class="border-t px-4 py-4 space-y-4 bg-card">
                     <h3 class="text-sm font-semibold">
                       Members
                       {#if managingRsoDetail}
@@ -584,7 +584,7 @@
 
                 <!-- Edit user panel -->
                 {#if editingNetId === user.net_id}
-                  <div class="border-t px-4 py-4 space-y-4 bg-muted/30">
+                  <div class="border-t px-4 py-4 space-y-4 bg-card">
                     <h3 class="text-sm font-semibold">Edit User</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div class="space-y-1">
@@ -618,7 +618,7 @@
 
                 <!-- Reset password panel -->
                 {#if resettingNetId === user.net_id}
-                  <div class="border-t px-4 py-4 space-y-4 bg-muted/30">
+                  <div class="border-t px-4 py-4 space-y-4 bg-card">
                     <h3 class="text-sm font-semibold">Reset Password</h3>
                     <div class="space-y-1 max-w-sm">
                       <label class="text-xs text-muted-foreground">New Password</label>

@@ -1,5 +1,5 @@
 <script>
-  import { navigate } from 'svelte-routing';
+  import { navigate } from '../lib/router.js';
   import { currentUser } from '../stores/auth.js';
   import { apiFetch } from '../api/base.js';
   import { getMe } from '../api/users.js';

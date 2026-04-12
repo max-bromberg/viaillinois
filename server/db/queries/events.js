@@ -56,6 +56,17 @@ export async function getPublicEvents(filters = {}) {
 }
 
 /**
+ * All events (public and private) with optional filters.
+ * Used when the requesting user has board/admin privileges or is a global admin.
+ * Same shape as getPublicEvents but without the is_private = FALSE filter.
+ * @param {{ tags?: string[], startDate?: string, endDate?: string, keyword?: string, limit?: number, offset?: number }} filters
+ * @returns {Promise<Array<{event_id, title, description, start_time, end_time, is_private, rso_name, building, room_number, max_capacity, tags}>>}
+ */
+export async function getAllEvents(filters = {}) {
+  throw new Error('Not implemented');
+}
+
+/**
  * Single event detail with full joins.
  * @param {number} eventId
  * @returns {Promise<object|null>}

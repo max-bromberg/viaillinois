@@ -38,9 +38,9 @@ export async function getRsoById(rsoId) {
           WHERE e.rso_id = ?
       ) AS event_count
   FROM RSOs r
-  JOIN RSO_Memberships m
+  LEFT JOIN RSO_Memberships m
       ON r.rso_id = m.rso_id
-  JOIN Users u
+  LEFT JOIN Users u
       ON m.net_id = u.net_id
   WHERE
       r.rso_id = ?
@@ -64,11 +64,11 @@ export async function updateRso(rsoId, updates) {
     fields.push('name = ?')
     values.push(updates.name)
   }
-  if (updates.description) {
+  if (updates.description !== undefined) {
     fields.push('description = ?')
     values.push(updates.description)
   }
-  if (updates.logo_color) {
+  if (updates.logo_color !== undefined) {
     fields.push('logo_color = ?')
     values.push(updates.logo_color)
   }
@@ -107,7 +107,7 @@ export async function getMembership(netId, rsoId) {
  */
 export async function addMember(netId, rsoId, role) {
   // TODO: write query
-  return query('INSERT INTO RSO_Memberships (net_id, rso_id, role) VALUES (?, ?, ?)', [netId, rsoId, role])
+  return query('INSERT INTO RSO_Memberships (net_id, rso_id, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE role = ?', [netId, rsoId, role, role])
 }
 
 /**
@@ -135,11 +135,11 @@ export async function getUserMemberships(netId) {
 
 /**
  * Insert a new RSO row.
- * INSERT INTO RSOs (name, description, logo_color, founded_year) VALUES (?, ?, ?, ?)
  * @param {{ name: string, description?: string, logo_color?: string, founded_year?: number }} data
  * @returns {Promise<{ insertId: number }>}
  * TODO: write query
  */
 export async function createRso(data) {
-  throw new Error('Not implemented');
+  // TODO: write query
+  return query('INSERT INTO RSOs (name, description, logo_color, founded_year) VALUES (?, ?, ?, ?)', [data.name, data.description, data.logo_color, data.founded_year])
 }

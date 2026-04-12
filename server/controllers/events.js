@@ -1,4 +1,5 @@
 import * as eventsDb from '../db/queries/events.js';
+import * as rsoDb from '../db/queries/rso.js';
 import { checkConflict } from '../services/conflictDetector.js';
 import { checkRsoAdmin } from '../middleware/auth.js';
 
@@ -13,7 +14,22 @@ export async function listEvents(req, res, next) {
       limit:     parseInt(limit),
       offset:    parseInt(offset),
     };
-    const events = await eventsDb.getPublicEvents(filters);
+
+    // Global admins and RSO board/admin members see all events (including private).
+    // Everyone else sees only public events.
+    let events;
+    if (req.user?.is_global_admin) {
+      events = await eventsDb.getAllEvents(filters);
+    } else if (req.user?.net_id) {
+      const memberships = await rsoDb.getUserMemberships(req.user.net_id);
+      const hasBoardRole = memberships.some(m => ['Admin', 'Board'].includes(m.role));
+      events = hasBoardRole
+        ? await eventsDb.getAllEvents(filters)
+        : await eventsDb.getPublicEvents(filters);
+    } else {
+      events = await eventsDb.getPublicEvents(filters);
+    }
+
     res.json({ events });
   } catch (err) { next(err); }
 }
@@ -32,7 +48,7 @@ export async function createEvent(req, res, next) {
     if (!rso_id || !location_id || !title || !start_time || !end_time) {
       return res.status(400).json({ error: 'rso_id, location_id, title, start_time, end_time required' });
     }
-    const isAdmin = await checkRsoAdmin(req.user.net_id, rso_id);
+    const isAdmin = req.user.is_global_admin || await checkRsoAdmin(req.user.net_id, rso_id);
     if (!isAdmin) return res.status(403).json({ error: 'RSO admin access required' });
     const conflict = await checkConflict(location_id, start_time, end_time);
     if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
@@ -47,7 +63,7 @@ export async function updateEvent(req, res, next) {
     const eventId = parseInt(req.params.id);
     const event = await eventsDb.getEventById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    const isAdmin = await checkRsoAdmin(req.user.net_id, event.rso_id);
+    const isAdmin = req.user.is_global_admin || await checkRsoAdmin(req.user.net_id, event.rso_id);
     if (!isAdmin) return res.status(403).json({ error: 'RSO admin access required' });
     const { location_id, title, description, start_time, end_time, is_private, tags } = req.body;
     if (location_id && start_time && end_time) {
