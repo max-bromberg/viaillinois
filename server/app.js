@@ -44,7 +44,7 @@ app.use(errorHandler);
 const distPath = join(__dirname, '../client/dist');
 if (process.env.NODE_ENV === 'production' && existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.get('*', (_req, res) => res.sendFile(join(distPath, 'index.html')));
+  app.get('/{*path}', (_req, res) => res.sendFile(join(distPath, 'index.html')));
 }
 
 export default app;
