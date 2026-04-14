@@ -35,3 +35,7 @@ export function rsvpEvent(id, status) {
 export function getKioskEvents(limit = 10) {
   return apiFetch(`/api/v1/kiosk/events?limit=${limit}`);
 }
+
+export function getEventRsvps(id) {
+  return apiFetch(`/api/v1/events/${id}/rsvps`);
+}

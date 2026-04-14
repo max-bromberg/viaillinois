@@ -5,12 +5,18 @@
   import { getRsos, getRso, createRso, updateRso, addMember, removeMember } from '../api/rsos.js';
   import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser } from '../api/admin.js';
   import { showToast } from '../stores/ui.js';
+  import { getAdminMidterms, updateMidtermStatus } from '../api/midterms.js';
 
   // ── Access control ────────────────────────────────────────────────────────
   $: if (!$isGlobalAdmin) navigate('/');
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   let activeTab = 'rsos';
+
+  // ── Midterms tab state ────────────────────────────────────────────────────
+  let midterms = [];
+  let midtermsLoading = false;
+  let midtermsLoaded = false;
 
   // ── RSOs tab state ────────────────────────────────────────────────────────
   let rsos = [];
@@ -38,6 +44,7 @@
 
   // ── Load users when tab activates ─────────────────────────────────────────
   $: if (activeTab === 'users' && !usersLoaded) loadUsers();
+  $: if (activeTab === 'midterms' && !midtermsLoaded) loadMidterms();
 
   // ── RSO functions ─────────────────────────────────────────────────────────
 
@@ -207,6 +214,31 @@
     }
   }
 
+  // ── Midterm functions ─────────────────────────────────────────────────────
+  async function loadMidterms() {
+    midtermsLoading = true;
+    try {
+      const { midterms: data } = await getAdminMidterms();
+      midterms = data;
+      midtermsLoaded = true;
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      midtermsLoading = false;
+    }
+  }
+
+  async function handleMidtermStatus(midtermId, status) {
+    try {
+      await updateMidtermStatus(midtermId, status);
+      showToast(`Midterm ${status.toLowerCase()}`);
+      midtermsLoaded = false;
+      await loadMidterms();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────
   onMount(() => {
     loadRsos();
@@ -233,6 +265,10 @@
         class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'users' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
         on:click={() => activeTab = 'users'}
       >Users</button>
+      <button
+        class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'midterms' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
+        on:click={() => activeTab = 'midterms'}
+      >Midterms</button>
     </div>
 
     <!-- ── RSOs Tab ───────────────────────────────────────────────────── -->
@@ -641,6 +677,63 @@
                     </div>
                   </div>
                 {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- ── Midterms Tab ──────────────────────────────────────────────────── -->
+    {#if activeTab === 'midterms'}
+      <div class="space-y-4">
+        <p class="text-sm text-muted-foreground">
+          {midtermsLoading ? 'Loading…' : `${midterms.length} midterm${midterms.length !== 1 ? 's' : ''}`}
+        </p>
+
+        {#if midtermsLoading}
+          <p class="text-sm text-muted-foreground py-4">Loading midterms…</p>
+        {:else if midterms.length === 0}
+          <p class="text-sm text-muted-foreground py-4">No midterms submitted yet.</p>
+        {:else}
+          <div class="space-y-2">
+            {#each midterms as mt (mt.midterm_id)}
+              <div class="border rounded-lg bg-card shadow-sm">
+                <div class="flex items-center justify-between px-4 py-3 flex-wrap gap-2">
+                  <div class="min-w-0">
+                    <span class="font-medium text-sm">{mt.title}</span>
+                    <span class="ml-2 text-xs text-muted-foreground">{mt.course_code}</span>
+                    <span class="ml-2 text-xs text-muted-foreground">
+                      {new Date(mt.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <span class="ml-2 text-xs px-1.5 py-0.5 rounded
+                      {mt.confirmation_status === 'Confirmed' ? 'bg-teal-500/20 text-teal-700' :
+                       mt.confirmation_status === 'Cancelled' ? 'bg-destructive/10 text-destructive' :
+                       'bg-muted text-muted-foreground'}">
+                      {mt.confirmation_status ?? 'Pending'}
+                    </span>
+                  </div>
+                  <div class="flex gap-2 flex-shrink-0">
+                    {#if mt.confirmation_status !== 'Confirmed'}
+                      <button
+                        class="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
+                        on:click={() => handleMidtermStatus(mt.midterm_id, 'Confirmed')}
+                      >Confirm</button>
+                    {/if}
+                    {#if mt.confirmation_status !== 'Cancelled'}
+                      <button
+                        class="px-3 py-1.5 text-xs border border-destructive/50 text-destructive rounded-md hover:bg-destructive/10 transition-colors"
+                        on:click={() => handleMidtermStatus(mt.midterm_id, 'Cancelled')}
+                      >Cancel</button>
+                    {/if}
+                    {#if mt.confirmation_status === 'Cancelled' || mt.confirmation_status === 'Confirmed'}
+                      <button
+                        class="px-3 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors"
+                        on:click={() => handleMidtermStatus(mt.midterm_id, 'Pending')}
+                      >Reset</button>
+                    {/if}
+                  </div>
+                </div>
               </div>
             {/each}
           </div>

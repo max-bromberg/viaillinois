@@ -99,3 +99,15 @@ export async function rsvpEvent(req, res, next) {
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
+
+export async function getEventRsvps(req, res, next) {
+  try {
+    const eventId = parseInt(req.params.id);
+    const event = await eventsDb.getEventById(eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    const rows = await eventsDb.getEventRsvpCounts(eventId);
+    const counts = { Going: 0, Maybe: 0, 'Not Going': 0 };
+    rows.forEach(r => { counts[r.status] = r.count; });
+    res.json({ counts });
+  } catch (err) { next(err); }
+}

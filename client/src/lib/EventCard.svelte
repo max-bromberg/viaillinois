@@ -2,6 +2,7 @@
   import { currentUser } from '../stores/auth.js';
   import { rsvpEvent } from '../api/events.js';
   import { showToast } from '../stores/ui.js';
+  import { navigate } from '../lib/router.js';
 
   export let event;
   export let compact = false;
@@ -29,7 +30,11 @@
 
 <div class="border rounded-lg p-4 hover:shadow-md transition-shadow bg-card {compact ? 'py-2' : ''}">
   <div class="flex items-start justify-between gap-2 mb-1">
-    <h3 class="font-semibold text-base leading-snug">{event.title}</h3>
+    <a
+      href="/events/{event.event_id}"
+      on:click|preventDefault={() => navigate(`/events/${event.event_id}`)}
+      class="font-semibold text-base leading-snug hover:underline underline-offset-2"
+    >{event.title}</a>
     {#if event.is_private}
       <span class="text-xs bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 shrink-0">Private</span>
     {/if}

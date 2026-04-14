@@ -8,7 +8,8 @@ import { query } from '../pool.js';
  * TODO: write query
  */
 export async function getPublicEvents(filters = {}) {
-  const { keyword = null, startDate = null, endDate = null, tag = null, limit = 20, offset = 0 } = filters;
+  const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], limit = 20, offset = 0 } = filters;
+  const tag = rawTags[0] ?? null;
   return query(
   `
   SELECT
@@ -63,7 +64,51 @@ export async function getPublicEvents(filters = {}) {
  * @returns {Promise<Array<{event_id, title, description, start_time, end_time, is_private, rso_name, building, room_number, max_capacity, tags}>>}
  */
 export async function getAllEvents(filters = {}) {
-  throw new Error('Not implemented');
+  const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], limit = 20, offset = 0 } = filters;
+  const tag = rawTags[0] ?? null;
+  return query(
+  `
+  SELECT
+      e.event_id,
+      e.title,
+      e.description,
+      e.start_time,
+      e.end_time,
+      e.is_private,
+      r.name AS rso_name,
+      l.building,
+      l.room_number,
+      l.max_capacity,
+      GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
+  FROM Events e
+  JOIN RSOs r
+      ON e.rso_id = r.rso_id
+  JOIN Locations l
+      ON e.location_id = l.location_id
+  LEFT JOIN Event_Tags et
+      ON e.event_id = et.event_id
+  LEFT JOIN Tags t
+      ON et.tag_name = t.tag_name
+  WHERE
+      (
+          ? IS NULL OR
+          e.title LIKE CONCAT('%', ?, '%') OR
+          e.description LIKE CONCAT('%', ?, '%')
+      )
+      AND (
+          (? IS NULL OR e.start_time >= ?) AND
+          (? IS NULL OR e.start_time <= ?)
+      )
+  GROUP BY
+      e.event_id
+  HAVING
+      (? IS NULL OR tags LIKE CONCAT('%', ?, '%'))
+  ORDER BY
+      e.start_time ASC
+  LIMIT ? OFFSET ?
+  `,
+  [keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag, limit, offset]
+)
 }
 
 /**
@@ -83,6 +128,7 @@ export async function getEventById(eventId) {
       e.start_time,
       e.end_time,
       e.is_private,
+      e.rso_id,
       r.name AS rso_name,
       l.building,
       l.room_number,
@@ -184,4 +230,14 @@ export async function setEventTags(eventId, tagNames) {
   const insertEventTagsQuery = 'INSERT INTO Event_Tags (event_id, tag_name) VALUES ?'
   const eventTagValues = tagNames.map(tag => [eventId, tag])
   await query(insertEventTagsQuery, [eventTagValues])
+}
+
+/**
+ * RSVP counts for an event grouped by status.
+ * @param {number} eventId
+ * @returns {Promise<Array<{ status: string, count: number }>>}
+ */
+export async function getEventRsvpCounts(eventId) {
+  // TODO: write query
+  return query('SELECT status, COUNT(*) AS count FROM RSVPs WHERE event_id = ? GROUP BY status', [eventId])
 }

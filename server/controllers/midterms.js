@@ -33,3 +33,32 @@ export async function voteMidterm(req, res, next) {
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
+
+export async function getConfirmedMidtermsHandler(req, res, next) {
+  try {
+    const midterms = await midtermsDb.getConfirmedMidterms();
+    res.json({ midterms });
+  } catch (err) { next(err); }
+}
+
+export async function getAdminMidterms(req, res, next) {
+  try {
+    if (!req.user?.is_global_admin) return res.status(403).json({ error: 'Global admin required' });
+    const midterms = await midtermsDb.getAllMidtermsAdmin();
+    res.json({ midterms });
+  } catch (err) { next(err); }
+}
+
+export async function updateMidtermStatus(req, res, next) {
+  try {
+    if (!req.user?.is_global_admin) return res.status(403).json({ error: 'Global admin required' });
+    const midtermId = parseInt(req.params.id);
+    if (isNaN(midtermId)) return res.status(400).json({ error: 'id must be an integer' });
+    const { status } = req.body;
+    if (!['Pending', 'Confirmed', 'Cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'status must be Pending, Confirmed, or Cancelled' });
+    }
+    await midtermsDb.setMidtermStatus(midtermId, status);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}

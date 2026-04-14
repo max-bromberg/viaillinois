@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentPath } from './lib/router.js';
+  import { currentPath, matchRoute } from './lib/router.js';
+  import EventDetail from './routes/EventDetail.svelte';
   import { currentUser } from './stores/auth.js';
   import { getMe } from './api/users.js';
   import NavBar      from './lib/NavBar.svelte';
@@ -18,6 +19,7 @@
   import CircuitBackground from './lib/CircuitBackground.svelte';
 
   let authLoading = true;
+  $: dynamicRoute = matchRoute($currentPath);
 
   onMount(async () => {
     try {
@@ -37,6 +39,10 @@
   <Kiosk />
 {:else}
   <CircuitBackground />
+
+  <div class="relative z-20 w-full bg-amber-400/90 text-amber-950 text-center text-xs font-medium py-1.5 px-4">
+    VIA is under active development; features may be unstable and data may be reset. Do not use for real RSO data yet.
+  </div>
 
   {#if $toast}
     <div class="fixed top-4 right-4 z-50 rounded-md px-4 py-2 text-sm font-medium shadow-md
@@ -62,6 +68,8 @@
         <Calendar />
       {:else if $currentPath === '/about'}
         <About />
+      {:else if dynamicRoute?.name === 'event-detail'}
+        <EventDetail id={parseInt(dynamicRoute.params.id)} />
       {/if}
     </main>
     <Footer />

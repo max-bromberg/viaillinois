@@ -75,3 +75,32 @@ export async function upsertVote(midtermId, netId, voteValue) {
     [midtermId, netId, voteValue, voteValue]
   )
 }
+
+/**
+ * Confirmed midterms for calendar display.
+ * @returns {Promise<Array<{ midterm_id, title, course_code, start_time, end_time, building, room_number }>>}
+ */
+export async function getConfirmedMidterms() {
+  // TODO: write query
+  return query('SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, l.building, l.room_number FROM Midterms m JOIN Locations l ON m.location_id = l.location_id WHERE m.status = "Confirmed" AND m.end_time > NOW() ORDER BY m.start_time ASC')
+}
+
+/**
+ * All midterms for admin review, including DB confirmation status field.
+ * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, confirmation_status, building, room_number, submitted_by, score }>>}
+ */
+export async function getAllMidtermsAdmin() {
+  // TODO: write query
+  return query('SELECT m.midterm_id, m.title, m.course_code, c.title AS course_title, m.start_time, m.end_time, m.status AS confirmation_status, l.building, l.room_number, m.submitted_by, COALESCE(SUM(v.vote_value), 0) AS score FROM Midterms m JOIN Courses c ON m.course_code = c.course_code JOIN Locations l ON m.location_id = l.location_id LEFT JOIN Midterm_Votes v ON m.midterm_id = v.midterm_id GROUP BY m.midterm_id ORDER BY m.start_time DESC')
+}
+
+/**
+ * Set midterm confirmation status.
+ * @param {number} midtermId
+ * @param {'Pending'|'Confirmed'|'Cancelled'} status
+ * @returns {Promise<{ affectedRows: number }>}
+ */
+export async function setMidtermStatus(midtermId, status) {
+  // TODO: write query
+  return query('UPDATE Midterms SET status = ? WHERE midterm_id = ?', [status, midtermId])
+}

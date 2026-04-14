@@ -35,4 +35,10 @@ describe('EventCard', () => {
     expect(getByText('Workshop')).toBeTruthy();
     expect(getByText('Free Food')).toBeTruthy();
   });
+
+  it('renders the title as a link to the event detail page', () => {
+    const { getByRole } = render(EventCard, { event: mockEvent });
+    const link = getByRole('link', { name: 'IEEE Workshop' });
+    expect(link.getAttribute('href')).toBe('/events/1');
+  });
 });

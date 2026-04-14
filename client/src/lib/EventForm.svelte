@@ -43,7 +43,7 @@
       rso_id: rsoId, title, description,
       start_time: startTime, end_time: endTime,
       location_id: locationId, is_private: isPrivate,
-      tags: selectedTags.join(','),
+      tags: selectedTags,
     });
   }
 </script>

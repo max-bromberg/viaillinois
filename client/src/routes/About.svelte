@@ -1,83 +1,112 @@
 <svelte:head>
   <title>About – VIA</title>
-  <meta name="description" content="Learn about VIA, the centralized event platform built for UIUC ECE student organizations by Team001-TableForFour." />
+  <meta name="description" content="VIA is the centralized event platform for UIUC ECE student organizations — one place to discover events, coordinate scheduling, and stay on top of midterms." />
 </svelte:head>
 
-<div class="max-w-2xl mx-auto space-y-10">
+<div class="max-w-2xl mx-auto space-y-6">
 
   <!-- Hero -->
-  <div class="space-y-3">
+  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
     <h1 class="text-3xl font-bold tracking-tight">About VIA</h1>
     <p class="text-muted-foreground text-lg leading-relaxed">
-      Virtually Integrated Agenda is a centralized event platform for student
-      organizations in the UIUC ECE department — one place to discover events,
-      coordinate scheduling, and stay on top of midterms.
+      <strong class="text-foreground">Virtually Integrated Agenda</strong> is the shared event hub
+      for UIUC ECE student organizations — one place to discover what's happening and
+      coordinate your schedule.
     </p>
   </div>
 
   <!-- The problem / why -->
-  <div class="space-y-3">
+  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
     <h2 class="text-xl font-semibold">Why VIA?</h2>
     <p class="text-sm text-muted-foreground leading-relaxed">
-      UIUC's ECE department is home to dozens of active student organizations,
-      each running their own events on separate platforms — mailing lists,
-      Discord servers, physical flyers. Students miss events they'd love to
-      attend, and RSO leaders spend time duplicating logistics across channels.
+      UIUC's ECE department is home to many active student organizations, each running
+      their own events across scattered channels — mailing lists, Discord servers, physical
+      flyers. Students miss events they'd love, and RSO leaders burn time duplicating
+      announcements everywhere.
     </p>
     <p class="text-sm text-muted-foreground leading-relaxed">
-      VIA solves this by giving every ECE RSO a shared home for their public
-      calendar, while keeping internal scheduling tools behind a login so
-      board members can coordinate without noise.
+      VIA gives every ECE RSO a shared public calendar and a private coordination layer —
+      so members always know what's on, and board members can plan without the noise.
     </p>
   </div>
 
-  <!-- What VIA offers -->
-  <div class="space-y-4">
-    <h2 class="text-xl font-semibold">What's included</h2>
+  <!-- For students -->
+  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-4">
+    <h2 class="text-xl font-semibold">For ECE students</h2>
     <div class="grid sm:grid-cols-2 gap-4">
       <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Public Event Feed</h3>
+        <h3 class="font-medium text-sm">Event Feed</h3>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          Browse and filter upcoming ECE RSO events by tag, keyword, or date.
-          RSVP to events you're interested in.
+          Browse all upcoming ECE RSO events in one scrollable feed. Filter by tag,
+          keyword, or date to find exactly what you're looking for.
         </p>
       </div>
       <div class="border rounded-lg p-4 bg-card space-y-1.5">
         <h3 class="font-medium text-sm">Calendar View</h3>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          See events laid out by month. Board and admin members also see
-          internal events for cross-RSO scheduling.
+          See the full month at a glance. Spot conflicts, plan ahead, and never
+          double-book yourself during crunch time.
         </p>
       </div>
       <div class="border rounded-lg p-4 bg-card space-y-1.5">
         <h3 class="font-medium text-sm">Midterm Tracker</h3>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          Community-sourced exam schedule for ECE courses. RSO boards use
-          this to avoid scheduling conflicts during exam weeks.
+          Community-sourced exam dates for ECE courses, all in one table. Know
+          which weeks are brutal before you RSVP.
         </p>
       </div>
       <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">RSO Dashboard</h3>
+        <h3 class="font-medium text-sm">RSVP & Discovery</h3>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          Create and manage events, configure RSO details, and manage
-          membership — all from a single logistics dashboard.
+          RSVP to events you're interested in and surface new organizations
+          you might not have heard about yet.
         </p>
       </div>
     </div>
   </div>
 
-  <!-- Team -->
-  <div class="space-y-3">
-    <h2 class="text-xl font-semibold">The team</h2>
+  <!-- For RSOs -->
+  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-4">
+    <h2 class="text-xl font-semibold">For RSO boards</h2>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="border rounded-lg p-4 bg-card space-y-1.5">
+        <h3 class="font-medium text-sm">Event Management</h3>
+        <p class="text-xs text-muted-foreground leading-relaxed">
+          Create, edit, and delete events from a clean logistics dashboard.
+          Set visibility, tags, location, and capacity in one place.
+        </p>
+      </div>
+      <div class="border rounded-lg p-4 bg-card space-y-1.5">
+        <h3 class="font-medium text-sm">Instant Reach</h3>
+        <p class="text-xs text-muted-foreground leading-relaxed">
+          Your events surface automatically to the entire ECE student body —
+          no mailing lists to manage, no flyers to print.
+        </p>
+      </div>
+      <div class="border rounded-lg p-4 bg-card space-y-1.5">
+        <h3 class="font-medium text-sm">Cross-RSO Coordination</h3>
+        <p class="text-xs text-muted-foreground leading-relaxed">
+          Board members see all internal ECE events on the calendar, making it
+          easy to avoid scheduling on top of other organizations' big nights.
+        </p>
+      </div>
+      <div class="border rounded-lg p-4 bg-card space-y-1.5">
+        <h3 class="font-medium text-sm">Venue Recommendations</h3>
+        <p class="text-xs text-muted-foreground leading-relaxed">
+          Get venue suggestions based on your event type, expected
+          attendance, and past booking history.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Origin note -->
+  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
+    <h2 class="text-xl font-semibold">Background</h2>
     <p class="text-sm text-muted-foreground leading-relaxed">
-      VIA was designed and built by <strong class="text-foreground">Team001-TableForFour</strong> as a
-      CS411 (Database Systems) course project at the University of Illinois Urbana-Champaign.
-      The project demonstrates applied database design — relational schema,
-      advanced SQL queries, indexing analysis, transactions, stored procedures,
-      and triggers — deployed as a production-quality web application.
-    </p>
-    <p class="text-sm text-muted-foreground">
-      University of Illinois Urbana-Champaign &middot; Thomas M. Siebel Center for Computer Science
+      VIA was built by a team of four Illinois ECE students who wanted to solve
+      a real problem in their own community. It started as a CS 411 Database Systems
+      course project and grew into a real platform.
     </p>
   </div>
 

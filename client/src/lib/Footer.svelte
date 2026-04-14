@@ -9,11 +9,10 @@
       <!-- Brand -->
       <div class="space-y-2">
         <div class="flex items-center gap-2">
-          <img src="/via_logo_black.svg" alt="VIA" class="h-5 w-auto" />
-          <span class="text-sm font-semibold">VIA</span>
+          <img src="/via_logo_black.svg" alt="VIA" class="h-8 w-auto" />
         </div>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          Virtually Integrated Agenda — the event hub for UIUC ECE student organizations.
+          Virtually Integrated Agenda, the event hub for UIUC ECE student organizations.
         </p>
       </div>
 
@@ -30,10 +29,10 @@
 
       <!-- Attribution -->
       <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Built at UIUC</p>
+        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Illinois ECE</p>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          A CS411 Database Systems project by Team001-TableForFour.<br />
-          University of Illinois Urbana-Champaign, ECE Department.
+          Connecting students and organizations across the ECE department at the
+          University of Illinois Urbana-Champaign.
         </p>
       </div>
 
@@ -44,7 +43,7 @@
         &copy; {new Date().getFullYear()} VIA — Virtually Integrated Agenda
       </p>
       <p class="text-xs text-muted-foreground">
-        Built for UIUC ECE &middot; CS411 Team001-TableForFour
+        Built with ♥ for Illinois ECE &nbsp;·&nbsp; v{__APP_VERSION__}
       </p>
     </div>
   </div>
