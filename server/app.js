@@ -11,7 +11,12 @@ import usersRouter    from './routes/users.js';
 import venuesRouter   from './routes/venues.js';
 import midtermsRouter from './routes/midterms.js';
 import kioskRouter    from './routes/kiosk.js';
-import adminRouter     from './routes/admin.js';
+import adminRouter    from './routes/admin.js';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -34,5 +39,12 @@ app.use('/api/v1/kiosk',      kioskRouter);
 app.use('/api/v1/admin',      adminRouter);
 
 app.use(errorHandler);
+
+// Serve built Svelte frontend in production
+const distPath = join(__dirname, '../client/dist');
+if (process.env.NODE_ENV === 'production' && existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (_req, res) => res.sendFile(join(distPath, 'index.html')));
+}
 
 export default app;

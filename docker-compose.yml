@@ -1,9 +1,11 @@
 services:
-  server:
+  via:
     build:
       context: .
       dockerfile: Dockerfile.server
     restart: unless-stopped
+    ports:
+      - "3000:3001"
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -17,21 +19,3 @@ services:
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
-    networks:
-      - via
-
-  client:
-    build:
-      context: .
-      dockerfile: Dockerfile.client
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    depends_on:
-      - server
-    networks:
-      - via
-
-networks:
-  via:
-    driver: bridge
