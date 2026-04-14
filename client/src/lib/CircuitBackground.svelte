@@ -27,6 +27,8 @@
   let mouse    = { x: -9999, y: -9999 };
   let rafId;
   let lastTime = null;
+  let lastWidth = 0;
+  let resizeTimer;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function lerp(a, b, t) {
@@ -156,11 +158,20 @@
   }
 
   function onResize() {
-    init();
-    lastTime = null;
+    // Ignore height-only changes (Safari URL bar appearing/disappearing on scroll).
+    // Only reinitialise when the width actually changes.
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (window.innerWidth !== lastWidth) {
+        lastWidth = window.innerWidth;
+        init();
+        lastTime = null;
+      }
+    }, 150);
   }
 
   onMount(() => {
+    lastWidth = window.innerWidth;
     init();
     rafId = requestAnimationFrame(draw);
     window.addEventListener('mousemove', onMouseMove);
@@ -169,6 +180,7 @@
 
   onDestroy(() => {
     cancelAnimationFrame(rafId);
+    clearTimeout(resizeTimer);
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('resize',    onResize);
   });

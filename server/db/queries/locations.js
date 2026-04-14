@@ -86,6 +86,24 @@ export async function getByCapacity(minCapacity, requiresAV) {
 }
 
 /**
+ * Search locations by building name or room number (case-insensitive prefix/substring match).
+ * @param {string} q - search term
+ * @param {number} [limit=10]
+ * @returns {Promise<Array<{ location_id, building, room_number, max_capacity }>>}
+ */
+export async function searchLocations(q, limit = 10) {
+  const term = `%${q}%`
+  return query(
+    `SELECT location_id, building, room_number, max_capacity
+     FROM Locations
+     WHERE building LIKE ? OR room_number LIKE ?
+     ORDER BY building ASC, room_number ASC
+     LIMIT ?`,
+    [term, term, limit]
+  )
+}
+
+/**
  * Get a single location by ID.
  * @param {number} locationId
  * @returns {Promise<object|null>}

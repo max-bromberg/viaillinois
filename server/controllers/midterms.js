@@ -3,7 +3,11 @@ import * as midtermsDb from '../db/queries/midterms.js';
 export async function listMidterms(req, res, next) {
   try {
     const { courseCode } = req.query;
-    const midterms = await midtermsDb.getMidterms({ courseCode: courseCode || null });
+    const all = await midtermsDb.getMidterms({ courseCode: courseCode || null });
+    // Hide midterms once the calendar day after they take place has begun.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const midterms = all.filter(m => new Date(m.end_time) >= today);
     res.json({ midterms });
   } catch (err) { next(err); }
 }

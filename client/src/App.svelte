@@ -1,8 +1,10 @@
 <script>
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { currentPath, matchRoute } from './lib/router.js';
   import EventDetail from './routes/EventDetail.svelte';
   import { currentUser } from './stores/auth.js';
+  import { themeMode } from './stores/theme.js';
   import { getMe } from './api/users.js';
   import NavBar      from './lib/NavBar.svelte';
   import Home        from './routes/Home.svelte';
@@ -13,6 +15,8 @@
   import Admin       from './routes/Admin.svelte';
   import Calendar    from './routes/Calendar.svelte';
   import About       from './routes/About.svelte';
+  import Scheduler   from './routes/Scheduler.svelte';
+  import Poster      from './routes/Poster.svelte';
   import AppSkeleton from './lib/AppSkeleton.svelte';
   import Footer      from './lib/Footer.svelte';
   import { toast } from './stores/ui.js';
@@ -21,7 +25,19 @@
   let authLoading = true;
   $: dynamicRoute = matchRoute($currentPath);
 
+  function applyTheme(mode, prefersDark) {
+    const isDark = mode === 'dark' || (mode === 'auto' && prefersDark);
+    document.documentElement.classList.toggle('dark', isDark);
+  }
+
   onMount(async () => {
+    // Theme: subscribe to store and system preference
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const unsubTheme = themeMode.subscribe(mode => applyTheme(mode, mq.matches));
+    const onSystemChange = () => { if (get(themeMode) === 'auto') applyTheme('auto', mq.matches); };
+    mq.addEventListener('change', onSystemChange);
+
+    // Auth
     try {
       const { user } = await getMe();
       currentUser.set(user);
@@ -30,6 +46,11 @@
     } finally {
       authLoading = false;
     }
+
+    return () => {
+      unsubTheme();
+      mq.removeEventListener('change', onSystemChange);
+    };
   });
 </script>
 
@@ -68,6 +89,10 @@
         <Calendar />
       {:else if $currentPath === '/about'}
         <About />
+      {:else if $currentPath === '/scheduler'}
+        <Scheduler />
+      {:else if $currentPath === '/poster'}
+        <Poster />
       {:else if dynamicRoute?.name === 'event-detail'}
         <EventDetail id={parseInt(dynamicRoute.params.id)} />
       {/if}

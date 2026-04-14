@@ -8,10 +8,10 @@ import { query } from '../pool.js';
  * TODO: write query
  */
 export async function getPublicEvents(filters = {}) {
-  const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], limit = 20, offset = 0 } = filters;
-  const tag = rawTags[0] ?? null;
-  return query(
-  `
+    const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], limit = 20, offset = 0 } = filters
+    const tag = rawTags[0] ?? null
+    return query(
+        `
   SELECT
       e.event_id,
       e.title,
@@ -52,8 +52,8 @@ export async function getPublicEvents(filters = {}) {
       e.start_time ASC
   LIMIT ? OFFSET ?
   `,
-  [keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag, limit, offset]
-)
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag, limit, offset]
+    )
 }
 
 /**
@@ -64,10 +64,10 @@ export async function getPublicEvents(filters = {}) {
  * @returns {Promise<Array<{event_id, title, description, start_time, end_time, is_private, rso_name, building, room_number, max_capacity, tags}>>}
  */
 export async function getAllEvents(filters = {}) {
-  const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], limit = 20, offset = 0 } = filters;
-  const tag = rawTags[0] ?? null;
-  return query(
-  `
+    const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], limit = 20, offset = 0 } = filters
+    const tag = rawTags[0] ?? null
+    return query(
+        `
   SELECT
       e.event_id,
       e.title,
@@ -107,8 +107,8 @@ export async function getAllEvents(filters = {}) {
       e.start_time ASC
   LIMIT ? OFFSET ?
   `,
-  [keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag, limit, offset]
-)
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag, limit, offset]
+    )
 }
 
 /**
@@ -118,9 +118,9 @@ export async function getAllEvents(filters = {}) {
  * TODO: write query
  */
 export async function getEventById(eventId) {
-  // TODO: write query
-  return query(
-  `
+    // TODO: write query
+    return query(
+        `
   SELECT
       e.event_id,
       e.title,
@@ -147,8 +147,8 @@ export async function getEventById(eventId) {
   GROUP BY
       e.event_id
   `,
-  [eventId]
-).then(results => results[0] || null)
+        [eventId]
+    ).then(results => results[0] || null)
 }
 
 /**
@@ -158,8 +158,8 @@ export async function getEventById(eventId) {
  * TODO: write query
  */
 export async function createEvent(eventData) {
-  // TODO: write query
-  return query('INSERT INTO Events SET ?', [eventData])
+    // TODO: write query
+    return query('INSERT INTO Events SET ?', [eventData])
 }
 
 /**
@@ -170,8 +170,8 @@ export async function createEvent(eventData) {
  * TODO: write query
  */
 export async function updateEvent(eventId, updates) {
-  // TODO: write query
-  return query('UPDATE Events SET ? WHERE event_id = ?', [updates, eventId])
+    // TODO: write query
+    return query('UPDATE Events SET ? WHERE event_id = ?', [updates, eventId])
 }
 
 /**
@@ -181,8 +181,8 @@ export async function updateEvent(eventId, updates) {
  * TODO: write query
  */
 export async function deleteEvent(eventId) {
-  // TODO: write query
-  return query('DELETE FROM Events WHERE event_id = ?', [eventId])
+    // TODO: write query
+    return query('DELETE FROM Events WHERE event_id = ?', [eventId])
 }
 
 /**
@@ -194,8 +194,8 @@ export async function deleteEvent(eventId) {
  * TODO: write query
  */
 export async function upsertRsvp(netId, eventId, status) {
-  // TODO: write query
-  return query('INSERT INTO RSVPs (net_id, event_id, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE status = ?', [netId, eventId, status, status])
+    // TODO: write query
+    return query('INSERT INTO RSVPs (net_id, event_id, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE status = ?', [netId, eventId, status, status])
 }
 
 /**
@@ -205,8 +205,8 @@ export async function upsertRsvp(netId, eventId, status) {
  * TODO: write query
  */
 export async function getKioskEvents(limit = 10) {
-  // TODO: write query
-  return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > NOW() ORDER BY e.start_time ASC LIMIT ?', [limit])
+    // TODO: write query
+    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > NOW() ORDER BY e.start_time ASC LIMIT ?', [limit])
 }
 
 /**
@@ -217,19 +217,101 @@ export async function getKioskEvents(limit = 10) {
  * TODO: write query
  */
 export async function setEventTags(eventId, tagNames) {
-  // TODO: write query
-  if (tagNames.length === 0) {
-    return query('DELETE FROM Event_Tags WHERE event_id = ?', [eventId])
-  }
-  const insertTagsQuery = 'INSERT IGNORE INTO Tags (tag_name) VALUES ?'
-  const tagValues = tagNames.map(tag => [tag])
-  await query(insertTagsQuery, [tagValues])
+    // TODO: write query
+    if (tagNames.length === 0) {
+        return query('DELETE FROM Event_Tags WHERE event_id = ?', [eventId])
+    }
+    const insertTagsQuery = 'INSERT IGNORE INTO Tags (tag_name) VALUES ?'
+    const tagValues = tagNames.map(tag => [tag])
+    await query(insertTagsQuery, [tagValues])
 
-  await query('DELETE FROM Event_Tags WHERE event_id = ?', [eventId])
+    await query('DELETE FROM Event_Tags WHERE event_id = ?', [eventId])
 
-  const insertEventTagsQuery = 'INSERT INTO Event_Tags (event_id, tag_name) VALUES ?'
-  const eventTagValues = tagNames.map(tag => [eventId, tag])
-  await query(insertEventTagsQuery, [eventTagValues])
+    const insertEventTagsQuery = 'INSERT INTO Event_Tags (event_id, tag_name) VALUES ?'
+    const eventTagValues = tagNames.map(tag => [eventId, tag])
+    await query(insertEventTagsQuery, [eventTagValues])
+}
+
+/**
+ * All events for a given RSO (used by the dashboard).
+ * @param {number} rsoId
+ * @returns {Promise<Array<{ event_id, title, description, start_time, end_time, is_private, rso_name, building, room_number, max_capacity, tags }>>}
+ * TODO: write query
+ */
+export async function getEventsByRso(rsoId) {
+    // TODO: write query
+    return query('SELECT e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, r.name AS rso_name, l.building, l.room_number, l.max_capacity, GROUP_CONCAT(t.tag_name) AS tags FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id JOIN Locations l ON e.location_id = l.location_id LEFT JOIN Event_Tags et ON e.event_id = et.event_id LEFT JOIN Tags t ON et.tag_name = t.tag_name WHERE e.rso_id = ? GROUP BY e.event_id ORDER BY e.start_time ASC', [rsoId])
+}
+
+/**
+ * Total count of public events matching the given filters (no LIMIT/OFFSET).
+ * @param {{ keyword?: string, startDate?: string, endDate?: string, tags?: string[] }} filters
+ * @returns {Promise<[{ total: number }]>}
+ * TODO: write query
+ */
+export async function countPublicEvents(filters = {}) {
+    // TODO: write query
+    const { keyword = null, startDate = null, endDate = null, tags: rawTags = [] } = filters
+    const tag = rawTags[0] ?? null
+    return query(
+        `
+  SELECT COUNT(DISTINCT e.event_id) AS total
+  FROM Events e
+  JOIN RSOs r ON e.rso_id = r.rso_id
+  JOIN Locations l ON e.location_id = l.location_id
+  LEFT JOIN Event_Tags et ON e.event_id = et.event_id
+  LEFT JOIN Tags t ON et.tag_name = t.tag_name
+  WHERE e.is_private = FALSE
+    AND (
+        ? IS NULL OR
+        e.title LIKE CONCAT('%', ?, '%') OR
+        e.description LIKE CONCAT('%', ?, '%')
+    )
+    AND (
+        (? IS NULL OR e.start_time >= ?) AND
+        (? IS NULL OR e.start_time <= ?)
+    )
+    AND (
+        ? IS NULL OR t.tag_name = ?
+    )
+  `,
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag]
+    )
+}
+
+/**
+ * Total count of all events (public + private) matching the given filters (no LIMIT/OFFSET).
+ * @param {{ keyword?: string, startDate?: string, endDate?: string, tags?: string[] }} filters
+ * @returns {Promise<[{ total: number }]>}
+ * TODO: write query
+ */
+export async function countAllEvents(filters = {}) {
+    const { keyword = null, startDate = null, endDate = null, tags: rawTags = [] } = filters
+    const tag = rawTags[0] ?? null
+    return query(
+        `
+  SELECT COUNT(DISTINCT e.event_id) AS total
+  FROM Events e
+  JOIN RSOs r ON e.rso_id = r.rso_id
+  JOIN Locations l ON e.location_id = l.location_id
+  LEFT JOIN Event_Tags et ON e.event_id = et.event_id
+  LEFT JOIN Tags t ON et.tag_name = t.tag_name
+  WHERE
+    (
+        ? IS NULL OR
+        e.title LIKE CONCAT('%', ?, '%') OR
+        e.description LIKE CONCAT('%', ?, '%')
+    )
+    AND (
+        (? IS NULL OR e.start_time >= ?) AND
+        (? IS NULL OR e.start_time <= ?)
+    )
+    AND (
+        ? IS NULL OR t.tag_name = ?
+    )
+  `,
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag]
+    )
 }
 
 /**
@@ -238,6 +320,6 @@ export async function setEventTags(eventId, tagNames) {
  * @returns {Promise<Array<{ status: string, count: number }>>}
  */
 export async function getEventRsvpCounts(eventId) {
-  // TODO: write query
-  return query('SELECT status, COUNT(*) AS count FROM RSVPs WHERE event_id = ? GROUP BY status', [eventId])
+    // TODO: write query
+    return query('SELECT status, COUNT(*) AS count FROM RSVPs WHERE event_id = ? GROUP BY status', [eventId])
 }

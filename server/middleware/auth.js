@@ -92,7 +92,7 @@ export function requireGlobalAdmin(req, res, next) {
 }
 
 /**
- * Require the user to be an Admin or Board member of the specified RSO.
+ * Require the user to be a Board member of the specified RSO.
  * Global admins bypass the RSO membership check entirely.
  * Reads rso_id from req.params.id when available; falls back to req.params.rsoId.
  */
@@ -102,12 +102,26 @@ export function requireRSOAdmin(req, res, next) {
   const rsoId = parseInt(req.params.id || req.params.rsoId);
   if (!rsoId) return res.status(400).json({ error: 'RSO ID required' });
   checkRsoAdmin(req.user.net_id, rsoId)
-    .then(ok => ok ? next() : res.status(403).json({ error: 'RSO admin access required' }))
+    .then(ok => ok ? next() : res.status(403).json({ error: 'RSO board access required' }))
     .catch(next);
 }
 
 /**
- * Programmatic RSO admin check (used in controllers when rso_id is in the body).
+ * Require the user to be a Board member or Editor of the specified RSO.
+ * Used to gate event CRUD — Editors can manage events but not members/details.
+ */
+export function requireRSOEditor(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  if (req.user.is_global_admin) return next();
+  const rsoId = parseInt(req.params.id || req.params.rsoId);
+  if (!rsoId) return res.status(400).json({ error: 'RSO ID required' });
+  checkRsoEditor(req.user.net_id, rsoId)
+    .then(ok => ok ? next() : res.status(403).json({ error: 'RSO editor access required' }))
+    .catch(next);
+}
+
+/**
+ * Programmatic Board-only check (manage members, RSO details).
  * @param {string} netId
  * @param {number} rsoId
  * @returns {Promise<boolean>}
@@ -116,7 +130,23 @@ export async function checkRsoAdmin(netId, rsoId) {
   const { getMembership } = await import('../db/queries/rso.js');
   try {
     const membership = await getMembership(netId, rsoId);
-    return membership && ['Admin', 'Board'].includes(membership.role);
+    return membership?.role === 'Board';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Programmatic Board-or-Editor check (manage events).
+ * @param {string} netId
+ * @param {number} rsoId
+ * @returns {Promise<boolean>}
+ */
+export async function checkRsoEditor(netId, rsoId) {
+  const { getMembership } = await import('../db/queries/rso.js');
+  try {
+    const membership = await getMembership(netId, rsoId);
+    return membership && ['Board', 'Editor'].includes(membership.role);
   } catch {
     return false;
   }

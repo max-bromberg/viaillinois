@@ -21,8 +21,9 @@ export const routeParams = writable(matchRoute(window.location.pathname)?.params
 
 export function navigate(to) {
   history.pushState({}, '', to);
-  currentPath.set(to);
-  routeParams.set(matchRoute(to)?.params ?? {});
+  const pathname = to.split('?')[0];
+  currentPath.set(pathname);
+  routeParams.set(matchRoute(pathname)?.params ?? {});
 }
 
 window.addEventListener('popstate', () => {

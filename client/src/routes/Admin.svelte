@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { navigate } from '../lib/router.js';
   import { isGlobalAdmin } from '../stores/auth.js';
-  import { getRsos, getRso, createRso, updateRso, addMember, removeMember } from '../api/rsos.js';
+  import { getRsos, getRso, createRso, updateRso, deleteRso, addMember, removeMember } from '../api/rsos.js';
   import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser } from '../api/admin.js';
   import { showToast } from '../stores/ui.js';
   import { getAdminMidterms, updateMidtermStatus } from '../api/midterms.js';
@@ -17,6 +17,7 @@
   let midterms = [];
   let midtermsLoading = false;
   let midtermsLoaded = false;
+  let midtermsStatusFilter = 'Pending';
 
   // ── RSOs tab state ────────────────────────────────────────────────────────
   let rsos = [];
@@ -29,6 +30,7 @@
 
   let rsoForm = { name: '', description: '', logo_color: '#000000', founded_year: '' };
   let memberForm = { netId: '', role: 'Member' };
+  let confirmDeleteRsoId = null; // rso_id pending delete confirmation
 
   // ── Users tab state ───────────────────────────────────────────────────────
   let users = [];
@@ -81,6 +83,19 @@
       logo_color: rso.logo_color || '#000000',
       founded_year: rso.founded_year || '',
     };
+  }
+
+  async function handleDeleteRso(rsoId) {
+    try {
+      await deleteRso(rsoId);
+      showToast('RSO deleted');
+      confirmDeleteRsoId = null;
+      editingRsoId = null;
+      managingRsoId = null;
+      await loadRsos();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
   }
 
   async function handleUpdateRso(rsoId) {
@@ -364,7 +379,7 @@
                       <span class="ml-2 text-xs text-muted-foreground">est. {rso.founded_year}</span>
                     {/if}
                   </div>
-                  <div class="flex gap-2 ml-4 flex-shrink-0">
+                  <div class="flex gap-2 ml-4 flex-shrink-0 flex-wrap">
                     <button
                       class="px-3 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors
                         {editingRsoId === rso.rso_id ? 'bg-accent' : ''}"
@@ -382,6 +397,24 @@
                     >
                       {managingRsoId === rso.rso_id ? 'Close Members' : 'Manage Members'}
                     </button>
+                    {#if confirmDeleteRsoId === rso.rso_id}
+                      <span class="flex items-center gap-1.5">
+                        <span class="text-xs text-destructive font-medium">Delete RSO?</span>
+                        <button
+                          class="px-2.5 py-1.5 text-xs bg-destructive text-white rounded-md hover:bg-destructive/90 transition-colors"
+                          on:click={() => handleDeleteRso(rso.rso_id)}
+                        >Yes, delete</button>
+                        <button
+                          class="px-2.5 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors"
+                          on:click={() => confirmDeleteRsoId = null}
+                        >Cancel</button>
+                      </span>
+                    {:else}
+                      <button
+                        class="px-3 py-1.5 text-xs border border-destructive/50 text-destructive rounded-md hover:bg-destructive/10 transition-colors"
+                        on:click={() => { confirmDeleteRsoId = rso.rso_id; editingRsoId = null; managingRsoId = null; }}
+                      >Delete</button>
+                    {/if}
                   </div>
                 </div>
 
@@ -485,8 +518,8 @@
                             bind:value={memberForm.role}
                           >
                             <option value="Member">Member</option>
+                            <option value="Editor">Editor</option>
                             <option value="Board">Board</option>
-                            <option value="Admin">Admin</option>
                           </select>
                           <button
                             class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
@@ -687,33 +720,71 @@
     <!-- ── Midterms Tab ──────────────────────────────────────────────────── -->
     {#if activeTab === 'midterms'}
       <div class="space-y-4">
-        <p class="text-sm text-muted-foreground">
-          {midtermsLoading ? 'Loading…' : `${midterms.length} midterm${midterms.length !== 1 ? 's' : ''}`}
-        </p>
+        <!-- Status filter pills -->
+        <div class="flex items-center gap-2 flex-wrap">
+          {#each ['Pending', 'Confirmed', 'Cancelled', 'All'] as f}
+            {@const count = f === 'All' ? midterms.length : midterms.filter(m => (m.confirmation_status ?? 'Pending') === f).length}
+            <button
+              class="text-xs px-3 py-1 rounded-full border transition-colors
+                {midtermsStatusFilter === f
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border hover:bg-accent text-muted-foreground'}"
+              on:click={() => midtermsStatusFilter = f}
+            >{f} {#if !midtermsLoading}<span class="opacity-70">({count})</span>{/if}</button>
+          {/each}
+        </div>
 
         {#if midtermsLoading}
           <p class="text-sm text-muted-foreground py-4">Loading midterms…</p>
-        {:else if midterms.length === 0}
-          <p class="text-sm text-muted-foreground py-4">No midterms submitted yet.</p>
         {:else}
+          {@const filtered = midtermsStatusFilter === 'All'
+            ? midterms
+            : midterms.filter(m => (m.confirmation_status ?? 'Pending') === midtermsStatusFilter)}
+          {#if filtered.length === 0}
+            <p class="text-sm text-muted-foreground py-4">
+              {midterms.length === 0 ? 'No midterms submitted yet.' : `No ${midtermsStatusFilter.toLowerCase()} midterms.`}
+            </p>
+          {:else}
           <div class="space-y-2">
-            {#each midterms as mt (mt.midterm_id)}
+            {#each filtered as mt (mt.midterm_id)}
               <div class="border rounded-lg bg-card shadow-sm">
-                <div class="flex items-center justify-between px-4 py-3 flex-wrap gap-2">
-                  <div class="min-w-0">
-                    <span class="font-medium text-sm">{mt.title}</span>
-                    <span class="ml-2 text-xs text-muted-foreground">{mt.course_code}</span>
-                    <span class="ml-2 text-xs text-muted-foreground">
-                      {new Date(mt.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                    <span class="ml-2 text-xs px-1.5 py-0.5 rounded
-                      {mt.confirmation_status === 'Confirmed' ? 'bg-teal-500/20 text-teal-700' :
-                       mt.confirmation_status === 'Cancelled' ? 'bg-destructive/10 text-destructive' :
-                       'bg-muted text-muted-foreground'}">
-                      {mt.confirmation_status ?? 'Pending'}
-                    </span>
+                <div class="flex items-start justify-between px-4 py-3 flex-wrap gap-3">
+                  <!-- Details -->
+                  <div class="min-w-0 space-y-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-medium text-sm">{mt.title}</span>
+                      <span class="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{mt.course_code}</span>
+                      {#if mt.course_title}
+                        <span class="text-xs text-muted-foreground">{mt.course_title}</span>
+                      {/if}
+                      <span class="text-xs px-1.5 py-0.5 rounded
+                        {mt.confirmation_status === 'Confirmed' ? 'bg-teal-500/20 text-teal-700 dark:text-teal-400' :
+                         mt.confirmation_status === 'Cancelled' ? 'bg-destructive/10 text-destructive' :
+                         'bg-muted text-muted-foreground'}">
+                        {mt.confirmation_status ?? 'Pending'}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+                      <span>
+                        {new Date(mt.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                        ·
+                        {new Date(mt.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        –
+                        {new Date(mt.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                      {#if mt.building}
+                        <span>{mt.building} · {mt.room_number}</span>
+                      {/if}
+                      {#if mt.submitted_by}
+                        <span>Submitted by <span class="font-medium text-foreground">{mt.submitted_by}</span></span>
+                      {/if}
+                      <span class="flex items-center gap-1">
+                        <span class="text-foreground font-medium">{mt.score > 0 ? '+' : ''}{mt.score ?? 0}</span> votes
+                      </span>
+                    </div>
                   </div>
-                  <div class="flex gap-2 flex-shrink-0">
+                  <!-- Actions -->
+                  <div class="flex gap-2 flex-shrink-0 flex-wrap">
                     {#if mt.confirmation_status !== 'Confirmed'}
                       <button
                         class="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
@@ -737,6 +808,7 @@
               </div>
             {/each}
           </div>
+          {/if}
         {/if}
       </div>
     {/if}

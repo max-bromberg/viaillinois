@@ -143,3 +143,14 @@ export async function createRso(data) {
   // TODO: write query
   return query('INSERT INTO RSOs (name, description, logo_color, founded_year) VALUES (?, ?, ?, ?)', [data.name, data.description, data.logo_color, data.founded_year])
 }
+
+/**
+ * Delete an RSO and all associated data (members, events, tags).
+ * @param {number} rsoId
+ * @returns {Promise<{ affectedRows: number }>}
+ * TODO: write query
+ */
+export async function deleteRso(rsoId) {
+  // TODO: write query
+  return query('DELETE FROM RSOs WHERE rso_id = ?', [rsoId])
+}
