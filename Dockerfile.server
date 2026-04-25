@@ -12,7 +12,14 @@ FROM node:22-slim
 WORKDIR /app/server
 COPY server/package*.json ./
 RUN npm ci --omit=dev
-RUN npx playwright install --with-deps chromium
+# Install system deps for Chromium first (requires apt-get update on slim),
+# then install the browser binary separately. Splitting the two steps avoids
+# the retry loop that occurs when --with-deps tries apt-get on an un-updated
+# slim image and silently fails, causing playwright to re-download the browser.
+RUN apt-get update && \
+    npx playwright install-deps chromium && \
+    rm -rf /var/lib/apt/lists/*
+RUN npx playwright install chromium
 COPY server/ ./
 # Place built frontend where app.js expects it
 COPY --from=client-build /app/client/dist ../client/dist
