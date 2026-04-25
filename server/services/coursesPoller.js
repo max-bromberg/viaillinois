@@ -22,8 +22,29 @@
 import { parseStringPromise } from 'xml2js';
 import { upsertLocation } from '../db/queries/locations.js';
 import { upsertCourse, upsertSection } from '../db/queries/courses.js';
+import { resolveBuilding, resolveRoom } from '../lib/locationNormalizer.js';
+import { runWithLogging } from '../lib/pollerUtils.js';
 
 const BASE_URL = 'https://courses.illinois.edu/cisapp/explorer/schedule';
+
+// Delay between individual HTTP requests to avoid triggering rate limits.
+const REQUEST_DELAY_MS = parseInt(process.env.COURSES_REQUEST_DELAY_MS) || 200;
+const MAX_RETRIES      = 2;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry on 429 (rate-limit) and 5xx (transient server errors); throw immediately on other 4xx.
+function isRetryable(e) {
+  const m = e.message ?? '';
+  if (m === 'Poller stopped' || m.startsWith('Timeout')) return false;
+  const httpCode = m.match(/HTTP (\d{3})/)?.[1];
+  if (!httpCode) return true;           // network-level error → retry
+  if (httpCode === '429') return true;
+  if (httpCode[0] === '5') return true;
+  return false;                         // 4xx (except 429) → fail immediately
+}
 
 // Convert "10:00 AM" / "10:50 PM" → "10:00:00" / "22:50:00" for MySQL TIME columns
 function toMysqlTime(apiTime) {
@@ -39,6 +60,28 @@ function toMysqlTime(apiTime) {
 }
 const SUBJECTS = ['ECE', 'CS', 'MATH', 'PHYS', 'IE', 'TAM', 'STAT'];
 const DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Safely coerce an xml2js value to a plain string. */
+function str(val) {
+  if (!val && val !== 0) return '';
+  if (typeof val === 'object') return val._ ?? '';
+  return String(val);
+}
+
+/**
+ * Normalize Course Explorer meeting type strings to the canonical set stored in DB.
+ * Source values seen in the wild: "Lecture", "Discussion", "Laboratory",
+ * "Lecture-Discussion", "Discussion/Recitation", "Online", "Individual Instruction", etc.
+ */
+function normalizeSectionType(raw) {
+  if (!raw) return 'other';
+  const s = str(raw).toLowerCase();
+  if (s.includes('lecture')) return 'lecture';
+  if (s.includes('lab')) return 'lab';
+  if (s.includes('discussion') || s.includes('recitation')) return 'discussion';
+  if (s.includes('online') || s.includes('web')) return 'online';
+  return 'other';
+}
 
 // ---------------------------------------------------------------------------
 // Semester detection
@@ -62,11 +105,10 @@ export function currentSemester(now = new Date()) {
 
 const FETCH_TIMEOUT_MS = 15_000;
 
-async function fetchXml(url, abortSignal) {
+async function fetchXmlOnce(url, abortSignal) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  // If the poller is stopped, abort this fetch too
-  const onStop = () => controller.abort();
+  const timer      = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const onStop     = () => controller.abort();
   abortSignal?.addEventListener('abort', onStop, { once: true });
   try {
     const res = await fetch(url, { signal: controller.signal });
@@ -84,13 +126,29 @@ async function fetchXml(url, abortSignal) {
   }
 }
 
+async function fetchXml(url, abortSignal) {
+  let lastErr;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (abortSignal?.aborted) throw new Error('Poller stopped');
+    if (attempt > 0) await sleep(REQUEST_DELAY_MS * (1 << attempt)); // 400ms, 800ms
+    try {
+      return await fetchXmlOnce(url, abortSignal);
+    } catch (e) {
+      if (!isRetryable(e)) throw e;
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
 // ---------------------------------------------------------------------------
 // One full sync cycle
 // ---------------------------------------------------------------------------
 
 export async function runOnce(signal) {
-  const { year, semester } = currentSemester();
-  console.log(`[courses] syncing ${semester} ${year} (subjects: ${SUBJECTS.join(', ')})`);
+  const { year, semester: semType } = currentSemester();
+  const semester = `${semType} ${year}`; // e.g. "spring 2026" — year needed to distinguish across academic years
+  console.log(`[courses] syncing ${semester} (subjects: ${SUBJECTS.join(', ')})`);
 
   let totalCourses = 0;
   let totalSections = 0;
@@ -100,7 +158,7 @@ export async function runOnce(signal) {
     if (signal?.aborted) break;
     try {
       console.log(`[courses] fetching subject ${subject}...`);
-      const subjectData = await fetchXml(`${BASE_URL}/${year}/${semester}/${subject}.xml`, signal);
+      const subjectData = await fetchXml(`${BASE_URL}/${year}/${semType}/${subject}.xml`, signal);
       const raw = subjectData?.['ns2:subject']?.courses?.course;
       if (!raw) { console.log(`[courses] ${subject}: no courses found in response`); continue; }
 
@@ -127,7 +185,8 @@ export async function runOnce(signal) {
         // Fetch sections
         console.log(`[courses] ${courseCode}: fetching sections...`);
         try {
-          const courseData = await fetchXml(`${BASE_URL}/${year}/${semester}/${subject}/${course.$.id}.xml`, signal);
+          await sleep(REQUEST_DELAY_MS);
+          const courseData = await fetchXml(`${BASE_URL}/${year}/${semType}/${subject}/${course.$.id}.xml`, signal);
           const rawSectionRefs = courseData?.['ns2:course']?.sections?.section;
           if (!rawSectionRefs) continue;
 
@@ -139,6 +198,7 @@ export async function runOnce(signal) {
             if (signal?.aborted) break;
             let sectionData;
             try {
+              await sleep(REQUEST_DELAY_MS);
               sectionData = await fetchXml(sectionUrl, signal);
             } catch (e) {
               console.warn(`[courses] ${courseCode}: failed to fetch section — ${e.message}`);
@@ -153,16 +213,25 @@ export async function runOnce(signal) {
             const meetings = Array.isArray(rawMeetings) ? rawMeetings : [rawMeetings];
 
             for (const meeting of meetings) {
-              const building    = meeting.buildingName  || 'Unknown';
-              const roomNumber  = meeting.roomNumber     || '000';
-              const startTime   = toMysqlTime(meeting.start);
-              const endTime     = toMysqlTime(meeting.end);
-              const daysOfWeek  = meeting.daysOfTheWeek  || 'TBA';
-              const capacity    = parseInt(meeting.roomCapacity || '30');
+              const buildingRaw = str(meeting.buildingName);
+              const roomRaw     = str(meeting.roomNumber);
+              const startRaw    = str(meeting.start);
+              const endRaw      = str(meeting.end);
+
+              // Skip ARRANGED or otherwise incomplete meetings — they have no usable location or time
+              if (!buildingRaw || !roomRaw || !startRaw || startRaw === 'ARRANGED' || !endRaw) continue;
+
+              const building     = resolveBuilding(buildingRaw);
+              const roomNumber   = resolveRoom(roomRaw);
+              const startTime    = toMysqlTime(startRaw);
+              const endTime      = toMysqlTime(endRaw);
+              const daysOfWeek   = str(meeting.daysOfTheWeek) || 'TBA';
+              const capacity     = parseInt(str(meeting.roomCapacity) || '30');
+              const sectionType  = normalizeSectionType(meeting.type);
 
               try {
                 const locationId = await upsertLocation(building, roomNumber, capacity);
-                await upsertSection(courseCode, locationId, daysOfWeek, startTime, endTime, semester);
+                await upsertSection(courseCode, locationId, daysOfWeek, startTime, endTime, semester, sectionType);
                 totalSections++;
               } catch (e) {
                 if (!e.message.includes('Not implemented')) {
@@ -198,16 +267,21 @@ let _abortController = null;
 async function tick(signal) {
   const start = Date.now();
   try {
-    const { year, semester, totalCourses, totalSections, totalErrors } = await runOnce(signal);
+    const result = await runWithLogging('courses', () => runOnce(signal));
     if (signal?.aborted) return;
     const elapsed = Date.now() - start;
+    const { totalCourses = 0, totalSections = 0, totalErrors = 0 } = result ?? {};
     console.log(
-      `[courses] poll complete — ${semester} ${year}: ` +
-      `${totalCourses} courses, ${totalSections} sections, ${totalErrors} errors (${elapsed}ms)`
+      `[courses] poll complete — ${totalCourses} courses, ${totalSections} sections, ` +
+      `${totalErrors} errors (${elapsed}ms)`
     );
   } catch (err) {
     if (!signal?.aborted) console.error(`[courses] poll error: ${err.message}`);
   }
+}
+
+export function isRunning() {
+  return _inFlight !== null;
 }
 
 /**
@@ -241,4 +315,4 @@ export async function stop() {
   console.log('[courses] poller stopped');
 }
 
-export default { start, stop, runOnce };
+export default { start, stop, runOnce, isRunning };

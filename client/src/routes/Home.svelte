@@ -6,6 +6,7 @@
   import TagFilter from '../lib/TagFilter.svelte';
   import EventCardSkeleton from '../lib/EventCardSkeleton.svelte';
   import Pagination from '../lib/Pagination.svelte';
+  import UpdatesWidget from '../lib/UpdatesWidget.svelte';
 
   const PAGE_SIZE = 18;
 
@@ -126,7 +127,10 @@
 </svelte:head>
 
 <div class="flex flex-col gap-4 md:flex-row md:gap-6">
-  <TagFilter {rsos} on:change={handleFiltersChange} />
+  <div class="flex flex-col gap-4 w-full md:w-56 md:shrink-0">
+    <TagFilter {rsos} on:change={handleFiltersChange} />
+    <UpdatesWidget />
+  </div>
 
   <div class="flex-1 space-y-4">
     <h1 class="text-2xl font-bold">Upcoming Events</h1>

@@ -5,6 +5,7 @@
   import { getRsos } from '../api/rsos.js';
   import { navigate } from '../lib/router.js';
   import CalendarFilter from '../lib/CalendarFilter.svelte';
+  import UpdatesWidget from '../lib/UpdatesWidget.svelte';
   import WeekTimeGrid from '../lib/WeekTimeGrid.svelte';
 
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -220,16 +221,19 @@
 </svelte:head>
 
 <div class="flex flex-col gap-4 md:flex-row md:gap-6">
-  <!-- Left sidebar filter -->
-  <CalendarFilter
-    {keyword}
-    {selectedTags}
-    {rsos}
-    {selectedRsoIds}
-    {showMidterms}
-    {showInternal}
-    on:change={handleFilterChange}
-  />
+  <!-- Left sidebar: filter + updates widget -->
+  <div class="flex flex-col gap-4 w-full md:w-56 md:shrink-0">
+    <CalendarFilter
+      {keyword}
+      {selectedTags}
+      {rsos}
+      {selectedRsoIds}
+      {showMidterms}
+      {showInternal}
+      on:change={handleFilterChange}
+    />
+    <UpdatesWidget />
+  </div>
 
   <!-- Main calendar area -->
   <div class="flex-1 space-y-3 min-w-0">

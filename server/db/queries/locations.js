@@ -31,12 +31,12 @@ export async function upsertLocation(building, roomNumber, capacity = 30) {
 export async function getOccupiedDuring(startTime, endTime, excludeEventId) {
   // TODO: write query
   let eventCondition = ''
-  const params = [startTime, endTime]
+  const params = [endTime, startTime]
   if (excludeEventId !== undefined) {
     eventCondition = 'AND event_id <> ?'
     params.push(excludeEventId)
   }
-  params.push(startTime, endTime)
+  params.push(endTime, startTime)
   return query(
     `
     SELECT DISTINCT location_id FROM (
@@ -59,7 +59,7 @@ export async function getOccupiedDuring(startTime, endTime, excludeEventId) {
  * @returns {Promise<Array<{ location_id, building, room_number, max_capacity, has_av_equipment, weekly_usage }>>}
  * TODO: write query
  */
-export async function getByCapacity(minCapacity, requiresAV) {
+export async function getByCapacity(minCapacity, requiresAV = false) {
   // TODO: write query
   return query(
   `

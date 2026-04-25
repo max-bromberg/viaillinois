@@ -35,7 +35,7 @@
 <div class="min-h-[80vh] flex items-center justify-center">
   <div class="w-full max-w-sm space-y-6">
     <div class="text-center space-y-2">
-      <h1 class="text-3xl font-bold tracking-tight">VIA</h1>
+      <img src="/via_logo_black.svg" alt="VIA" class="h-10 w-auto mx-auto" />
       <p class="text-muted-foreground text-sm">Virtually Integrated Agenda</p>
     </div>
 
@@ -54,8 +54,8 @@
       {#if showLocalForm}
         <form on:submit|preventDefault={loginLocal} class="space-y-3 pt-2 border-t">
           <div class="space-y-1">
-            <Label htmlFor="netId">Net ID</Label>
-            <Input id="netId" bind:value={netId} placeholder="netid" autocomplete="username" required />
+            <Label htmlFor="netId">Username</Label>
+            <Input id="netId" bind:value={netId} placeholder="username" autocomplete="username" required />
           </div>
           <div class="space-y-1">
             <Label htmlFor="password">Password</Label>

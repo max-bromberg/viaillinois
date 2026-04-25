@@ -37,6 +37,7 @@
       <a href="/"          on:click|preventDefault={() => go('/')}          class="text-sm text-muted-foreground hover:text-foreground transition-colors">Events</a>
       <a href="/calendar"  on:click|preventDefault={() => go('/calendar')}  class="text-sm text-muted-foreground hover:text-foreground transition-colors">Calendar</a>
       <a href="/midterms"  on:click|preventDefault={() => go('/midterms')}  class="text-sm text-muted-foreground hover:text-foreground transition-colors">Midterms</a>
+      <a href="/updates"   on:click|preventDefault={() => go('/updates')}   class="text-sm text-muted-foreground hover:text-foreground transition-colors">Updates</a>
       <a href="/about"     on:click|preventDefault={() => go('/about')}     class="text-sm text-muted-foreground hover:text-foreground transition-colors">About</a>
       {#if $currentUser}
         <a href="/dashboard" on:click|preventDefault={() => go('/dashboard')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Dashboard</a>
@@ -120,6 +121,7 @@
         <a href="/"          on:click|preventDefault={() => go('/')}          class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Events</a>
         <a href="/calendar"  on:click|preventDefault={() => go('/calendar')}  class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Calendar</a>
         <a href="/midterms"  on:click|preventDefault={() => go('/midterms')}  class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Midterms</a>
+        <a href="/updates"   on:click|preventDefault={() => go('/updates')}   class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Updates</a>
         <a href="/about"     on:click|preventDefault={() => go('/about')}     class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">About</a>
         {#if $currentUser}
           <a href="/dashboard" on:click|preventDefault={() => go('/dashboard')} class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Dashboard</a>

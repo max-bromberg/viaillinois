@@ -4,14 +4,15 @@
  * Continuously fetches UIUC room reservation data from the Facilities Tableau
  * dashboard and keeps Locations + Facility_Reservations in sync.
  *
- * Source: https://tableau.admin.uillinois.edu/views/DailyEventSummary/DailyEvents.csv
+ * Source: https://tableau.admin.uillinois.edu/views/DailyEventSummary/DailyEvents
+ *   (driven via headless Playwright session — see tableauSession.js)
  *
  * Lifecycle — called from server/index.js:
  *   facilitiesPoller.start()   // kicks off immediately, then repeats on interval
  *   facilitiesPoller.stop()    // clears the interval; awaitable to let in-flight cycle finish
  *
  * Configuration (env vars):
- *   FACILITIES_POLL_INTERVAL_MS   Poll frequency (default: 900000 = 15 minutes)
+ *   FACILITIES_POLL_INTERVAL_MS   Poll frequency (default: 14400000 = 4 hours)
  *
  * Data quirks:
  *   StartTime column uses Tableau's epoch artifact — the date is always "12/30/1899";
@@ -26,8 +27,11 @@ import {
   countReservations,
 } from '../db/queries/facilityReservations.js';
 
-const CSV_URL = 'https://tableau.admin.uillinois.edu/views/DailyEventSummary/DailyEvents.csv';
-const DEFAULT_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+import { downloadTableauCsv } from './tableauSession.js';
+import { resolveBuilding, resolveRoom } from '../lib/locationNormalizer.js';
+import { runWithLogging } from '../lib/pollerUtils.js';
+
+const DEFAULT_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 // ---------------------------------------------------------------------------
 // CSV parsing
@@ -106,9 +110,8 @@ function parseEndTime(endTimeStr) {
 // ---------------------------------------------------------------------------
 
 export async function runOnce() {
-  const res = await fetch(CSV_URL);
-  if (!res.ok) throw new Error(`Tableau CSV responded ${res.status}`);
-  const rows = parseCsv(await res.text());
+  const csvText = await downloadTableauCsv();
+  const rows = parseCsv(csvText);
 
   if (rows.length === 0) {
     console.log('[facilities] No rows returned from Tableau');
@@ -125,8 +128,8 @@ export async function runOnce() {
   let skipped = 0;
 
   for (const row of rows) {
-    const building    = row['Building']  || '';
-    const room        = row['Room']      || '';
+    const building    = resolveBuilding(row['Building']  || '');
+    const room        = resolveRoom(row['Room']      || '');
     const customer    = row['Customer']  || '';
     const eventName   = row['EventName'] || '';
     const startDate   = row['StartDate'] || '';
@@ -144,14 +147,16 @@ export async function runOnce() {
 
     try {
       const locationId = await upsertFacilityLocation(building, room);
-      await upsertReservation({
+      const result = await upsertReservation({
         location_id: locationId,
         customer,
         event_name: eventName,
         start_time: startTime,
         end_time:   endTime,
+        source:     'tableau',
       });
-      upserted++;
+      // affectedRows === 0 means INSERT IGNORE skipped a duplicate — correct behaviour
+      if (result?.affectedRows > 0) upserted++;
     } catch (e) {
       if (!e.message.includes('Not implemented')) {
         console.error(`[facilities] Row error (${building} ${room}): ${e.message}`);
@@ -174,7 +179,7 @@ let _inFlight = null; // Promise of the currently running cycle, if any
 async function tick() {
   const start = Date.now();
   try {
-    const { upserted, skipped } = await runOnce();
+    const { upserted, skipped } = await runWithLogging('facilities', runOnce);
     const elapsed = Date.now() - start;
 
     let total = '?';
@@ -184,6 +189,10 @@ async function tick() {
   } catch (err) {
     console.error(`[facilities] poll error: ${err.message}`);
   }
+}
+
+export function isRunning() {
+  return _inFlight !== null;
 }
 
 /**
@@ -215,4 +224,4 @@ export async function stop() {
   console.log('[facilities] poller stopped');
 }
 
-export default { start, stop, runOnce };
+export default { start, stop, runOnce, isRunning };

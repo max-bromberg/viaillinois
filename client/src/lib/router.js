@@ -1,7 +1,8 @@
 import { writable } from 'svelte/store';
 
 const ROUTES = [
-  { name: 'event-detail', pattern: /^\/events\/(\d+)$/, paramNames: ['id'] },
+  { name: 'event-detail',  pattern: /^\/events\/(\d+)$/,    paramNames: ['id'] },
+  { name: 'update-detail', pattern: /^\/updates\/([^/]+)$/, paramNames: ['slug'] },
 ];
 
 export function matchRoute(path) {

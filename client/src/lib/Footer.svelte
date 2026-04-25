@@ -23,6 +23,7 @@
           <a href="/"         on:click|preventDefault={() => navigate('/')}         class="text-sm text-muted-foreground hover:text-foreground transition-colors">Events</a>
           <a href="/calendar" on:click|preventDefault={() => navigate('/calendar')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Calendar</a>
           <a href="/midterms" on:click|preventDefault={() => navigate('/midterms')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Midterms</a>
+          <a href="/updates"  on:click|preventDefault={() => navigate('/updates')}  class="text-sm text-muted-foreground hover:text-foreground transition-colors">Updates</a>
           <a href="/about"    on:click|preventDefault={() => navigate('/about')}    class="text-sm text-muted-foreground hover:text-foreground transition-colors">About</a>
         </nav>
       </div>
@@ -42,9 +43,13 @@
       <p class="text-xs text-muted-foreground">
         &copy; {new Date().getFullYear()} VIA — Virtually Integrated Agenda
       </p>
-      <p class="text-xs text-muted-foreground">
-        Built with ♥ for Illinois ECE &nbsp;·&nbsp; v{__APP_VERSION__}
-      </p>
+      <div class="flex items-center gap-3 text-xs text-muted-foreground">
+        <a href="/terms"   on:click|preventDefault={() => navigate('/terms')}   class="hover:text-foreground transition-colors">Terms</a>
+        <span aria-hidden="true">·</span>
+        <a href="/privacy" on:click|preventDefault={() => navigate('/privacy')} class="hover:text-foreground transition-colors">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <span>Built with ♥ for Illinois ECE &nbsp;·&nbsp; v{__APP_VERSION__}</span>
+      </div>
     </div>
   </div>
 </footer>

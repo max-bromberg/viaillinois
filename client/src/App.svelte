@@ -14,9 +14,13 @@
   import Login       from './routes/Login.svelte';
   import Admin       from './routes/Admin.svelte';
   import Calendar    from './routes/Calendar.svelte';
-  import About       from './routes/About.svelte';
-  import Scheduler   from './routes/Scheduler.svelte';
-  import Poster      from './routes/Poster.svelte';
+  import About        from './routes/About.svelte';
+  import Scheduler    from './routes/Scheduler.svelte';
+  import Poster       from './routes/Poster.svelte';
+  import Updates      from './routes/Updates.svelte';
+  import UpdateDetail from './routes/UpdateDetail.svelte';
+  import Terms        from './routes/Terms.svelte';
+  import Privacy      from './routes/Privacy.svelte';
   import AppSkeleton from './lib/AppSkeleton.svelte';
   import Footer      from './lib/Footer.svelte';
   import { toast } from './stores/ui.js';
@@ -72,9 +76,9 @@
     </div>
   {/if}
 
-  <div class="min-h-screen bg-background/60 text-foreground relative z-10">
+  <div class="min-h-screen bg-background/60 text-foreground relative z-10 flex flex-col">
     <NavBar />
-    <main class="container mx-auto px-4 py-6">
+    <main class="container mx-auto px-4 py-6 flex-1">
       {#if $currentPath === '/'}
         <Home />
       {:else if $currentPath === '/dashboard'}
@@ -93,8 +97,16 @@
         <Scheduler />
       {:else if $currentPath === '/poster'}
         <Poster />
+      {:else if $currentPath === '/updates'}
+        <Updates />
+      {:else if dynamicRoute?.name === 'update-detail'}
+        <UpdateDetail slug={dynamicRoute.params.slug} />
       {:else if dynamicRoute?.name === 'event-detail'}
         <EventDetail id={parseInt(dynamicRoute.params.id)} />
+      {:else if $currentPath === '/terms'}
+        <Terms />
+      {:else if $currentPath === '/privacy'}
+        <Privacy />
       {/if}
     </main>
     <Footer />

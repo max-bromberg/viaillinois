@@ -3,7 +3,7 @@
   import { navigate } from '../lib/router.js';
   import { isGlobalAdmin } from '../stores/auth.js';
   import { getRsos, getRso, createRso, updateRso, deleteRso, addMember, removeMember } from '../api/rsos.js';
-  import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser } from '../api/admin.js';
+  import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser, getPollStatus, getPollHistory, getUnknownCodes, triggerPoll } from '../api/admin.js';
   import { showToast } from '../stores/ui.js';
   import { getAdminMidterms, updateMidtermStatus } from '../api/midterms.js';
 
@@ -44,9 +44,24 @@
   let editUserForm = { full_name: '', email: '' };
   let passwordForm = { password: '' };
 
+  // ── Data Sources tab state ────────────────────────────────────────────────
+  let pollStatus = [];
+  let pollLoading = false;
+  let pollLoaded = false;
+  let unknownCodes = [];
+  let unknownCodesLoaded = false;
+  let historyOpenFor = null;
+  let historyData = {};
+  let historyLoading = false;
+  let triggeringService = null;
+  let mappingFor = {};
+  let mappingOpen = {};
+  let expandedHistoryRow = {};
+
   // ── Load users when tab activates ─────────────────────────────────────────
   $: if (activeTab === 'users' && !usersLoaded) loadUsers();
   $: if (activeTab === 'midterms' && !midtermsLoaded) loadMidterms();
+  $: if (activeTab === 'dataSources' && !pollLoaded) loadPollStatus();
 
   // ── RSO functions ─────────────────────────────────────────────────────────
 
@@ -254,6 +269,109 @@
     }
   }
 
+  // ── Data Sources functions ────────────────────────────────────────────────
+
+  function relativeTime(isoStr) {
+    if (!isoStr) return '—';
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
+
+  function runDuration(startedAt, finishedAt) {
+    if (!startedAt || !finishedAt) return '—';
+    const ms = new Date(finishedAt) - new Date(startedAt);
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+  }
+
+  function statusBadge(run) {
+    if (!run) return { label: 'Never run', cls: 'bg-muted text-muted-foreground' };
+    if (!run.finished_at) return { label: 'In flight', cls: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' };
+    if (run.error_count > 0) return { label: 'Error', cls: 'bg-destructive/10 text-destructive' };
+    return { label: 'OK', cls: 'bg-teal-500/20 text-teal-700 dark:text-teal-400' };
+  }
+
+  async function loadPollStatus() {
+    pollLoading = true;
+    try {
+      const [{ pollStatus: data }, { unknownCodes: codes }] = await Promise.all([
+        getPollStatus(),
+        getUnknownCodes(),
+      ]);
+      pollStatus = data;
+      unknownCodes = codes;
+      pollLoaded = true;
+      unknownCodesLoaded = true;
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      pollLoading = false;
+    }
+  }
+
+  async function loadHistory(service) {
+    if (historyOpenFor === service) {
+      historyOpenFor = null;
+      const serviceLogIds = new Set((historyData[service] ?? []).map(r => String(r.log_id)));
+      expandedHistoryRow = Object.fromEntries(
+        Object.entries(expandedHistoryRow).filter(([id]) => !serviceLogIds.has(id))
+      );
+      return;
+    }
+    historyOpenFor = service;
+    if (historyData[service]) return;
+    historyLoading = true;
+    try {
+      const { history } = await getPollHistory(service);
+      historyData = { ...historyData, [service]: history };
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      historyLoading = false;
+    }
+  }
+
+  async function handleTrigger(service) {
+    triggeringService = service;
+    if (historyOpenFor === service) historyOpenFor = null;
+    try {
+      await triggerPoll(service);
+      showToast(`${service} poller started`);
+      pollLoaded = false;
+      historyData = { ...historyData, [service]: undefined };
+      await loadPollStatus();
+    } catch (e) {
+      const alreadyRunning = e.message?.includes('already running');
+      showToast(e.message, alreadyRunning ? 'success' : 'error');
+      if (alreadyRunning) await loadPollStatus();
+    } finally {
+      triggeringService = null;
+    }
+  }
+
+  function buildCodeLine(rawCode, canonicalName) {
+    if (!canonicalName.trim()) return '';
+    return `  '${rawCode}': '${canonicalName.trim()}',`;
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Copied to clipboard');
+    } catch {
+      showToast('Copy failed — select text manually', 'error');
+    }
+  }
+
+  const SERVICE_LABELS = { courses: 'Course Explorer', facilities: 'Facilities (Tableau)', astra: 'Ad Astra' };
+  const ALL_SERVICES = Object.keys(SERVICE_LABELS);
+
   // ── Init ──────────────────────────────────────────────────────────────────
   onMount(() => {
     loadRsos();
@@ -284,6 +402,10 @@
         class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'midterms' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
         on:click={() => activeTab = 'midterms'}
       >Midterms</button>
+      <button
+        class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'dataSources' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
+        on:click={() => activeTab = 'dataSources'}
+      >Data Sources</button>
     </div>
 
     <!-- ── RSOs Tab ───────────────────────────────────────────────────── -->
@@ -809,6 +931,196 @@
             {/each}
           </div>
           {/if}
+        {/if}
+      </div>
+    {/if}
+
+    <!-- ── Data Sources Tab ──────────────────────────────────────────────── -->
+    {#if activeTab === 'dataSources'}
+      <div class="space-y-6">
+
+        <!-- Run-now warning banner -->
+        <div class="rounded-md border border-yellow-400/40 bg-yellow-50/50 dark:bg-yellow-900/10 px-4 py-2.5 text-xs text-yellow-800 dark:text-yellow-300">
+          Manual runs are resource-intensive — trigger conservatively. The facilities poller uses a full Playwright browser session.
+        </div>
+
+        {#if pollLoading}
+          <p class="text-sm text-muted-foreground">Loading…</p>
+        {:else}
+          <!-- Summary cards -->
+          <div class="space-y-3">
+            {#each ALL_SERVICES as service}
+              {@const run = pollStatus.find(r => r.service === service) ?? null}
+              {@const badge = statusBadge(run)}
+              <div class="border rounded-lg bg-card shadow-sm">
+                <!-- Card header row -->
+                <div class="flex items-center justify-between px-4 py-3 flex-wrap gap-3">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="font-medium text-sm">{SERVICE_LABELS[service]}</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded font-medium {badge.cls}">{badge.label}</span>
+                    {#if run}
+                      <span class="text-xs text-muted-foreground">
+                        {run.finished_at ? relativeTime(run.finished_at) : `started ${relativeTime(run.started_at)}`}
+                      </span>
+                    {/if}
+                  </div>
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    {#if run}
+                      <span class="text-xs text-muted-foreground">
+                        {run.rows_processed} processed · {run.rows_skipped} skipped
+                        {#if run.error_count > 0}
+                          · <span class="text-destructive font-medium">{run.error_count} error{run.error_count !== 1 ? 's' : ''}</span>
+                        {/if}
+                      </span>
+                    {/if}
+                    <button
+                      class="px-3 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors
+                        {historyOpenFor === service ? 'bg-accent' : ''}"
+                      on:click={() => loadHistory(service)}
+                    >
+                      {historyOpenFor === service ? 'Hide History' : 'History'}
+                    </button>
+                    <button
+                      class="px-3 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors disabled:opacity-50"
+                      disabled={triggeringService === service}
+                      on:click={() => handleTrigger(service)}
+                    >
+                      {triggeringService === service ? 'Starting…' : 'Run now'}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Courses metadata -->
+                {#if run?.metadata?.totalCourses != null}
+                  <div class="border-t px-4 py-2 text-xs text-muted-foreground">
+                    {run.metadata.totalCourses} courses · {run.metadata.totalSections} sections
+                  </div>
+                {/if}
+
+                <!-- History panel -->
+                {#if historyOpenFor === service}
+                  <div class="border-t px-4 py-3">
+                    {#if historyLoading && !historyData[service]}
+                      <p class="text-sm text-muted-foreground">Loading history…</p>
+                    {:else if !historyData[service] || historyData[service].length === 0}
+                      <p class="text-sm text-muted-foreground">No history yet.</p>
+                    {:else}
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                          <thead>
+                            <tr class="text-left text-muted-foreground border-b">
+                              <th class="pb-1 pr-4 font-medium">Started</th>
+                              <th class="pb-1 pr-4 font-medium">Duration</th>
+                              <th class="pb-1 pr-4 font-medium">Processed</th>
+                              <th class="pb-1 pr-4 font-medium">Skipped</th>
+                              <th class="pb-1 pr-4 font-medium">Errors</th>
+                              <th class="pb-1 font-medium">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {#each historyData[service] as row (row.log_id)}
+                              {@const rowBadge = statusBadge(row)}
+                              <tr
+                                class="border-b last:border-0 {row.error_count > 0 || !row.finished_at ? 'bg-destructive/5 cursor-pointer' : ''}"
+                                on:click={() => {
+                                  if (row.error_count > 0 || !row.finished_at) {
+                                    expandedHistoryRow = { ...expandedHistoryRow, [row.log_id]: !expandedHistoryRow[row.log_id] };
+                                  }
+                                }}
+                              >
+                                <td class="py-1.5 pr-4">{new Date(row.started_at).toLocaleString()}</td>
+                                <td class="py-1.5 pr-4">{runDuration(row.started_at, row.finished_at)}</td>
+                                <td class="py-1.5 pr-4">{row.rows_processed}</td>
+                                <td class="py-1.5 pr-4">{row.rows_skipped}</td>
+                                <td class="py-1.5 pr-4 {row.error_count > 0 ? 'text-destructive font-medium' : ''}">{row.error_count}</td>
+                                <td class="py-1.5">
+                                  <span class="px-1.5 py-0.5 rounded text-xs {rowBadge.cls}">{rowBadge.label}</span>
+                                </td>
+                              </tr>
+                              {#if expandedHistoryRow[row.log_id] && row.last_error}
+                                <tr class="bg-destructive/5">
+                                  <td colspan="6" class="px-2 pb-2">
+                                    <pre class="text-xs text-destructive/80 whitespace-pre-wrap break-all">{row.last_error}</pre>
+                                  </td>
+                                </tr>
+                              {/if}
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+
+          <!-- Unknown Building Codes -->
+          <div class="space-y-3">
+            <h2 class="text-base font-semibold">Unknown Building Codes</h2>
+            {#if !unknownCodesLoaded}
+              <p class="text-sm text-muted-foreground">Loading…</p>
+            {:else if unknownCodes.length === 0}
+              <p class="text-sm text-muted-foreground">No unknown building codes recorded.</p>
+            {:else}
+              <p class="text-xs text-muted-foreground">
+                These codes were seen in poller data but are not in the static map in
+                <code class="font-mono bg-muted px-1 rounded">server/lib/locationNormalizer.js</code>.
+                Add the generated line to <code class="font-mono bg-muted px-1 rounded">BUILDING_CODE_MAP</code> in a future commit.
+              </p>
+              <div class="space-y-1.5">
+                {#each unknownCodes as uc (uc.raw_code)}
+                  <div class="border rounded-lg bg-card shadow-sm">
+                    <div class="flex items-center justify-between px-4 py-2.5 flex-wrap gap-2">
+                      <div class="flex items-center gap-4 min-w-0">
+                        <code class="font-mono text-sm font-medium">{uc.raw_code}</code>
+                        <span class="text-xs text-muted-foreground">
+                          {uc.occurrences} occurrence{uc.occurrences !== 1 ? 's' : ''} · last seen {relativeTime(uc.last_seen)}
+                        </span>
+                      </div>
+                      <button
+                        class="px-3 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors
+                          {mappingOpen[uc.raw_code] ? 'bg-accent' : ''}"
+                        on:click={() => {
+                          mappingOpen = { ...mappingOpen, [uc.raw_code]: !mappingOpen[uc.raw_code] };
+                          if (!mappingFor[uc.raw_code]) mappingFor = { ...mappingFor, [uc.raw_code]: '' };
+                        }}
+                      >
+                        {mappingOpen[uc.raw_code] ? 'Close' : 'Add mapping'}
+                      </button>
+                    </div>
+
+                    {#if mappingOpen[uc.raw_code]}
+                      <div class="border-t px-4 py-3 space-y-2 bg-muted/30">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <input
+                            class="border rounded-md px-3 py-1.5 text-sm bg-background flex-1 min-w-48"
+                            placeholder="Canonical building name, e.g. Natural Sciences Research Center"
+                            bind:value={mappingFor[uc.raw_code]}
+                          />
+                        </div>
+                        {#if mappingFor[uc.raw_code]?.trim()}
+                          {@const codeLine = buildCodeLine(uc.raw_code, mappingFor[uc.raw_code])}
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <code class="font-mono text-xs bg-muted px-3 py-1.5 rounded border flex-1 break-all">{codeLine}</code>
+                            <button
+                              class="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex-shrink-0"
+                              on:click={() => copyToClipboard(codeLine)}
+                            >Copy</button>
+                          </div>
+                          <p class="text-xs text-muted-foreground">
+                            Add this line to <code class="font-mono bg-muted px-1 rounded">BUILDING_CODE_MAP</code> in
+                            <code class="font-mono bg-muted px-1 rounded">server/lib/locationNormalizer.js</code>
+                            and commit in a future update.
+                          </p>
+                        {/if}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
         {/if}
       </div>
     {/if}

@@ -1,4 +1,12 @@
 import * as midtermsDb from '../db/queries/midterms.js';
+import * as coursesDb from '../db/queries/courses.js';
+
+export async function getCourses(req, res, next) {
+  try {
+    const courses = await coursesDb.getCourses();
+    res.json({ courses });
+  } catch (err) { next(err); }
+}
 
 export async function listMidterms(req, res, next) {
   try {

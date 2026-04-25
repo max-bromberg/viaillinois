@@ -15,18 +15,22 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // ── Azure AD (OIDC) ──────────────────────────────────────────────────────────
-router.get('/microsoft',
-  passport.authenticate('azuread-openidconnect', { session: false })
-);
+const azureConfigured = () => !!(process.env.AZURE_CLIENT_ID && process.env.AZURE_TENANT_ID);
 
-router.get('/microsoft/callback',
-  passport.authenticate('azuread-openidconnect', { session: false, failureRedirect: '/login' }),
-  (req, res) => {
-    const token = signToken(req.user);
+router.get('/microsoft', (req, res, next) => {
+  if (!azureConfigured()) return res.status(503).json({ error: 'Azure AD not configured' });
+  passport.authenticate('azuread-openidconnect', { session: false })(req, res, next);
+});
+
+router.get('/microsoft/callback', (req, res, next) => {
+  if (!azureConfigured()) return res.redirect((process.env.CLIENT_URL || 'http://localhost:5173') + '/login');
+  passport.authenticate('azuread-openidconnect', { session: false, failureRedirect: '/login' }, (err, user) => {
+    if (err || !user) return res.redirect((process.env.CLIENT_URL || 'http://localhost:5173') + '/login');
+    const token = signToken(user);
     res.cookie('via_token', token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
     res.redirect(process.env.CLIENT_URL || 'http://localhost:5173');
-  }
-);
+  })(req, res, next);
+});
 
 // ── Local fallback login ─────────────────────────────────────────────────────
 router.post('/login',

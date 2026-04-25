@@ -61,9 +61,11 @@ CREATE TABLE Course_Sections (
   start_time   TIME        NOT NULL,
   end_time     TIME        NOT NULL,
   semester     VARCHAR(20) NOT NULL,
+  section_type VARCHAR(50) DEFAULT NULL,
   PRIMARY KEY (section_id),
   FOREIGN KEY (course_code) REFERENCES Courses(course_code)   ON DELETE CASCADE,
-  FOREIGN KEY (location_id) REFERENCES Locations(location_id) ON DELETE CASCADE
+  FOREIGN KEY (location_id) REFERENCES Locations(location_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_section (course_code, location_id, day_of_week, start_time, end_time, semester)
 );
 
 CREATE TABLE Events (
@@ -140,9 +142,36 @@ CREATE TABLE Facility_Reservations (
   event_name     VARCHAR(500) NOT NULL DEFAULT '',
   start_time     DATETIME     NOT NULL,
   end_time       DATETIME     NOT NULL,
+  source         SET('tableau','astra') NOT NULL DEFAULT 'astra',
   scraped_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (reservation_id),
   FOREIGN KEY (location_id) REFERENCES Locations(location_id) ON DELETE CASCADE,
-  UNIQUE KEY uq_reservation (location_id, start_time, end_time, customer(100)),
+  UNIQUE KEY uq_reservation (location_id, start_time, end_time),
   CONSTRAINT chk_reservation_times CHECK (end_time > start_time)
+);
+
+CREATE TABLE Poll_Log (
+  log_id         INT          NOT NULL AUTO_INCREMENT,
+  service        ENUM('courses','facilities','astra') NOT NULL,
+  started_at     DATETIME     NOT NULL,
+  finished_at    DATETIME,
+  rows_processed INT          NOT NULL DEFAULT 0,
+  rows_skipped   INT          NOT NULL DEFAULT 0,
+  error_count    INT          NOT NULL DEFAULT 0,
+  last_error     TEXT,
+  metadata       JSON,
+  PRIMARY KEY (log_id),
+  INDEX idx_poll_log_service (service),
+  INDEX idx_poll_log_started (started_at)
+);
+
+CREATE TABLE Unknown_Building_Codes (
+  code_id  INT          NOT NULL AUTO_INCREMENT,
+  log_id   INT          NOT NULL,
+  raw_code VARCHAR(50)  NOT NULL,
+  seen_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (code_id),
+  FOREIGN KEY (log_id) REFERENCES Poll_Log(log_id) ON DELETE CASCADE,
+  INDEX idx_ubc_log_id (log_id),
+  INDEX idx_ubc_raw_code (raw_code)
 );

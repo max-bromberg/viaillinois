@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import DatePicker from './DatePicker.svelte';
 
   export let rsos = [];
 
@@ -88,8 +89,8 @@
 
     <div class="space-y-1">
       <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date range</p>
-      <input type="date" bind:value={startDate} on:change={notifyChange} class="w-full h-8 text-sm border rounded px-2 bg-background" />
-      <input type="date" bind:value={endDate}   on:change={notifyChange} class="w-full h-8 text-sm border rounded px-2 bg-background" />
+      <DatePicker bind:value={startDate} placeholder="Start date" on:change={notifyChange} />
+      <DatePicker bind:value={endDate} placeholder="End date" min={startDate} on:change={notifyChange} />
     </div>
 
     {#if rsos.length > 0}

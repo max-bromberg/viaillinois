@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import session from 'express-session';
 import { passport, attachUser } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRouter     from './routes/auth.js';
@@ -12,6 +13,7 @@ import venuesRouter   from './routes/venues.js';
 import midtermsRouter from './routes/midterms.js';
 import kioskRouter    from './routes/kiosk.js';
 import adminRouter    from './routes/admin.js';
+import schedulerRouter from './routes/scheduler.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
@@ -24,6 +26,12 @@ app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', creden
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'dev_session_secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production', sameSite: 'lax' },
+}));
 app.use(passport.initialize());
 app.use(attachUser);
 
@@ -37,6 +45,7 @@ app.use('/api/v1/venues',     venuesRouter);
 app.use('/api/v1/midterms',   midtermsRouter);
 app.use('/api/v1/kiosk',      kioskRouter);
 app.use('/api/v1/admin',      adminRouter);
+app.use('/api/v1/scheduler',  schedulerRouter);
 
 app.use(errorHandler);
 
