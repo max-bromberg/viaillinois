@@ -1,7 +1,7 @@
 import * as eventsDb from '../db/queries/events.js';
 import * as rsoDb from '../db/queries/rso.js';
+import * as advancedDb from '../db/queries/advanced.js';
 
-import { checkConflict } from '../services/conflictDetector.js';
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
 export async function listEvents(req, res, next) {
@@ -63,13 +63,14 @@ export async function createEvent(req, res, next) {
     if (!rso_id || !location_id || !title || !start_time || !end_time) {
       return res.status(400).json({ error: 'rso_id, location_id, title, start_time, end_time required' });
     }
-    const isAdmin = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, rso_id);
-    if (!isAdmin) return res.status(403).json({ error: 'RSO editor access required' });
-    const conflict = await checkConflict(location_id, start_time, end_time);
-    if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
-    const result = await eventsDb.createEvent({ rso_id, created_by: req.user.net_id, location_id, title, description, start_time, end_time, is_private });
-    if (tags.length) await eventsDb.setEventTags(result.insertId, tags);
-    res.status(201).json({ event_id: result.insertId });
+    const result = await advancedDb.createEventTransactional(
+      { rso_id, created_by: req.user.net_id, location_id, title, description, start_time, end_time, is_private },
+      tags,
+      req.user.is_global_admin
+    );
+    if (result.conflict)     return res.status(409).json({ error: 'Location is already booked for this time' });
+    if (result.unauthorized) return res.status(403).json({ error: 'RSO editor access required' });
+    res.status(201).json({ event_id: result.eventId });
   } catch (err) { next(err); }
 }
 

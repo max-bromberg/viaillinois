@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { currentUser, adminRsoIds, boardRsoIds } from '../stores/auth.js';
   import { getMe } from '../api/users.js';
-  import { getRso, updateRso, addMember, removeMember } from '../api/rsos.js';
+  import { getRso, updateRso, addMember, removeMember, getRsoStats } from '../api/rsos.js';
   import { createEvent, updateEvent, deleteEvent } from '../api/events.js';
   import EventForm from '../lib/EventForm.svelte';
   import { navigate } from '../lib/router.js';
@@ -36,6 +36,21 @@
   // ── RSO Details tab state ─────────────────────────────────────────────────
   let detailsForm = { name: '', description: '', logo_color: '#000000', founded_year: '' };
   let detailsDirty = false;
+
+  // ── Insights tab state ────────────────────────────────────────────────────
+  let insights = null;
+  let insightsLoading = false;
+
+  async function loadInsights(rsoId) {
+    insightsLoading = true;
+    try {
+      insights = await getRsoStats(rsoId);
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      insightsLoading = false;
+    }
+  }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function fmtDate(d) {
@@ -165,6 +180,7 @@
 
   function switchRso(rsoId) {
     activeTab = 'events';
+    insights = null;
     loadRso(rsoId);
   }
 </script>
@@ -225,6 +241,11 @@
             {activeTab === 'events' ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
           on:click={() => { activeTab = 'events'; editingEvent = null; showCreateForm = false; }}
         >Events</button>
+        <button
+          class="px-4 py-2 text-sm font-medium transition-colors
+            {activeTab === 'insights' ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
+          on:click={() => { activeTab = 'insights'; if (!insights) loadInsights(selectedRso.rso_id); }}
+        >Insights</button>
         {#if isBoard}
           <button
             class="px-4 py-2 text-sm font-medium transition-colors
@@ -357,6 +378,55 @@
               </tbody>
             </table>
           </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- ── Insights Tab ──────────────────────────────────────────────────── -->
+    {#if activeTab === 'insights' && selectedRso}
+      <div class="space-y-6">
+        {#if insightsLoading}
+          <p class="text-sm text-muted-foreground">Loading insights…</p>
+        {:else if insights}
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            <!-- Member Breakdown -->
+            <div class="border rounded-lg p-5 bg-card shadow-sm space-y-3">
+              <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Members by Role</h3>
+              {#if insights.memberBreakdown.length === 0}
+                <p class="text-sm text-muted-foreground">No members yet.</p>
+              {:else}
+                <ul class="space-y-2">
+                  {#each insights.memberBreakdown as row}
+                    <li class="flex items-center justify-between text-sm">
+                      <span class="font-medium">{row.role}</span>
+                      <span class="tabular-nums text-muted-foreground">{row.count}</span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+
+            <!-- Top Tags -->
+            <div class="border rounded-lg p-5 bg-card shadow-sm space-y-3">
+              <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Top Tags</h3>
+              {#if insights.topTags.length === 0}
+                <p class="text-sm text-muted-foreground">No events with tags yet.</p>
+              {:else}
+                <ul class="space-y-2">
+                  {#each insights.topTags as row}
+                    <li class="flex items-center justify-between text-sm">
+                      <span class="font-medium">{row.tag_name}</span>
+                      <span class="tabular-nums text-muted-foreground">{row.usage_count} event{row.usage_count !== 1 ? 's' : ''}</span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+
+          </div>
+        {:else}
+          <p class="text-sm text-muted-foreground">Click Insights to load stats.</p>
         {/if}
       </div>
     {/if}
