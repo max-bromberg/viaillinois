@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import passport from 'passport';
 import { signToken, attachUser, requireAuth } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
+
+// Throttle credential-checking endpoints to slow brute-force / credential stuffing.
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 // ── Dev mock login (NODE_ENV=development only) ───────────────────────────────
 if (process.env.NODE_ENV === 'development') {
@@ -34,6 +38,7 @@ router.get('/microsoft/callback', (req, res, next) => {
 
 // ── Local fallback login ─────────────────────────────────────────────────────
 router.post('/login',
+  loginLimiter,
   passport.authenticate('local', { session: false }),
   (req, res) => {
     const token = signToken(req.user);

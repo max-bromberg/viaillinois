@@ -26,18 +26,11 @@ export async function listEvents(req, res, next) {
       ]);
     } else if (req.user?.net_id) {
       const memberships = await rsoDb.getUserMemberships(req.user.net_id);
-      const hasBoardRole = memberships.some(m => ['Board', 'Editor'].includes(m.role));
-      if (hasBoardRole) {
-        [[{ total }], events] = await Promise.all([
-          eventsDb.countAllEvents(filters),
-          eventsDb.getAllEvents(filters),
-        ]);
-      } else {
-        [[{ total }], events] = await Promise.all([
-          eventsDb.countPublicEvents(filters),
-          eventsDb.getPublicEvents(filters),
-        ]);
-      }
+      const memberRsoIds = memberships.map(m => m.rso_id);
+      [[{ total }], events] = await Promise.all([
+        eventsDb.countVisibleEvents(filters, memberRsoIds),
+        eventsDb.getVisibleEvents(filters, memberRsoIds),
+      ]);
     } else {
       [[{ total }], events] = await Promise.all([
         eventsDb.countPublicEvents(filters),
@@ -53,6 +46,14 @@ export async function getEvent(req, res, next) {
   try {
     const event = await eventsDb.getEventById(parseInt(req.params.id));
     if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (event.is_private) {
+      if (!req.user) return res.status(404).json({ error: 'Event not found' });
+      if (!req.user.is_global_admin) {
+        const memberships = await rsoDb.getUserMemberships(req.user.net_id);
+        const canSee = memberships.some(m => m.rso_id === event.rso_id);
+        if (!canSee) return res.status(404).json({ error: 'Event not found' });
+      }
+    }
     res.json({ event });
   } catch (err) { next(err); }
 }
@@ -121,6 +122,11 @@ export async function getEventRsvps(req, res, next) {
     const eventId = parseInt(req.params.id);
     const event = await eventsDb.getEventById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (event.is_private && !req.user.is_global_admin) {
+      const memberships = await rsoDb.getUserMemberships(req.user.net_id);
+      const canSee = memberships.some(m => m.rso_id === event.rso_id);
+      if (!canSee) return res.status(404).json({ error: 'Event not found' });
+    }
     const rows = await eventsDb.getEventRsvpCounts(eventId);
     const counts = { Going: 0, Maybe: 0, 'Not Going': 0 };
     rows.forEach(r => { counts[r.status] = r.count; });

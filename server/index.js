@@ -5,6 +5,15 @@ import facilitiesPoller from './services/facilitiesPoller.js';
 import coursesPoller from './services/coursesPoller.js';
 import astraPoller from './services/astraPoller.js';
 
+if (process.env.NODE_ENV === 'production') {
+  const required = ['JWT_SECRET', 'SESSION_SECRET', 'DB_PASSWORD', 'DB_USER'];
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length) {
+    console.error(`FATAL: missing required env vars in production: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
+
 const PORT = process.env.PORT || 3001;
 
 const server = app.listen(PORT, () => {

@@ -244,6 +244,63 @@ export async function getEventsByRso(rsoId) {
 }
 
 /**
+ * Events visible to an authenticated non-admin user: all public events plus
+ * private events belonging to any RSO the user is a member of.
+ * @param {{ tags?: string[], startDate?: string, endDate?: string, keyword?: string, limit?: number, offset?: number }} filters
+ * @param {number[]} memberRsoIds - RSO IDs the requesting user belongs to
+ */
+export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
+  if (!memberRsoIds.length) return getPublicEvents(filters);
+  const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], limit = 20, offset = 0 } = filters;
+  const tag = rawTags[0] ?? null;
+  return query(
+    `SELECT
+      e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
+      r.name AS rso_name, l.building, l.room_number, l.max_capacity,
+      GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
+    FROM Events e
+    JOIN RSOs r ON e.rso_id = r.rso_id
+    JOIN Locations l ON e.location_id = l.location_id
+    LEFT JOIN Event_Tags et ON e.event_id = et.event_id
+    LEFT JOIN Tags t ON et.tag_name = t.tag_name
+    WHERE (e.is_private = FALSE OR e.rso_id IN (?))
+      AND (? IS NULL OR e.title LIKE CONCAT('%',?,'%') OR e.description LIKE CONCAT('%',?,'%'))
+      AND (? IS NULL OR e.start_time >= ?)
+      AND (? IS NULL OR e.start_time <= ?)
+    GROUP BY e.event_id
+    HAVING (? IS NULL OR tags LIKE CONCAT('%',?,'%'))
+    ORDER BY e.start_time ASC
+    LIMIT ? OFFSET ?`,
+    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag, limit, offset]
+  );
+}
+
+/**
+ * Count of events visible to an authenticated non-admin user (no LIMIT/OFFSET).
+ * @param {{ tags?: string[], startDate?: string, endDate?: string, keyword?: string }} filters
+ * @param {number[]} memberRsoIds
+ */
+export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
+  if (!memberRsoIds.length) return countPublicEvents(filters);
+  const { keyword = null, startDate = null, endDate = null, tags: rawTags = [] } = filters;
+  const tag = rawTags[0] ?? null;
+  return query(
+    `SELECT COUNT(DISTINCT e.event_id) AS total
+    FROM Events e
+    JOIN RSOs r ON e.rso_id = r.rso_id
+    JOIN Locations l ON e.location_id = l.location_id
+    LEFT JOIN Event_Tags et ON e.event_id = et.event_id
+    LEFT JOIN Tags t ON et.tag_name = t.tag_name
+    WHERE (e.is_private = FALSE OR e.rso_id IN (?))
+      AND (? IS NULL OR e.title LIKE CONCAT('%',?,'%') OR e.description LIKE CONCAT('%',?,'%'))
+      AND (? IS NULL OR e.start_time >= ?)
+      AND (? IS NULL OR e.start_time <= ?)
+      AND (? IS NULL OR t.tag_name = ?)`,
+    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, tag, tag]
+  );
+}
+
+/**
  * Total count of public events matching the given filters (no LIMIT/OFFSET).
  * @param {{ keyword?: string, startDate?: string, endDate?: string, tags?: string[] }} filters
  * @returns {Promise<[{ total: number }]>}

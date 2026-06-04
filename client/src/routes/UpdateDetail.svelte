@@ -1,12 +1,13 @@
 <script>
   import { marked } from 'marked';
+  import DOMPurify from 'dompurify';
   import { getUpdate, formatDate } from '../lib/updates.js';
   import { navigate } from '../lib/router.js';
 
   export let slug = '';
 
   $: update = getUpdate(slug);
-  $: htmlPromise = update ? Promise.resolve(marked.parse(update.body)) : Promise.resolve('');
+  $: htmlPromise = update ? Promise.resolve(DOMPurify.sanitize(marked.parse(update.body))) : Promise.resolve('');
 </script>
 
 <svelte:head>

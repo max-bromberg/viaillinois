@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { marked } from 'marked';
+  import DOMPurify from 'dompurify';
   import QRCode from 'qrcode';
   import { currentUser } from '../stores/auth.js';
   import { getEvent, getEventRsvps, rsvpEvent } from '../api/events.js';
@@ -168,7 +169,7 @@
     {#if event.description}
       <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border">
         <div class="text-sm text-muted-foreground leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-foreground [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-1 [&_a]:underline [&_a]:underline-offset-2 [&_p]:mt-2 first:[&_p]:mt-0">
-          {@html marked.parse(event.description)}
+          {@html DOMPurify.sanitize(marked.parse(event.description))}
         </div>
       </div>
     {/if}

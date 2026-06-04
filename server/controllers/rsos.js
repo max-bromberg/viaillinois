@@ -24,7 +24,19 @@ export async function getRso(req, res, next) {
     const rows = await rsoDb.getRsoById(rsoId);
     if (!rows || !rows.length) return res.status(404).json({ error: 'RSO not found' });
     const first = rows[0];
-    const events = await eventsDb.getEventsByRso(rsoId);
+    let events = await eventsDb.getEventsByRso(rsoId);
+
+    // Private events are visible only to global admins and members of this RSO.
+    // Everyone else (including anonymous viewers) sees public events only.
+    let canSeePrivate = false;
+    if (req.user?.is_global_admin) {
+      canSeePrivate = true;
+    } else if (req.user?.net_id) {
+      const memberships = await rsoDb.getUserMemberships(req.user.net_id);
+      canSeePrivate = memberships.some(m => m.rso_id === rsoId);
+    }
+    if (!canSeePrivate) events = events.filter(e => !e.is_private);
+
     const rso = {
       rso_id:       first.rso_id,
       name:         first.rso_name,
@@ -33,11 +45,9 @@ export async function getRso(req, res, next) {
       founded_year: first.founded_year,
       event_count:  first.event_count,
       members: rows.filter(r => r.net_id).map(r => ({
-        net_id:    r.net_id,
+        ...(req.user ? { net_id: r.net_id, email: r.email, joined_at: r.joined_at } : {}),
         full_name: r.full_name,
-        email:     r.email,
         role:      r.role,
-        joined_at: r.joined_at,
       })),
       events,
     };
