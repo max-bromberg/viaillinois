@@ -1,16 +1,37 @@
 services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-via}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   via:
     build:
       context: .
       dockerfile: Dockerfile.server
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "3000:3001"
     environment:
       NODE_ENV: production
       PORT: 3001
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT:-3306}
+      DB_HOST: db
+      DB_PORT: 3306
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-via}
@@ -25,3 +46,6 @@ services:
       ASTRA_POLL_INTERVAL_MS: ${ASTRA_POLL_INTERVAL_MS:-14400000}
       COURSES_POLL_INTERVAL_MS: ${COURSES_POLL_INTERVAL_MS:-86400000}
       COURSES_REQUEST_DELAY_MS: ${COURSES_REQUEST_DELAY_MS:-200}
+
+volumes:
+  db_data:
