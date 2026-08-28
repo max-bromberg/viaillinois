@@ -26,4 +26,4 @@ COPY server/ ./
 COPY --from=client-build /app/client/dist ../client/dist
 
 EXPOSE 3001
-CMD ["node", "index.js"]
+CMD ["node", "--experimental-strip-types", "index.js"]
