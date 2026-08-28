@@ -224,10 +224,14 @@ describe('POST /api/v1/admin/poll-trigger/:service', () => {
 
   it('returns 409 when the poller is already running', async () => {
     const astraPoller = await import('../../services/astraPoller.js');
+    const { startPollerRun } = await import('../../lib/pollerUtils.js');
     astraPoller.isRunning.mockReturnValueOnce(true);
+    startPollerRun.mockClear();
     const res = await request(app)
       .post('/api/v1/admin/poll-trigger/astra')
       .set('Cookie', `via_token=${adminToken}`);
     expect(res.status).toBe(409);
+    expect(res.body.error).toBe('astra poller is already running');
+    expect(startPollerRun).not.toHaveBeenCalled();
   });
 });
