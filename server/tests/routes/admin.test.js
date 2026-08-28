@@ -35,9 +35,16 @@ vi.mock('../../lib/pollerUtils.js', () => ({
   startPollerRun: vi.fn().mockResolvedValue(42),
 }));
 
-vi.mock('../../services/astraPoller.js',       () => ({ runOnce: vi.fn(), start: vi.fn(), stop: vi.fn(), default: { start: vi.fn(), stop: vi.fn() } }));
-vi.mock('../../services/facilitiesPoller.js',  () => ({ runOnce: vi.fn(), start: vi.fn(), stop: vi.fn(), default: { start: vi.fn(), stop: vi.fn() } }));
-vi.mock('../../services/coursesPoller.js',     () => ({ runOnce: vi.fn(), start: vi.fn(), stop: vi.fn(), default: { start: vi.fn(), stop: vi.fn() } }));
+const pollerMock = vi.hoisted(() => () => ({
+  runOnce:   vi.fn(),
+  start:     vi.fn(),
+  stop:      vi.fn(),
+  isRunning: vi.fn().mockReturnValue(false),
+  default:   { start: vi.fn(), stop: vi.fn(), runOnce: vi.fn(), isRunning: vi.fn().mockReturnValue(false) },
+}));
+vi.mock('../../services/astraPoller.js',      pollerMock);
+vi.mock('../../services/facilitiesPoller.js', pollerMock);
+vi.mock('../../services/coursesPoller.js',    pollerMock);
 
 const app = (await import('../../app.js')).default;
 
@@ -213,5 +220,14 @@ describe('POST /api/v1/admin/poll-trigger/:service', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.logId).toBe(42);
+  });
+
+  it('returns 409 when the poller is already running', async () => {
+    const astraPoller = await import('../../services/astraPoller.js');
+    astraPoller.isRunning.mockReturnValueOnce(true);
+    const res = await request(app)
+      .post('/api/v1/admin/poll-trigger/astra')
+      .set('Cookie', `via_token=${adminToken}`);
+    expect(res.status).toBe(409);
   });
 });
