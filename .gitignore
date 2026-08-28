@@ -140,3 +140,6 @@ vite.config.ts.timestamp-*
 
 # Superpowers plugin working dirs
 docs/superpowers/
+
+# Subagent-driven development working dirs
+.superpowers/
