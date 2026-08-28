@@ -31,15 +31,20 @@ Main surfaces:
    that reproduces the bug.
 2. **Nothing ships without the release gate.** No build is packaged or deployed until the
    quality and security gate passes. A red gate is a blocked release, not a judgment call.
+   The release gate lands with the release engineering work package and does not exist in
+   this repository yet.
 3. **Never auto-commit.** Do not run `git commit` unless the user explicitly asks.
-4. **Every schema change is a migration.** Never edit a schema file and assume the change
-   reaches production. Migrations are the only path into the production database.
+4. **Every schema change is a migration.** The migration system lands in the migrations
+   and cutover work package. Until it does, `server/db/schema.sql` is the schema of record,
+   and any change to it must be raised explicitly rather than assumed to reach production.
 5. **The data layer is moving to Drizzle, incrementally.** New data access code uses
    Drizzle. Existing raw `mysql2` queries are converted deliberately, table by table, with
    tests, never opportunistically in the middle of unrelated work. Both styles share one
    connection pool.
 6. **Production deploys go through the cutover script only.** No manual `docker compose up`
-   against production, and no manual SQL against the production database.
+   against production, and no manual SQL against the production database. The cutover
+   script lands in the migrations and cutover work package. Until it does,
+   `docker-compose.yml` is the mechanism that deploys production.
 
 ## User Facing Language Constraints
 
