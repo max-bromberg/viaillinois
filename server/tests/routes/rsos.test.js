@@ -16,6 +16,14 @@ vi.mock('../../db/queries/rso.js', () => ({
   removeMember:    vi.fn().mockResolvedValue({ affectedRows: 1 }),
   getUserMemberships: vi.fn().mockResolvedValue([]),
 }));
+vi.mock('../../db/queries/events.js', () => ({
+  getEventsByRso: vi.fn().mockResolvedValue([
+    { event_id: 1, title: 'Public Talk',  is_private: 0 },
+    { event_id: 2, title: 'Board Meeting', is_private: 1 },
+  ]),
+  getKioskEvents: vi.fn().mockResolvedValue([]),
+  getPublicEvents: vi.fn().mockResolvedValue([]),
+}));
 vi.mock('../../db/queries/users.js', () => ({
   getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn(),
 }));
@@ -35,9 +43,17 @@ describe('GET /api/v1/rsos/:id', () => {
     const res = await request(app).get('/api/v1/rsos/1');
     expect(res.status).toBe(200);
     expect(res.body.rso.rso_id).toBe(1);
-    expect(res.body.rso.rso_name).toBe('IEEE UIUC');
+    expect(res.body.rso.name).toBe('IEEE UIUC');
     expect(Array.isArray(res.body.rso.members)).toBe(true);
-    expect(res.body.rso.members[0].net_id).toBe('jdoe2');
+    expect(res.body.rso.members[0].full_name).toBe('Jane Doe');
+  });
+
+  it('hides private events and member contact details from anonymous viewers', async () => {
+    const res = await request(app).get('/api/v1/rsos/1');
+    expect(res.status).toBe(200);
+    expect(res.body.rso.events.map(e => e.event_id)).toEqual([1]);
+    expect(res.body.rso.members[0].net_id).toBeUndefined();
+    expect(res.body.rso.members[0].email).toBeUndefined();
   });
 
   it('returns 404 when rso not found', async () => {
