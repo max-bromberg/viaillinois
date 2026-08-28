@@ -4,10 +4,8 @@ import { query } from '../pool.js';
  * Get a user by net_id.
  * @param {string} netId
  * @returns {Promise<object|null>}
- * TODO: write query
  */
 export async function getUserByNetId(netId) {
-  // TODO: write query
   return query('SELECT net_id, full_name, email, is_global_admin FROM Users WHERE net_id = ?', [netId]).then(results => results[0] || null)
 }
 
@@ -15,10 +13,8 @@ export async function getUserByNetId(netId) {
  * Insert or update a user (for Azure AD upsert on login).
  * @param {{ net_id: string, full_name: string, email: string }} userData
  * @returns {Promise<void>}
- * TODO: write query
  */
 export async function upsertUser(userData) {
-  // TODO: write query
   return query('INSERT INTO Users (net_id, full_name, email) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE full_name = ?, email = ?', [userData.net_id, userData.full_name, userData.email, userData.full_name, userData.email])
 }
 
@@ -27,10 +23,8 @@ export async function upsertUser(userData) {
  * @param {string} netId
  * @param {string} passwordHash - bcrypt hash
  * @returns {Promise<void>}
- * TODO: write query
  */
 export async function createLocalAccount(netId, passwordHash) {
-  // TODO: write query
   return query('INSERT INTO LocalAccounts (net_id, password_hash) VALUES (?, ?)', [netId, passwordHash])
 }
 
@@ -38,10 +32,8 @@ export async function createLocalAccount(netId, passwordHash) {
  * Get a local account by net_id for passport-local verify.
  * @param {string} netId
  * @returns {Promise<{ net_id, password_hash, full_name, email, is_global_admin }|null>}
- * TODO: write query
  */
 export async function getLocalAccount(netId) {
-  // TODO: write query
   return query('SELECT la.net_id, la.password_hash, u.full_name, u.email, u.is_global_admin FROM LocalAccounts la JOIN Users u ON la.net_id = u.net_id WHERE la.net_id = ?', [netId]).then(results => results[0] || null)
 }
 

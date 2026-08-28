@@ -7,7 +7,6 @@ import { query } from '../pool.js';
  * @returns {Promise<number>} The inserted log_id
  */
 export async function insertPollLog(service, startedAt) {
-  // TODO: write query
   const result = await query(
     'INSERT INTO Poll_Log (service, started_at) VALUES (?, ?)',
     [service, startedAt]
@@ -22,7 +21,6 @@ export async function insertPollLog(service, startedAt) {
  *           errorCount: number, lastError?: string|null, metadata?: object|null }} opts
  */
 export async function finalizePollLog(logId, { finishedAt, rowsProcessed, rowsSkipped, errorCount, lastError, metadata }) {
-  // TODO: write query
   await query(
     `UPDATE Poll_Log SET finished_at=?, rows_processed=?, rows_skipped=?,
      error_count=?, last_error=?, metadata=?
@@ -38,7 +36,6 @@ export async function finalizePollLog(logId, { finishedAt, rowsProcessed, rowsSk
  *   error_count: number, last_error: string|null, metadata: object|null }>>}
  */
 export async function getLatestRunPerService() {
-  // TODO: write query
   const rows = await query(
     `SELECT pl.service, pl.log_id, pl.started_at, pl.finished_at, pl.rows_processed,
             pl.rows_skipped, pl.error_count, pl.last_error, pl.metadata
@@ -59,7 +56,6 @@ export async function getLatestRunPerService() {
  * @returns {Promise<Array>}
  */
 export async function getRunHistory(service, limit) {
-  // TODO: write query
   const rows = await query(
     'SELECT * FROM Poll_Log WHERE service=? ORDER BY started_at DESC LIMIT ?',
     [service, limit]
@@ -73,7 +69,6 @@ export async function getRunHistory(service, limit) {
  * @param {string} rawCode
  */
 export async function insertUnknownBuildingCode(logId, rawCode) {
-  // TODO: write query
   await query(
     'INSERT INTO Unknown_Building_Codes (log_id, raw_code) VALUES (?, ?)',
     [logId, rawCode]
@@ -86,7 +81,6 @@ export async function insertUnknownBuildingCode(logId, rawCode) {
  * @returns {Promise<Array<{ raw_code: string, occurrences: number, last_seen: string }>>}
  */
 export async function getUnknownCodeFrequency() {
-  // TODO: write query
   return query(
     `SELECT raw_code, COUNT(*) AS occurrences, MAX(seen_at) AS last_seen
      FROM Unknown_Building_Codes

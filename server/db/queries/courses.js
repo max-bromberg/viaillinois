@@ -5,10 +5,8 @@ import { query } from '../pool.js';
  * @param {string} courseCode - e.g. "ECE 385"
  * @param {string} title      - e.g. "Digital Systems Laboratory"
  * @returns {Promise<void>}
- * TODO: write query
  */
 export async function upsertCourse(courseCode, title) {
-  // TODO: write query
   return query('INSERT IGNORE INTO Courses (course_code, title) VALUES (?, ?)', [courseCode, title])
 }
 
@@ -30,10 +28,8 @@ export async function upsertSection(courseCode, locationId, dayOfWeek, startTime
 /**
  * List all courses (used to populate midterm submission form dropdown).
  * @returns {Promise<Array<{ course_code, title }>>}
- * TODO: write query
  */
 export async function getCourses() {
-  // TODO: write query
   return query('SELECT course_code, title FROM Courses ORDER BY course_code')
 }
 
@@ -41,10 +37,8 @@ export async function getCourses() {
  * Get all sections for a course.
  * @param {string} courseCode
  * @returns {Promise<Array<{ section_id, day_of_week, start_time, end_time, semester, building, room_number }>>}
- * TODO: write query
  */
 export async function getSectionsByCourse(courseCode) {
-  // TODO: write query
   return query('SELECT cs.section_id, cs.day_of_week, cs.start_time, cs.end_time, cs.semester, l.building, l.room_number FROM Course_Sections cs JOIN Locations l ON cs.location_id = l.location_id WHERE cs.course_code = ?', [courseCode])
 }
 
@@ -65,7 +59,6 @@ export async function getSectionsByCourse(courseCode) {
  * }>>}
  */
 export async function getSectionsForCourses(courseCodes) {
-  // TODO: write query
   const placeholders = courseCodes.map(() => '?').join(', ')
   return query(`
     SELECT cs.section_id, cs.course_code, cs.day_of_week, cs.start_time, cs.end_time, cs.semester, cs.section_type, l.building, l.room_number

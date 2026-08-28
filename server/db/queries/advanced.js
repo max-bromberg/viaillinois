@@ -7,7 +7,6 @@ import pool, { query } from '../pool.js'
  * @returns {Promise<{ memberBreakdown: object[], topTags: object[] }>}
  */
 export async function callGetRSOStats(rsoId) {
-  // TODO: write query
   const results = await query('CALL GetRSOStats(?)', [rsoId])
   return {
     memberBreakdown: Array.isArray(results[0]) ? results[0] : [],
@@ -22,7 +21,6 @@ export async function callGetRSOStats(rsoId) {
  * @returns {Promise<{ eventId?: number, conflict?: true, unauthorized?: true }>}
  */
 export async function createEventTransactional(eventData, tagNames = [], isGlobalAdmin = false) {
-  // TODO: write query
   const conn = await pool.getConnection()
   try {
     await conn.query('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')

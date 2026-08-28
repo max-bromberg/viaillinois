@@ -7,10 +7,8 @@ import { query } from '../pool.js';
  * @param {string} roomNumber
  * @param {number} [capacity] - max_capacity hint; defaults to 30 when unknown
  * @returns {Promise<number>} location_id
- * TODO: write query
  */
 export async function upsertLocation(building, roomNumber, capacity = 30) {
-  // TODO: write query
   await query('INSERT IGNORE INTO Locations (building, room_number, max_capacity) VALUES (?, ?, ?)', [building, roomNumber, capacity])
   if (capacity > 30) {
     await query('UPDATE Locations SET max_capacity = ? WHERE building = ? AND room_number = ?', [capacity, building, roomNumber])
@@ -26,10 +24,8 @@ export async function upsertLocation(building, roomNumber, capacity = 30) {
  * @param {string} endTime   - ISO datetime
  * @param {number} [excludeEventId] - Optional event ID to exclude from conflict check (for updates)
  * @returns {Promise<Array<{ location_id: number }>>}
- * TODO: write query
  */
 export async function getOccupiedDuring(startTime, endTime, excludeEventId) {
-  // TODO: write query
   let eventCondition = ''
   const params = [endTime, startTime]
   if (excludeEventId !== undefined) {
@@ -57,10 +53,8 @@ export async function getOccupiedDuring(startTime, endTime, excludeEventId) {
  * @param {number} minCapacity
  * @param {boolean} requiresAV
  * @returns {Promise<Array<{ location_id, building, room_number, max_capacity, has_av_equipment, weekly_usage }>>}
- * TODO: write query
  */
 export async function getByCapacity(minCapacity, requiresAV = false) {
-  // TODO: write query
   return query(
   `
   SELECT
@@ -107,10 +101,8 @@ export async function searchLocations(q, limit = 10) {
  * Get a single location by ID.
  * @param {number} locationId
  * @returns {Promise<object|null>}
- * TODO: write query
  */
 export async function getById(locationId) {
-  // TODO: write query
   const rows = await query('SELECT * FROM Locations WHERE location_id = ?', [locationId])
   return rows.length > 0 ? rows[0] : null
 }

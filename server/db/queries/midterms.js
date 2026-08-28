@@ -4,10 +4,8 @@ import { query } from '../pool.js';
  * List midterms with vote scores, optionally filtered by course_code and date range.
  * @param {{ courseCode?: string, startDate?: string, endDate?: string }} filters
  * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, status, building, room_number, score, submitted_by }>>}
- * TODO: write query
  */
 export async function getMidterms(filters = {}) {
-  // TODO: write query
   const { courseCode, startDate, endDate } = filters
   const params = []
   let whereClauses = []
@@ -60,10 +58,8 @@ export async function getMidterms(filters = {}) {
  * Insert a new midterm entry.
  * @param {{ course_code: string, submitted_by: string, location_id: number, title: string, start_time: string, end_time: string }} data
  * @returns {Promise<{ insertId: number }>}
- * TODO: write query
  */
 export async function createMidterm(data) {
-  // TODO: write query
   const { course_code, submitted_by, location_id, title, start_time, end_time } = data
   return query(
     'INSERT INTO Midterms (course_code, submitted_by, location_id, title, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
@@ -77,10 +73,8 @@ export async function createMidterm(data) {
  * @param {string} netId
  * @param {1|-1} voteValue
  * @returns {Promise<void>}
- * TODO: write query
  */
 export async function upsertVote(midtermId, netId, voteValue) {
-  // TODO: write query
   return query(
     'INSERT INTO Midterm_Votes (midterm_id, net_id, vote_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE vote_value = ?',
     [midtermId, netId, voteValue, voteValue]
@@ -92,7 +86,6 @@ export async function upsertVote(midtermId, netId, voteValue) {
  * @returns {Promise<Array<{ midterm_id, title, course_code, start_time, end_time, building, room_number }>>}
  */
 export async function getConfirmedMidterms() {
-  // TODO: write query
   return query('SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, l.building, l.room_number FROM Midterms m JOIN Locations l ON m.location_id = l.location_id WHERE m.status = "Confirmed" AND m.end_time > NOW() ORDER BY m.start_time ASC')
 }
 
@@ -101,7 +94,6 @@ export async function getConfirmedMidterms() {
  * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, confirmation_status, building, room_number, submitted_by, score }>>}
  */
 export async function getAllMidtermsAdmin() {
-  // TODO: write query
   return query('SELECT m.midterm_id, m.title, m.course_code, c.title AS course_title, m.start_time, m.end_time, m.status AS confirmation_status, l.building, l.room_number, m.submitted_by, COALESCE(SUM(v.vote_value), 0) AS score FROM Midterms m JOIN Courses c ON m.course_code = c.course_code JOIN Locations l ON m.location_id = l.location_id LEFT JOIN Midterm_Votes v ON m.midterm_id = v.midterm_id GROUP BY m.midterm_id ORDER BY m.start_time DESC')
 }
 
@@ -112,7 +104,6 @@ export async function getAllMidtermsAdmin() {
  * @returns {Promise<{ affectedRows: number }>}
  */
 export async function setMidtermStatus(midtermId, status) {
-  // TODO: write query
   return query('UPDATE Midterms SET status = ? WHERE midterm_id = ?', [status, midtermId])
 }
 
@@ -134,7 +125,6 @@ export async function setMidtermStatus(midtermId, status) {
  * }>>}
  */
 export async function getConfirmedMidtermsForScheduler(filters = {}) {
-  // TODO: write query
   const { startDate, endDate, courseCodes } = filters
   const params = []
   let whereClauses = ['m.status = "Confirmed"']

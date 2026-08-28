@@ -9,7 +9,6 @@ export { upsertLocation as upsertFacilityLocation } from './locations.js';
  * @returns {Promise<import('mysql2').ResultSetHeader>}
  */
 export async function upsertReservation(reservation) {
-  // TODO: write query
   const { location_id, customer, event_name, start_time, end_time, source } = reservation
   return query(
     `INSERT INTO Facility_Reservations (location_id, customer, event_name, start_time, end_time, source, scraped_at)
@@ -29,17 +28,14 @@ export async function upsertReservation(reservation) {
  * @returns {Promise<import('mysql2').ResultSetHeader>}
  */
 export async function deleteExpiredReservations() {
-  // TODO: write query
   return query('DELETE FROM Facility_Reservations WHERE end_time < NOW()')
 }
 
 /**
  * Count rows in Facility_Reservations (for scrape run reporting).
  * @returns {Promise<number>}
- * TODO: write query
  */
 export async function countReservations() {
-  // TODO: write query
   return query('SELECT COUNT(*) as count FROM Facility_Reservations').then(result => result[0].count)
 }
 
@@ -56,7 +52,6 @@ export async function countReservations() {
  * }>>}
  */
 export async function getReservationsInRange(startTime, endTime) {
-  // TODO: write query
   return query(`
     SELECT fr.reservation_id, fr.location_id, l.building, fr.start_time, fr.end_time
     FROM Facility_Reservations fr
