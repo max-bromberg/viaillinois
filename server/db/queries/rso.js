@@ -3,10 +3,8 @@ import { query } from '../pool.js';
 /**
  * List all RSOs.
  * @returns {Promise<Array>}
- * TODO: write query
  */
 export async function getAllRsos() {
-  // TODO: write query
   return query('SELECT rso_id, name, description, logo_color, founded_year FROM RSOs')
 }
 
@@ -15,10 +13,8 @@ export async function getAllRsos() {
  * Single RSO with member list and event count.
  * @param {number} rsoId
  * @returns {Promise<{ rso_id, name, description, logo_color, founded_year, event_count, members: Array }>}
- * TODO: write query
  */
 export async function getRsoById(rsoId) {
-  // TODO: write query
   return query(
   `
   SELECT
@@ -54,10 +50,8 @@ export async function getRsoById(rsoId) {
  * @param {number} rsoId
  * @param {{ name?: string, description?: string, logo_color?: string }} updates
  * @returns {Promise<{ affectedRows: number }>}
- * TODO: write query
  */
 export async function updateRso(rsoId, updates) {
-  // TODO: write query
   const fields = []
   const values = []
   if (updates.name) {
@@ -89,10 +83,8 @@ export async function updateRso(rsoId, updates) {
  * @param {string} netId
  * @param {number} rsoId
  * @returns {Promise<{ net_id, rso_id, role, joined_at }|null>}
- * TODO: write query
  */
 export async function getMembership(netId, rsoId) {
-  // TODO: write query
   const result = await query('SELECT net_id, rso_id, role, joined_at FROM RSO_Memberships WHERE net_id = ? AND rso_id = ?', [netId, rsoId])
   return result.length > 0 ? result[0] : null
 }
@@ -103,10 +95,8 @@ export async function getMembership(netId, rsoId) {
  * @param {number} rsoId
  * @param {'Member'|'Board'|'Admin'} role
  * @returns {Promise<void>}
- * TODO: write query
  */
 export async function addMember(netId, rsoId, role) {
-  // TODO: write query
   return query('INSERT INTO RSO_Memberships (net_id, rso_id, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE role = ?', [netId, rsoId, role, role])
 }
 
@@ -115,10 +105,8 @@ export async function addMember(netId, rsoId, role) {
  * @param {string} netId
  * @param {number} rsoId
  * @returns {Promise<{ affectedRows: number }>}
- * TODO: write query
  */
 export async function removeMember(netId, rsoId) {
-  // TODO: write query
   return query('DELETE FROM RSO_Memberships WHERE net_id = ? AND rso_id = ?', [netId, rsoId])
 }
 
@@ -126,10 +114,8 @@ export async function removeMember(netId, rsoId) {
  * Get all RSO memberships for a user (used to populate auth context).
  * @param {string} netId
  * @returns {Promise<Array<{ rso_id, name, role, joined_at }>>}
- * TODO: write query
  */
 export async function getUserMemberships(netId) {
-  // TODO: write query
   return query('SELECT m.rso_id, r.name, m.role, m.joined_at FROM RSO_Memberships m JOIN RSOs r ON m.rso_id = r.rso_id WHERE m.net_id = ?', [netId])
 }
 
@@ -137,10 +123,8 @@ export async function getUserMemberships(netId) {
  * Insert a new RSO row.
  * @param {{ name: string, description?: string, logo_color?: string, founded_year?: number }} data
  * @returns {Promise<{ insertId: number }>}
- * TODO: write query
  */
 export async function createRso(data) {
-  // TODO: write query
   return query('INSERT INTO RSOs (name, description, logo_color, founded_year) VALUES (?, ?, ?, ?)', [data.name, data.description, data.logo_color, data.founded_year])
 }
 
@@ -148,9 +132,7 @@ export async function createRso(data) {
  * Delete an RSO and all associated data (members, events, tags).
  * @param {number} rsoId
  * @returns {Promise<{ affectedRows: number }>}
- * TODO: write query
  */
 export async function deleteRso(rsoId) {
-  // TODO: write query
   return query('DELETE FROM RSOs WHERE rso_id = ?', [rsoId])
 }
