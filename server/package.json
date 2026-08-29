@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon --exec \"node --experimental-strip-types --env-file=../.env\" index.js",
     "start": "node --experimental-strip-types --env-file=../.env index.js",
-    "test": "vitest run",
+    "test": "vitest run --exclude '**/*.db.test.js'",
+    "test:db": "vitest run .db.test.js",
+    "test:all": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

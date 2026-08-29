@@ -1,0 +1,16 @@
+services:
+  test-db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: test_root_pw
+      MYSQL_DATABASE: via_test
+    ports:
+      - "3307:3306"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest_root_pw"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
