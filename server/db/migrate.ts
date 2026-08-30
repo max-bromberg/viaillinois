@@ -42,13 +42,41 @@ async function withAdminConnection<T>(fn: (adminDb: any) => Promise<T>): Promise
   }
 }
 
-/** Most recently applied migration hash on the given client, or null if none. */
+/** Hash of a migration file, computed the way the migrator computes it. */
+function hashOf(tag: string): string {
+  return createHash('sha256')
+    .update(readFileSync(join(MIGRATIONS_FOLDER, `${tag}.sql`)))
+    .digest('hex');
+}
+
+/**
+ * Name of the migration a stored hash belongs to.
+ *
+ * The bookkeeping table records hashes, but the version travels into the
+ * deploy log and the health response, where a person reads it. Falls back to
+ * the hash when no file matches, which means the applied migration is not one
+ * this checkout knows about, and that is worth seeing rather than hiding.
+ */
+function tagForHash(hash: string): string {
+  const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, 'meta', '_journal.json'), 'utf8'));
+  for (const entry of journal.entries) {
+    try {
+      if (hashOf(entry.tag) === hash) return entry.tag;
+    } catch {
+      // A journal entry without a file is not this function's problem to report.
+    }
+  }
+  return hash;
+}
+
+/** Most recently applied migration on the given client, by name, or null if none. */
 async function versionOn(client: any): Promise<string | null> {
   try {
     const rows = await client.execute(sql`
       SELECT hash FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1
     `);
-    return firstRow(rows)?.hash ?? null;
+    const hash = firstRow(rows)?.hash;
+    return hash ? tagForHash(hash) : null;
   } catch {
     return null;
   }
@@ -111,9 +139,7 @@ async function stampBaselineOn(client: any): Promise<boolean> {
   // The migrator hashes the whole file and treats a migration as applied when
   // its journal timestamp is not newer than the newest recorded one, so both
   // values have to match what it would have written itself.
-  const hash = createHash('sha256')
-    .update(readFileSync(join(MIGRATIONS_FOLDER, '0000_baseline.sql')))
-    .digest('hex');
+  const hash = hashOf('0000_baseline');
 
   await client.execute(sql`
     create table if not exists \`__drizzle_migrations\` (

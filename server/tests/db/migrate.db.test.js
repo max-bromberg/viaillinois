@@ -28,6 +28,17 @@ describe('migration runner', () => {
     expect(await currentVersion()).toBe(result.version);
   });
 
+  /**
+   * The version travels into the deploy log and the health response, where a
+   * person reads it. A bare sha256 hash tells them nothing about which
+   * migration is actually applied.
+   */
+  it('reports the migration name rather than its hash', async () => {
+    const result = await applyMigrations();
+    expect(result.version).toBe('0001_advanced_objects');
+    expect(await currentVersion()).toBe('0001_advanced_objects');
+  });
+
   it('is idempotent: a second run applies nothing and keeps the version', async () => {
     const first = await applyMigrations();
     const second = await applyMigrations();
