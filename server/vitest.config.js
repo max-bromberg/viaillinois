@@ -21,8 +21,12 @@ export default defineConfig({
           // A single fork runs every database file in one process, one after the
           // other, which is the only arrangement that actually holds.
           pool: 'forks',
-          poolOptions: { forks: { singleFork: true } },
+          // Vitest 4 removed poolOptions. fileParallelism false forces
+          // maxWorkers to one, which is the single process arrangement the
+          // previous singleFork setting provided. Both are stated here so the
+          // requirement survives a future edit to either one.
           fileParallelism: false,
+          maxWorkers: 1,
           globalSetup: ['./tests/support/globalDb.js'],
           testTimeout: 60_000,
           hookTimeout: 180_000,

@@ -42,8 +42,10 @@ jobs:
 
       # Reported, never enforced. A threshold chosen before the real number is
       # known only ever gets lowered until it passes.
+      # Scoped to the unit project, because this job has no database container
+      # and the db project cannot run here.
       - name: Coverage, reported not enforced
-        run: cd server && npx vitest run --coverage || true
+        run: cd server && npx vitest run --project unit --coverage || true
 
   database:
     name: migrations and database tests
