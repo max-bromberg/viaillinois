@@ -143,6 +143,17 @@ after the containers are healthy:
 docker compose exec via node scripts/seed.js
 ```
 
+## Releases
+
+The whole platform carries one version number, held in the root `package.json` and mirrored
+into the server and client manifests. `scripts/bump-version.sh <patch|minor|major>` bumps
+all three, opens `CHANGELOG.md` for the release note, and creates an annotated tag. A
+running server reports its version at `GET /health`, alongside the applied migration
+version, so you can ask a deployment what it is rather than inferring it from a deploy log.
+Every release passes the gate in `.github/workflows/gate.yml` first. See
+[docs/deployment.md](docs/deployment.md) for the full procedure and [CHANGELOG.md](CHANGELOG.md)
+for what shipped when.
+
 ## Contributing
 
 Pull requests are welcome. Open an issue first for significant changes so we can discuss the approach before you invest time in it.

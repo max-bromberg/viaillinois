@@ -38,6 +38,80 @@ can do neither, which is why those two steps use an administrative account. The 
 works without configuration, because the compose file gives the root account the same
 password it gives the application account.
 
+## Cutting a release
+
+A release is a version bump, a push, a green gate, and a cutover on the VPS, in that order.
+
+1. Merge the work to `main` with the gate green on its pull request.
+2. Run the bump on a clean tree on `main`:
+
+   ```bash
+   scripts/bump-version.sh <patch|minor|major>
+   ```
+
+   It writes the same version into the root, server and client manifests, opens
+   `CHANGELOG.md` in your editor so you can describe the release under the new dated
+   heading, then commits and creates an annotated tag. It refuses to run on a dirty tree,
+   because that would tag a commit which does not match what was tested, and it refuses to
+   run off `main`, because that would tag work which was never reviewed. It never pushes
+   and never deploys.
+3. Push the commit and the tag:
+
+   ```bash
+   git push && git push origin v<version>
+   ```
+4. Confirm the gate passes on the tag. The tag build runs the same three jobs as the pull
+   request did, against the exact commit you are about to deploy.
+5. On the VPS, run the cutover with the tag you just pushed:
+
+   ```bash
+   scripts/cutover.sh v<version>
+   ```
+6. Confirm `GET /health` reports the version you released and the migration version you
+   expect:
+
+   ```bash
+   curl -fsS http://localhost:3000/health
+   ```
+
+   A `version` that does not match the tag means the running container is not the build you
+   think it is.
+
+## The release gate
+
+`.github/workflows/gate.yml` runs on every pull request to `main` and on every `v*` tag.
+Three jobs run in parallel, and all three are required. When one fails, the job name tells
+you which class of problem you have.
+
+The `quality` job covers the code itself:
+
+- Version consistency, which fails when the three manifests disagree.
+- The language check and its own tests, which fail on an em dash or an en dash anywhere in
+  the repository.
+- The bump script tests, which cover the version arithmetic and the two refusal conditions.
+- The server fast tests, the client tests, and the client build.
+- Coverage, which is reported and never enforced. There is no threshold, because a
+  threshold chosen before the real number is known only ever gets lowered until it passes.
+  Read the number, do not gate on it.
+
+The `database` job covers the schema:
+
+- Migrations apply cleanly from an empty database, using the same
+  `docker-compose.test.yml` container that developers use locally, so a failure here is a
+  real signal rather than a difference in how CI provisions its database.
+- The Drizzle drift check, which fails when a schema declaration was edited without a
+  matching migration being generated. This is the failure mode that would otherwise let the
+  development and production schemas separate silently.
+- The database backed tests.
+
+The `security` job covers the supply chain:
+
+- `npm audit --audit-level=high` against the root, server and client manifests.
+- Secret scanning over the full history.
+
+A red gate is a blocked release, not a judgment call. The fix is to make the check pass, not
+to weaken the check.
+
 ## Deploying
 
 ```bash
