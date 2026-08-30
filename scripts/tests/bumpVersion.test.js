@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { nextVersion } from '../version.js';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,14 +17,14 @@ describe('nextVersion', () => {
 });
 
 /** Build a throwaway git repository containing the bump script and three manifests. */
-async function scratchRepo() {
+async function scratchRepo(version = '0.2.0') {
   const dir = await mkdtemp(join(tmpdir(), 'via-bump-'));
   execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
   execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
   execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
   for (const sub of ['', 'server', 'client']) {
     if (sub) await mkdir(join(dir, sub), { recursive: true });
-    await writeFile(join(dir, sub, 'package.json'), JSON.stringify({ name: sub || 'via', version: '0.2.0' }, null, 2));
+    await writeFile(join(dir, sub, 'package.json'), JSON.stringify({ name: sub || 'via', version }, null, 2));
   }
   await mkdir(join(dir, 'scripts'), { recursive: true });
   await writeFile(join(dir, 'scripts', 'version.js'), readFileSync(join(REPO, 'scripts', 'version.js'), 'utf8'));
@@ -71,6 +71,20 @@ describe('bump-version.sh', () => {
     expect(tags).toContain('v0.3.0');
     const type = execFileSync('git', ['cat-file', '-t', 'v0.3.0'], { cwd: dir, encoding: 'utf8' }).trim();
     expect(type).toBe('tag');
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('does not execute code embedded in the current version string', async () => {
+    // A version field is ordinary repository content, so it must never reach a
+    // shell or a node -e program as source code.
+    const payload = "0.2.0' + require('node:fs').writeFileSync('pwned.txt', 'x') + '";
+    const dir = await scratchRepo(payload);
+    let failed = false;
+    try {
+      execFileSync('bash', ['scripts/bump-version.sh', 'patch'], { cwd: dir, env: { ...process.env, EDITOR: 'true' }, stdio: 'pipe' });
+    } catch { failed = true; }
+    expect(existsSync(join(dir, 'pwned.txt'))).toBe(false);
+    expect(failed).toBe(true);
     await rm(dir, { recursive: true, force: true });
   });
 });

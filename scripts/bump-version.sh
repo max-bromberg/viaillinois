@@ -28,12 +28,16 @@ if [ "$BRANCH" != "main" ]; then
   exit 1
 fi
 
+# The version fields are ordinary repository content, so they are passed to node
+# through the environment rather than spliced into the program text. Splicing
+# them in would let a crafted version field run as code during a release.
 CURRENT="$(node -e "import('./scripts/version.js').then(m => console.log(m.readVersions().root))")"
-NEXT="$(node -e "import('./scripts/version.js').then(m => console.log(m.nextVersion('${CURRENT}', '${LEVEL}')))")"
+NEXT="$(VIA_CURRENT="$CURRENT" VIA_LEVEL="$LEVEL" node -e \
+  "import('./scripts/version.js').then(m => console.log(m.nextVersion(process.env.VIA_CURRENT, process.env.VIA_LEVEL)))")"
 
 echo "bumping ${CURRENT} to ${NEXT}"
 
-node -e "import('./scripts/version.js').then(m => m.writeVersion('${NEXT}'))"
+VIA_NEXT="$NEXT" node -e "import('./scripts/version.js').then(m => m.writeVersion(process.env.VIA_NEXT))"
 
 # Insert a dated section directly beneath the Unreleased heading.
 TODAY="$(date +%Y-%m-%d)"
