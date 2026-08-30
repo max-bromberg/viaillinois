@@ -1,4 +1,4 @@
-import { rename, readdir, stat, mkdir, unlink } from 'node:fs/promises';
+import { rename, readdir, stat, mkdir, unlink, copyFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /** On-box backup destination. Stores dumps in a directory outside the Docker volume. */
@@ -15,7 +15,16 @@ export class LocalDestination {
   async store(tmpPath, name) {
     await mkdir(this.dir, { recursive: true });
     const finalPath = join(this.dir, name);
-    await rename(tmpPath, finalPath);
+    try {
+      await rename(tmpPath, finalPath);
+    } catch (err) {
+      // The dump is written to a private temporary directory and the backup
+      // directory is usually a bind mount, so the two sit on different
+      // filesystems and rename cannot cross that boundary.
+      if (err.code !== 'EXDEV') throw err;
+      await copyFile(tmpPath, finalPath);
+      await unlink(tmpPath);
+    }
     await this.prune();
     return finalPath;
   }
