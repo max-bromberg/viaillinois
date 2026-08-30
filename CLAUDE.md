@@ -31,20 +31,20 @@ Main surfaces:
    that reproduces the bug.
 2. **Nothing ships without the release gate.** No build is packaged or deployed until the
    quality and security gate passes. A red gate is a blocked release, not a judgment call.
-   The release gate lands with the release engineering work package and does not exist in
-   this repository yet.
+   The gate is `.github/workflows/gate.yml`, it runs on pull requests to `main` and on
+   `v*` tags, and its three jobs are required by branch protection.
 3. **Never auto-commit.** Do not run `git commit` unless the user explicitly asks.
-4. **Every schema change is a migration.** The migration system lands in the migrations
-   and cutover work package. Until it does, `server/db/schema.sql` is the schema of record,
-   and any change to it must be raised explicitly rather than assumed to reach production.
+4. **Every schema change is a migration.** The migrations under `server/db/migrations`
+   are the schema of record, applied by `server/db/migrate.ts`. A change to a Drizzle
+   schema declaration without a generated migration fails the drift check in the gate.
 5. **The data layer is moving to Drizzle, incrementally.** New data access code uses
    Drizzle. Existing raw `mysql2` queries are converted deliberately, table by table, with
    tests, never opportunistically in the middle of unrelated work. Both styles share one
    connection pool.
 6. **Production deploys go through the cutover script only.** No manual `docker compose up`
-   against production, and no manual SQL against the production database. The cutover
-   script lands in the migrations and cutover work package. Until it does,
-   `docker-compose.yml` is the mechanism that deploys production.
+   against production, and no manual SQL against the production database. Deploying is
+   `scripts/cutover.sh v<version>`, and a release is cut with `scripts/bump-version.sh`.
+   The procedure is written out in `docs/deployment.md`.
 
 ## User Facing Language Constraints
 
@@ -71,3 +71,5 @@ seeded content, and documentation.
 - `npm run dev` run server and client together
 - `npm run test:client` client test suite
 - `cd server && npx vitest run` server test suite
+- `npm run check:language` em dash and en dash check, which the gate enforces
+- `scripts/bump-version.sh <patch|minor|major>` cut a release, see `docs/deployment.md`
