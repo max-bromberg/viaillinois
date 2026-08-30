@@ -34,6 +34,15 @@ describe('GET /health', () => {
     expect(res.body.status).toBe('unavailable');
   });
 
+  it('does not leak database internals to the caller', async () => {
+    ping.mockRejectedValue(
+      new Error("Access denied for user 'via'@'172.19.0.14' (using password: YES)")
+    );
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(503);
+    expect(JSON.stringify(res.body)).not.toMatch(/via@|172\.|Access denied|password/i);
+  });
+
   it('returns 503 when no migration has been applied', async () => {
     ping.mockResolvedValue([[{ ok: 1 }], null]);
     currentVersion.mockResolvedValue(null);

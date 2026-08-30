@@ -53,7 +53,10 @@ app.get('/health', async (_req, res) => {
     }
     res.json({ status: 'ok', migrationVersion });
   } catch (err) {
-    res.status(503).json({ status: 'unavailable', error: err.message });
+    // The reason stays in the logs. A database error message carries the host,
+    // the user and driver internals, and this endpoint answers anyone.
+    console.error('health check failed:', err.message);
+    res.status(503).json({ status: 'unavailable', error: 'database unavailable' });
   }
 });
 
