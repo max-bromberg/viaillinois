@@ -107,7 +107,7 @@ async function countRows(cookie, filter, label) {
     console.log(`    ActivityTypeCodes: ${typeCodes || '(none)'}`);
     console.log(`    Unique buildings:  ${buildings.length} (${buildings.slice(0, 10).join(', ')}${buildings.length > 10 ? '...' : ''})`);
   } catch(e) {
-    console.log(`\n    ERROR — ${e.message}`);
+    console.log(`\n    ERROR: ${e.message}`);
   }
 }
 

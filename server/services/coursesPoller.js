@@ -6,7 +6,7 @@
  *
  * Source: https://courses.illinois.edu/cisapp/explorer/schedule/{year}/{semester}/{subject}.xml
  *
- * Lifecycle — called from server/index.js:
+ * Lifecycle, called from server/index.js:
  *   coursesPoller.start()   // kicks off immediately, then repeats on interval
  *   coursesPoller.stop()    // clears the interval; awaitable to let in-flight cycle finish
  *
@@ -14,8 +14,8 @@
  *   COURSES_POLL_INTERVAL_MS   Poll frequency (default: 86400000 = 24 hours)
  *
  * Semester detection:
- *   Derived from the current wall-clock date — no manual configuration needed.
- *   Jan–Apr → spring, May–Jul → summer, Aug–Dec → fall.
+ *   Derived from the current wall-clock date, so no manual configuration is needed.
+ *   Jan-Apr → spring, May-Jul → summer, Aug-Dec → fall.
  *   INSERT IGNORE semantics make re-runs across overlapping semesters safe.
  */
 
@@ -89,10 +89,10 @@ function normalizeSectionType(raw) {
 
 /**
  * Derive { year, semester } from today's date.
- * Jan–Apr → spring, May–Jul → summer, Aug–Dec → fall.
+ * Jan-Apr → spring, May-Jul → summer, Aug-Dec → fall.
  */
 export function currentSemester(now = new Date()) {
-  const month = now.getUTCMonth() + 1; // 1–12, UTC to avoid DST/timezone edge cases
+  const month = now.getUTCMonth() + 1; // 1-12, UTC to avoid DST/timezone edge cases
   const year  = now.getUTCFullYear();
   if (month <= 4) return { year, semester: 'spring' };
   if (month <= 7) return { year, semester: 'summer' };
@@ -147,7 +147,7 @@ async function fetchXml(url, abortSignal) {
 
 export async function runOnce(signal) {
   const { year, semester: semType } = currentSemester();
-  const semester = `${semType} ${year}`; // e.g. "spring 2026" — year needed to distinguish across academic years
+  const semester = `${semType} ${year}`; // e.g. "spring 2026". The year is needed to distinguish across academic years
   console.log(`[courses] syncing ${semester} (subjects: ${SUBJECTS.join(', ')})`);
 
   let totalCourses = 0;
@@ -176,7 +176,7 @@ export async function runOnce(signal) {
           totalCourses++;
         } catch (e) {
           if (!e.message.includes('Not implemented')) {
-            console.error(`[courses] ${courseCode}: upsertCourse failed — ${e.message}`);
+            console.error(`[courses] ${courseCode}: upsertCourse failed: ${e.message}`);
             totalErrors++; continue;
           }
           totalCourses++; // count even when stub is pending
@@ -201,7 +201,7 @@ export async function runOnce(signal) {
               await sleep(REQUEST_DELAY_MS);
               sectionData = await fetchXml(sectionUrl, signal);
             } catch (e) {
-              console.warn(`[courses] ${courseCode}: failed to fetch section — ${e.message}`);
+              console.warn(`[courses] ${courseCode}: failed to fetch section: ${e.message}`);
               totalErrors++;
               continue;
             }
@@ -218,7 +218,7 @@ export async function runOnce(signal) {
               const startRaw    = str(meeting.start);
               const endRaw      = str(meeting.end);
 
-              // Skip ARRANGED or otherwise incomplete meetings — they have no usable location or time
+              // Skip ARRANGED or otherwise incomplete meetings, which have no usable location or time
               if (!buildingRaw || !roomRaw || !startRaw || startRaw === 'ARRANGED' || !endRaw) continue;
 
               const building     = resolveBuilding(buildingRaw);
@@ -235,14 +235,14 @@ export async function runOnce(signal) {
                 totalSections++;
               } catch (e) {
                 if (!e.message.includes('Not implemented')) {
-                  console.error(`[courses] ${courseCode}: upsertLocation/Section failed — ${e.message}`);
+                  console.error(`[courses] ${courseCode}: upsertLocation/Section failed: ${e.message}`);
                   totalErrors++;
                 } else totalSections++; // count when stub is pending
               }
             }
           }
         } catch (e) {
-          console.warn(`[courses] ${courseCode}: failed to fetch sections — ${e.message}`);
+          console.warn(`[courses] ${courseCode}: failed to fetch sections: ${e.message}`);
           totalErrors++;
         }
       }
@@ -272,7 +272,7 @@ async function tick(signal) {
     const elapsed = Date.now() - start;
     const { totalCourses = 0, totalSections = 0, totalErrors = 0 } = result ?? {};
     console.log(
-      `[courses] poll complete — ${totalCourses} courses, ${totalSections} sections, ` +
+      `[courses] poll complete: ${totalCourses} courses, ${totalSections} sections, ` +
       `${totalErrors} errors (${elapsed}ms)`
     );
   } catch (err) {

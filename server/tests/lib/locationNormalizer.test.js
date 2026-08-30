@@ -69,7 +69,7 @@ describe('drainUnknownCodes()', () => {
 
   it('does not include known codes', () => {
     drainUnknownCodes();
-    resolveBuilding('1ECEB'); // known — maps to 'Electrical & Computer Eng Bldg'
+    resolveBuilding('1ECEB'); // known, maps to 'Electrical & Computer Eng Bldg'
     expect(drainUnknownCodes()).toHaveLength(0);
   });
 

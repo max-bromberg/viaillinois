@@ -9,7 +9,7 @@
  * ASP.NET_SessionId and UIUC.ASPXFORMSAUTH (anonymous guest token). Both cookies
  * are required. No credentials needed. Refreshed each cycle.
  *
- * Lifecycle — called from server/index.js:
+ * Lifecycle, called from server/index.js:
  *   astraPoller.start()
  *   astraPoller.stop()
  *
@@ -35,7 +35,7 @@ const DATA_API_BASE  = 'https://uil.aaiscloud.com/UIUC/~api/calendar/activityLis
 
 // UIUC main campus ID.
 // Probe results (2026-04-23): campus+scheduled with 180-day window yields 5,729 rows
-// vs 2,397 rows with the original EventTypeId+ActivityTypeCode+14-day restrictions — 139% more data.
+// vs 2,397 rows with the original EventTypeId+ActivityTypeCode+14-day restrictions, so 139% more data.
 // EventTypeId and ActivityTypeCode filters were redundant (all returned rows had actType==2
 // regardless), so they are intentionally omitted here. Returns diminish past 90 days
 // (5,161 rows) but anything booked 6 months out is still worth capturing.
@@ -129,7 +129,7 @@ async function fetchSessionCookie() {
   const jar = parseCookies(hop1.setCookies);
 
   if (!hop1.location) {
-    // Unexpected: page loaded without redirect — still return any cookies we got
+    // Unexpected: page loaded without redirect, so still return any cookies we got
     const header = jarToHeader(jar);
     if (!header) throw new Error(`Ad Astra session returned no cookies (HTTP ${hop1.status})`);
     return header;
@@ -166,7 +166,7 @@ function isoDate(offsetDays = 0) {
 
 /**
  * Fetch one page of activities from the Ad Astra API.
- * The response rows are arrays ordered by FIELDS — not keyed objects.
+ * The response rows are arrays ordered by FIELDS, not keyed objects.
  * @returns {Promise<Array[]>}
  */
 async function fetchPage(cookie, filter, start) {
@@ -193,7 +193,7 @@ async function fetchPage(cookie, filter, start) {
 
   const contentType = res.headers.get('content-type') ?? '';
   if (!contentType.includes('json')) {
-    throw new Error(`Ad Astra data API returned non-JSON (Content-Type: ${contentType}) — session may be expired`);
+    throw new Error(`Ad Astra data API returned non-JSON (Content-Type: ${contentType}), the session may be expired`);
   }
 
   const body = await res.json();
@@ -235,7 +235,7 @@ export async function runOnce() {
   const cookie = await fetchSessionCookie();
   const rows   = await fetchActivities(cookie);
 
-  // If the API returned nothing, skip pruning — an empty response may indicate
+  // If the API returned nothing, skip pruning, since an empty response may indicate
   // a temporary outage rather than genuinely no events. Preserving stale rows
   // is safer than pruning everything and leaving the DB empty.
   if (rows.length === 0) {
@@ -303,7 +303,7 @@ async function tick() {
   try {
     const { upserted, skipped } = await runWithLogging('astra', runOnce);
     const elapsed = Date.now() - start;
-    console.log(`[astra] poll complete — ${upserted} upserted, ${skipped} skipped (${elapsed}ms)`);
+    console.log(`[astra] poll complete: ${upserted} upserted, ${skipped} skipped (${elapsed}ms)`);
   } catch (err) {
     console.error(`[astra] poll error: ${err.message}`);
   }

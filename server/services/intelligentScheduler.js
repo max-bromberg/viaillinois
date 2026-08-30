@@ -198,7 +198,7 @@ function applyVenueConstraints(loc, venueConstraints) {
       scoreDelta -= TIER_PENALTIES[highestTier.tier] ?? 0;
       insights.push({ type: 'warning', text: `${loc.building} is not among your preferred buildings` });
     } else if (buildingConstraint.tier === 'required' || buildingConstraint.tier === 'strongly_preferred') {
-      insights.push({ type: 'positive', text: `${loc.building} — your preferred building` });
+      insights.push({ type: 'positive', text: `${loc.building}, your preferred building` });
     }
   }
 
@@ -221,18 +221,18 @@ function scoreSlot(slot, loc, data) {
        (slotEnd.getHours() === timeConstraint.endHour && slotEnd.getMinutes() === 0));
     if (!inWindow) {
       score -= TIER_PENALTIES[timeConstraint.tier] ?? 0;
-      insights.push({ type: 'warning', text: `Outside your preferred ${timeConstraint.startHour}:00–${timeConstraint.endHour}:00 window` });
+      insights.push({ type: 'warning', text: `Outside your preferred ${timeConstraint.startHour}:00 to ${timeConstraint.endHour}:00 window` });
     } else {
       insights.push({ type: 'positive', text: `Within your preferred time window` });
     }
   }
 
   if (slot.dayTier === 'required') {
-    insights.push({ type: 'positive', text: `${slot.dayName} — your Required day` });
+    insights.push({ type: 'positive', text: `${slot.dayName}, your Required day` });
   } else if (slot.dayTier === 'strongly_preferred') {
-    insights.push({ type: 'positive', text: `${slot.dayName} — Strongly Preferred` });
+    insights.push({ type: 'positive', text: `${slot.dayName}, Strongly Preferred` });
   } else if (slot.dayTier === 'nice_to_have') {
-    insights.push({ type: 'neutral', text: `${slot.dayName} — Nice to Have` });
+    insights.push({ type: 'neutral', text: `${slot.dayName}, Nice to Have` });
   } else if (slot.dayTier === null) {
     score -= 10;
   }
@@ -264,7 +264,7 @@ function scoreSlot(slot, loc, data) {
     if (hoursUntil > windowHours) continue;  // outside window entirely, skip
 
     let penalty;
-    if (hoursUntil <= 0) penalty = Math.round(50 * scalar);   // midterm overlaps or is simultaneous — maximum
+    if (hoursUntil <= 0) penalty = Math.round(50 * scalar);   // midterm overlaps or is simultaneous, so this is the maximum
     else if (hoursUntil <= 24) penalty = Math.round(40 * scalar);
     else if (hoursUntil <= 48) penalty = Math.round(20 * scalar);
     else penalty = Math.round(8 * scalar);
@@ -275,8 +275,8 @@ function scoreSlot(slot, loc, data) {
   if (midtermWarnings.length > 0) {
     const worst = midtermWarnings.reduce((a, b) => a.hours < b.hours ? a : b);
     const worstText = worst.hours <= 0
-      ? `${worst.course} midterm is happening at this time — direct conflict`
-      : `${worst.course} midterm in ${worst.hours}h — academic pressure on target audience`;
+      ? `${worst.course} midterm is happening at this time, a direct conflict`
+      : `${worst.course} midterm in ${worst.hours}h, academic pressure on target audience`;
     insights.push({ type: 'warning', text: worstText });
   } else if (targetMidterms.length > 0) {
     insights.push({ type: 'positive', text: `No target midterms within ${windowHours}h of this slot` });
@@ -285,7 +285,7 @@ function scoreSlot(slot, loc, data) {
   const competing = allEvents.filter(e => overlaps(e.start_time, e.end_time, slot.start, slot.end));
   if (competing.length > 0) {
     score -= Math.min(45, competing.length * 15);
-    insights.push({ type: 'warning', text: `${competing.length} other RSO event${competing.length > 1 ? 's' : ''} at this time — attendance may split` });
+    insights.push({ type: 'warning', text: `${competing.length} other RSO event${competing.length > 1 ? 's' : ''} at this time, so attendance may split` });
   } else {
     insights.push({ type: 'positive', text: `No competing RSO events` });
   }

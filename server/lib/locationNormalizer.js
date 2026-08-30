@@ -3,7 +3,7 @@
  *
  * Pure, synchronous functions for canonicalizing building names and room numbers
  * before any DB write. Ensures the same physical room always maps to the same
- * (building, room_number) string pair — and therefore the same location_id —
+ * (building, room_number) string pair, and therefore the same location_id,
  * regardless of which poller discovered it.
  *
  * Building name sources:

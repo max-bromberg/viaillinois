@@ -17,7 +17,7 @@ console.log('[facilities] manual run starting...');
 
 try {
   const { upserted, skipped } = await runOnce();
-  console.log(`[facilities] done — ${upserted} upserted, ${skipped} skipped`);
+  console.log(`[facilities] done: ${upserted} upserted, ${skipped} skipped`);
 } catch (err) {
   console.error('[facilities] failed:', err.message);
   process.exitCode = 1;

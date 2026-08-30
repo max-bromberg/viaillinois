@@ -69,13 +69,13 @@ export function verifyToken(token) {
 // ── Middleware ───────────────────────────────────────────────────────────────
 
 /**
- * Attach req.user from JWT cookie. Public routes pass through — use requireAuth to gate.
+ * Attach req.user from JWT cookie. Public routes pass through. Use requireAuth to gate.
  */
 export function attachUser(req, _res, next) {
   try {
     const token = req.cookies?.via_token;
     if (token) req.user = verifyToken(token);
-  } catch { /* invalid token — req.user stays null */ }
+  } catch { /* invalid token, so req.user stays null */ }
   next();
 }
 
@@ -108,7 +108,7 @@ export function requireRSOAdmin(req, res, next) {
 
 /**
  * Require the user to be a Board member or Editor of the specified RSO.
- * Used to gate event CRUD — Editors can manage events but not members/details.
+ * Used to gate event CRUD. Editors can manage events but not members/details.
  */
 export function requireRSOEditor(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });

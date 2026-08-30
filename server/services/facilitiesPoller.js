@@ -5,9 +5,9 @@
  * dashboard and keeps Locations + Facility_Reservations in sync.
  *
  * Source: https://tableau.admin.uillinois.edu/views/DailyEventSummary/DailyEvents
- *   (driven via headless Playwright session — see tableauSession.js)
+ *   (driven via headless Playwright session, see tableauSession.js)
  *
- * Lifecycle — called from server/index.js:
+ * Lifecycle, called from server/index.js:
  *   facilitiesPoller.start()   // kicks off immediately, then repeats on interval
  *   facilitiesPoller.stop()    // clears the interval; awaitable to let in-flight cycle finish
  *
@@ -15,7 +15,7 @@
  *   FACILITIES_POLL_INTERVAL_MS   Poll frequency (default: 14400000 = 4 hours)
  *
  * Data quirks:
- *   StartTime column uses Tableau's epoch artifact — the date is always "12/30/1899";
+ *   StartTime column uses Tableau's epoch artifact: the date is always "12/30/1899";
  *   only the time portion matters. Combine with StartDate for the real datetime.
  *   EndTime has the actual date embedded and parses directly.
  */
@@ -155,7 +155,7 @@ export async function runOnce() {
         end_time:   endTime,
         source:     'tableau',
       });
-      // affectedRows === 0 means INSERT IGNORE skipped a duplicate — correct behaviour
+      // affectedRows === 0 means INSERT IGNORE skipped a duplicate, which is correct behaviour
       if (result?.affectedRows > 0) upserted++;
     } catch (e) {
       if (!e.message.includes('Not implemented')) {
@@ -185,7 +185,7 @@ async function tick() {
     let total = '?';
     try { total = await countReservations(); } catch { /* stub */ }
 
-    console.log(`[facilities] poll complete — ${upserted} upserted, ${skipped} skipped, ${total} total (${elapsed}ms)`);
+    console.log(`[facilities] poll complete: ${upserted} upserted, ${skipped} skipped, ${total} total (${elapsed}ms)`);
   } catch (err) {
     console.error(`[facilities] poll error: ${err.message}`);
   }
