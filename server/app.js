@@ -28,6 +28,7 @@ const APP_VERSION = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8')
 ).version;
 
+// Temporary gate proof — this comment must fail the language check.
 const app = express();
 
 if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
