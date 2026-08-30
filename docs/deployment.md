@@ -29,6 +29,14 @@ working default, so a normal deploy sets none of them.
 | `HEALTH_TIMEOUT_SECONDS` | `60` | How long the new container has to report ready before the deploy rolls back. |
 | `HEALTH_URL` | `http://localhost:3000/health` | The readiness endpoint the deploy gates on. |
 | `DEPLOY_LOG` | `./deploy.log` | Where the deploy log is appended. |
+| `DB_ADMIN_USER` | `root` | Account used for backup verification and restore. |
+| `DB_ADMIN_PASSWORD` | value of `DB_PASSWORD` | Password for that account. |
+
+Backup verification creates a scratch database, and restore drops and recreates the
+application database. The application account, `DB_USER`, is scoped to its own database and
+can do neither, which is why those two steps use an administrative account. The default
+works without configuration, because the compose file gives the root account the same
+password it gives the application account.
 
 ## Deploying
 

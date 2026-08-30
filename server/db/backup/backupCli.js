@@ -1,5 +1,6 @@
 import { createBackup, verifyBackup } from './index.js';
 import { LocalDestination } from './localDestination.js';
+import { adminConfigFromEnv } from './config.js';
 
 const args = process.argv.slice(2);
 const dirIndex = args.indexOf('--dir');
@@ -12,13 +13,7 @@ if (!dir) {
   process.exit(1);
 }
 
-const config = {
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     parseInt(process.env.DB_PORT || '3306'),
-  user:     process.env.DB_USER     || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME     || 'via',
-};
+const config = adminConfigFromEnv();
 
 try {
   const result = await createBackup({ config, destination: new LocalDestination(dir, retention) });

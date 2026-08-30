@@ -38,6 +38,11 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-via}
+      # Backup verification and restore need an account that can create and
+      # drop databases. Root's password is DB_PASSWORD, set above on the db
+      # service, so these default to it.
+      DB_ADMIN_USER: ${DB_ADMIN_USER:-root}
+      DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:-${DB_PASSWORD}}
       CLIENT_URL: ${CLIENT_URL}
       SERVER_URL: ${SERVER_URL:-${CLIENT_URL}}
       JWT_SECRET: ${JWT_SECRET}
