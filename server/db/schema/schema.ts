@@ -74,7 +74,9 @@ export const facilityReservations = mysqlTable("Facility_Reservations", {
 	startTime: datetime("start_time", { mode: 'string'}).notNull(),
 	endTime: datetime("end_time", { mode: 'string'}).notNull(),
 	source: reservationSource('source').default('astra').notNull(),
-	scrapedAt: datetime("scraped_at", { mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+	// The column also carries ON UPDATE CURRENT_TIMESTAMP in the database. Drizzle's
+	// datetime cannot express that, only timestamp can, so the migration owns it.
+	scrapedAt: datetime("scraped_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	primaryKey({ columns: [table.reservationId], name: "Facility_Reservations_reservation_id"}),
