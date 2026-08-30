@@ -57,10 +57,13 @@ jobs:
       - name: Install dependencies
         run: npm run install:all
 
-      # The same compose file developers use locally, so a failure here is a real
-      # signal rather than a difference in how CI provisions its database.
+      # The same compose file and the same readiness wait that developers use
+      # locally, so a failure here is a real signal rather than a difference in
+      # how CI provisions its database. startTestDb polls with a real
+      # connection, because MySQL reports healthy shortly before it finishes
+      # first-boot initialization and docker compose up would return too early.
       - name: Start the throwaway database
-        run: docker compose -f docker-compose.test.yml up -d test-db
+        run: cd server && node -e "import('./tests/support/testDb.js').then(m => m.startTestDb())"
 
       - name: Migrations apply cleanly from empty
         env:
