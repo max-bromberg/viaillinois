@@ -12,11 +12,11 @@ We're still in beta and shipping improvements constantly, so you may occasionall
 
 ## What shipped since preview
 
-- **RSVP & attendance tracking** — students can mark Going / Maybe / Not Going, and organizers can see the counts
-- **Smart venue recommender** — get room suggestions for your event based on capacity, AV needs, and availability
-- **Intelligent scheduler** — find the best time slots for your event, factoring in conflicts and midterm pressure on your target audience
-- **Private events** — keep board-only or members-only events visible to just your RSO
-- **Logistics dashboard** — a dedicated home for RSO admins to create and manage events
+- **RSVP & attendance tracking**: students can mark Going / Maybe / Not Going, and organizers can see the counts
+- **Smart venue recommender**: get room suggestions for your event based on capacity, AV needs, and availability
+- **Intelligent scheduler**: find the best time slots for your event, factoring in conflicts and midterm pressure on your target audience
+- **Private events**: keep board-only or members-only events visible to just your RSO
+- **Logistics dashboard**: a dedicated home for RSO admins to create and manage events
 
 ## What's next
 
