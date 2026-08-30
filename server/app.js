@@ -16,11 +16,17 @@ import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { query } from './db/pool.js';
 import { currentVersion } from './db/migrate.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Read once at module load, because the version cannot change while the
+// process is running.
+const APP_VERSION = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+).version;
 
 const app = express();
 
@@ -51,7 +57,7 @@ app.get('/health', async (_req, res) => {
     if (migrationVersion === null) {
       return res.status(503).json({ status: 'unavailable', error: 'no migrations applied' });
     }
-    res.json({ status: 'ok', migrationVersion });
+    res.json({ status: 'ok', version: APP_VERSION, migrationVersion });
   } catch (err) {
     // The reason stays in the logs. A database error message carries the host,
     // the user and driver internals, and this endpoint answers anyone.

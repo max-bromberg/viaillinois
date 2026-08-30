@@ -49,4 +49,14 @@ describe('GET /health', () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(503);
   });
+
+  it('reports the application version from package.json', async () => {
+    ping.mockResolvedValue([[{ ok: 1 }], null]);
+    currentVersion.mockResolvedValue('0001_advanced_objects');
+    const { readFileSync } = await import('node:fs');
+    const expected = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBe(expected);
+  });
 });
