@@ -7,6 +7,8 @@
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "build": "npm run build --prefix client",
     "test:client": "npm run test --prefix client",
+    "check:language": "node scripts/check-language.js",
+    "test:language": "vitest run scripts/tests/checkLanguage.test.js",
     "install:all": "npm install && npm install --prefix server && npm install --prefix client"
   },
   "devDependencies": {
