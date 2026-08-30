@@ -19,7 +19,7 @@ describe('generated schema declarations', () => {
     await startTestDb();
     await resetTestDb();
 
-    const schemaSql = readFileSync(new URL('../../db/schema.sql', import.meta.url), 'utf8')
+    const schemaSql = readFileSync(new URL('../fixtures/verified-production-schema.sql', import.meta.url), 'utf8')
       .replace(/^CREATE DATABASE[^;]*;/m, '')
       .replace(/^USE [^;]*;/m, '');
     const conn = await mysql.createConnection(testDbConfig);

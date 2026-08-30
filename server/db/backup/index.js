@@ -1,32 +1,10 @@
 import { execFile } from 'node:child_process';
 import { createWriteStream, createReadStream } from 'node:fs';
-import { mkdtemp, rm, writeFile, chmod } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import mysql from 'mysql2/promise';
-
-/**
- * Write a short lived client options file holding the credentials.
- *
- * The password never goes on a command line. Arguments are world readable
- * through ps and /proc on the host, and this code runs against production
- * during a cutover. The file is created inside a private temporary directory
- * and narrowed to the owner before the password is written into it.
- */
-async function writeDefaultsFile(dir, config) {
-  const path = join(dir, 'client.cnf');
-  await writeFile(path, '', { mode: 0o600 });
-  await chmod(path, 0o600);
-  await writeFile(path, [
-    '[client]',
-    `host=${config.host}`,
-    `port=${config.port}`,
-    `user=${config.user}`,
-    `password=${config.password}`,
-    '',
-  ].join('\n'), { mode: 0o600 });
-  return path;
-}
+import { writeDefaultsFile } from './credentials.js';
 
 /** Row counts for every base table in the schema, used as the verification target. */
 async function tableRowCounts(config) {
