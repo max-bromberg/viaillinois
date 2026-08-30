@@ -21,7 +21,7 @@ export const testDbConfig = {
  * real connection instead.
  */
 export async function startTestDb() {
-  await run('docker', ['compose', '-f', COMPOSE_FILE, 'up', '-d', 'test-db']);
+  await composeUp();
   const deadline = Date.now() + 120_000;
   let lastError;
   while (Date.now() < deadline) {
@@ -36,6 +36,26 @@ export async function startTestDb() {
     }
   }
   throw new Error(`test database did not become ready: ${lastError?.message}`);
+}
+
+/**
+ * Bring the container up, tolerating a concurrent caller. Vitest can run two
+ * database suites at once, and two simultaneous compose invocations against
+ * the same container can fail transiently while docker publishes the port.
+ * The command is idempotent, so retrying is safe.
+ */
+async function composeUp() {
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await run('docker', ['compose', '-f', COMPOSE_FILE, 'up', '-d', 'test-db']);
+      return;
+    } catch (err) {
+      lastError = err;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+  throw new Error(`could not start the test database container: ${lastError?.message}`);
 }
 
 export async function stopTestDb() {

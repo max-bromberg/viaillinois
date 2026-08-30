@@ -1,0 +1,190 @@
+-- Current sql file was generated after introspecting the database
+-- If you want to run this migration please uncomment this code before executing migrations
+/*
+CREATE TABLE `Course_Sections` (
+	`section_id` int AUTO_INCREMENT NOT NULL,
+	`course_code` varchar(20) NOT NULL,
+	`location_id` int NOT NULL,
+	`day_of_week` varchar(20) NOT NULL,
+	`start_time` time NOT NULL,
+	`end_time` time NOT NULL,
+	`semester` varchar(20) NOT NULL,
+	`section_type` varchar(50),
+	CONSTRAINT `Course_Sections_section_id` PRIMARY KEY(`section_id`),
+	CONSTRAINT `uq_section` UNIQUE(`course_code`,`location_id`,`day_of_week`,`start_time`,`end_time`,`semester`)
+);
+--> statement-breakpoint
+CREATE TABLE `Courses` (
+	`course_code` varchar(20) NOT NULL,
+	`title` varchar(200) NOT NULL,
+	CONSTRAINT `Courses_course_code` PRIMARY KEY(`course_code`)
+);
+--> statement-breakpoint
+CREATE TABLE `Event_Tags` (
+	`event_id` int NOT NULL,
+	`tag_name` varchar(50) NOT NULL,
+	CONSTRAINT `Event_Tags_event_id_tag_name` PRIMARY KEY(`event_id`,`tag_name`)
+);
+--> statement-breakpoint
+CREATE TABLE `Events` (
+	`event_id` int AUTO_INCREMENT NOT NULL,
+	`rso_id` int NOT NULL,
+	`created_by` varchar(20) NOT NULL,
+	`location_id` int NOT NULL,
+	`title` varchar(200) NOT NULL,
+	`description` text,
+	`start_time` datetime NOT NULL,
+	`end_time` datetime NOT NULL,
+	`is_private` tinyint(1) NOT NULL DEFAULT 0,
+	CONSTRAINT `Events_event_id` PRIMARY KEY(`event_id`),
+	CONSTRAINT `chk_event_times` CHECK((`end_time` > `start_time`))
+);
+--> statement-breakpoint
+CREATE TABLE `Facility_Reservations` (
+	`reservation_id` int AUTO_INCREMENT NOT NULL,
+	`location_id` int NOT NULL,
+	`customer` varchar(255) NOT NULL DEFAULT '',
+	`event_name` varchar(500) NOT NULL DEFAULT '',
+	`start_time` datetime NOT NULL,
+	`end_time` datetime NOT NULL,
+	`source` set('tableau','astra') NOT NULL DEFAULT 'astra',
+	`scraped_at` datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	CONSTRAINT `Facility_Reservations_reservation_id` PRIMARY KEY(`reservation_id`),
+	CONSTRAINT `uq_reservation` UNIQUE(`location_id`,`start_time`,`end_time`),
+	CONSTRAINT `chk_reservation_times` CHECK((`end_time` > `start_time`))
+);
+--> statement-breakpoint
+CREATE TABLE `LocalAccounts` (
+	`net_id` varchar(20) NOT NULL,
+	`password_hash` varchar(255) NOT NULL,
+	CONSTRAINT `LocalAccounts_net_id` PRIMARY KEY(`net_id`)
+);
+--> statement-breakpoint
+CREATE TABLE `Locations` (
+	`location_id` int AUTO_INCREMENT NOT NULL,
+	`building` varchar(50) NOT NULL,
+	`room_number` varchar(20) NOT NULL,
+	`max_capacity` int NOT NULL,
+	`has_av_equipment` tinyint(1) NOT NULL DEFAULT 0,
+	CONSTRAINT `Locations_location_id` PRIMARY KEY(`location_id`),
+	CONSTRAINT `uq_room` UNIQUE(`building`,`room_number`)
+);
+--> statement-breakpoint
+CREATE TABLE `Midterm_Votes` (
+	`midterm_id` int NOT NULL,
+	`net_id` varchar(20) NOT NULL,
+	`vote_value` int NOT NULL,
+	CONSTRAINT `Midterm_Votes_midterm_id_net_id` PRIMARY KEY(`midterm_id`,`net_id`),
+	CONSTRAINT `chk_vote_value` CHECK((`vote_value` in (-(1),1)))
+);
+--> statement-breakpoint
+CREATE TABLE `Midterms` (
+	`midterm_id` int AUTO_INCREMENT NOT NULL,
+	`course_code` varchar(20) NOT NULL,
+	`submitted_by` varchar(20) NOT NULL,
+	`location_id` int NOT NULL,
+	`title` varchar(200) NOT NULL,
+	`start_time` datetime NOT NULL,
+	`end_time` datetime NOT NULL,
+	`status` varchar(20) NOT NULL DEFAULT 'Pending',
+	CONSTRAINT `Midterms_midterm_id` PRIMARY KEY(`midterm_id`),
+	CONSTRAINT `chk_midterm_status` CHECK((`status` in (_latin1\'Pending\',_latin1\'Confirmed\',_latin1\'Cancelled\'))),
+	CONSTRAINT `chk_midterm_times` CHECK((`end_time` > `start_time`))
+);
+--> statement-breakpoint
+CREATE TABLE `Poll_Log` (
+	`log_id` int AUTO_INCREMENT NOT NULL,
+	`service` enum('courses','facilities','astra') NOT NULL,
+	`started_at` datetime NOT NULL,
+	`finished_at` datetime,
+	`rows_processed` int NOT NULL DEFAULT 0,
+	`rows_skipped` int NOT NULL DEFAULT 0,
+	`error_count` int NOT NULL DEFAULT 0,
+	`last_error` text,
+	`metadata` json,
+	CONSTRAINT `Poll_Log_log_id` PRIMARY KEY(`log_id`)
+);
+--> statement-breakpoint
+CREATE TABLE `RSO_Memberships` (
+	`net_id` varchar(20) NOT NULL,
+	`rso_id` int NOT NULL,
+	`role` varchar(20) NOT NULL DEFAULT 'Member',
+	`joined_at` datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	CONSTRAINT `RSO_Memberships_net_id_rso_id` PRIMARY KEY(`net_id`,`rso_id`),
+	CONSTRAINT `chk_membership_role` CHECK((`role` in (_latin1\'Member\',_latin1\'Board\',_latin1\'Admin\')))
+);
+--> statement-breakpoint
+CREATE TABLE `RSOs` (
+	`rso_id` int AUTO_INCREMENT NOT NULL,
+	`name` varchar(100) NOT NULL,
+	`description` text,
+	`logo_color` varchar(7) NOT NULL DEFAULT '#000000',
+	`founded_year` int,
+	CONSTRAINT `RSOs_rso_id` PRIMARY KEY(`rso_id`)
+);
+--> statement-breakpoint
+CREATE TABLE `RSVPs` (
+	`net_id` varchar(20) NOT NULL,
+	`event_id` int NOT NULL,
+	`status` varchar(20) NOT NULL DEFAULT 'Going',
+	CONSTRAINT `RSVPs_net_id_event_id` PRIMARY KEY(`net_id`,`event_id`),
+	CONSTRAINT `chk_rsvp_status` CHECK((`status` in (_latin1\'Going\',_latin1\'Maybe\',_latin1\'Not Going\')))
+);
+--> statement-breakpoint
+CREATE TABLE `Tags` (
+	`tag_name` varchar(50) NOT NULL,
+	CONSTRAINT `Tags_tag_name` PRIMARY KEY(`tag_name`)
+);
+--> statement-breakpoint
+CREATE TABLE `Unknown_Building_Codes` (
+	`code_id` int AUTO_INCREMENT NOT NULL,
+	`log_id` int NOT NULL,
+	`raw_code` varchar(50) NOT NULL,
+	`seen_at` datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	CONSTRAINT `Unknown_Building_Codes_code_id` PRIMARY KEY(`code_id`)
+);
+--> statement-breakpoint
+CREATE TABLE `Users` (
+	`net_id` varchar(20) NOT NULL,
+	`full_name` varchar(100) NOT NULL,
+	`email` varchar(100) NOT NULL,
+	`is_global_admin` tinyint(1) NOT NULL DEFAULT 0,
+	CONSTRAINT `Users_net_id` PRIMARY KEY(`net_id`),
+	CONSTRAINT `uq_email` UNIQUE(`email`)
+);
+--> statement-breakpoint
+ALTER TABLE `Course_Sections` ADD CONSTRAINT `Course_Sections_ibfk_1` FOREIGN KEY (`course_code`) REFERENCES `Courses`(`course_code`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Course_Sections` ADD CONSTRAINT `Course_Sections_ibfk_2` FOREIGN KEY (`location_id`) REFERENCES `Locations`(`location_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Event_Tags` ADD CONSTRAINT `Event_Tags_ibfk_1` FOREIGN KEY (`event_id`) REFERENCES `Events`(`event_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Event_Tags` ADD CONSTRAINT `Event_Tags_ibfk_2` FOREIGN KEY (`tag_name`) REFERENCES `Tags`(`tag_name`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Events` ADD CONSTRAINT `Events_ibfk_1` FOREIGN KEY (`rso_id`) REFERENCES `RSOs`(`rso_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Events` ADD CONSTRAINT `Events_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `Users`(`net_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Events` ADD CONSTRAINT `Events_ibfk_3` FOREIGN KEY (`location_id`) REFERENCES `Locations`(`location_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Facility_Reservations` ADD CONSTRAINT `Facility_Reservations_ibfk_1` FOREIGN KEY (`location_id`) REFERENCES `Locations`(`location_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `LocalAccounts` ADD CONSTRAINT `LocalAccounts_ibfk_1` FOREIGN KEY (`net_id`) REFERENCES `Users`(`net_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Midterm_Votes` ADD CONSTRAINT `Midterm_Votes_ibfk_1` FOREIGN KEY (`midterm_id`) REFERENCES `Midterms`(`midterm_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Midterm_Votes` ADD CONSTRAINT `Midterm_Votes_ibfk_2` FOREIGN KEY (`net_id`) REFERENCES `Users`(`net_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Midterms` ADD CONSTRAINT `Midterms_ibfk_1` FOREIGN KEY (`course_code`) REFERENCES `Courses`(`course_code`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Midterms` ADD CONSTRAINT `Midterms_ibfk_2` FOREIGN KEY (`submitted_by`) REFERENCES `Users`(`net_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Midterms` ADD CONSTRAINT `Midterms_ibfk_3` FOREIGN KEY (`location_id`) REFERENCES `Locations`(`location_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `RSO_Memberships` ADD CONSTRAINT `RSO_Memberships_ibfk_1` FOREIGN KEY (`net_id`) REFERENCES `Users`(`net_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `RSO_Memberships` ADD CONSTRAINT `RSO_Memberships_ibfk_2` FOREIGN KEY (`rso_id`) REFERENCES `RSOs`(`rso_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `RSVPs` ADD CONSTRAINT `RSVPs_ibfk_1` FOREIGN KEY (`net_id`) REFERENCES `Users`(`net_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `RSVPs` ADD CONSTRAINT `RSVPs_ibfk_2` FOREIGN KEY (`event_id`) REFERENCES `Events`(`event_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `Unknown_Building_Codes` ADD CONSTRAINT `Unknown_Building_Codes_ibfk_1` FOREIGN KEY (`log_id`) REFERENCES `Poll_Log`(`log_id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX `location_id` ON `Course_Sections` (`location_id`);--> statement-breakpoint
+CREATE INDEX `tag_name` ON `Event_Tags` (`tag_name`);--> statement-breakpoint
+CREATE INDEX `rso_id` ON `Events` (`rso_id`);--> statement-breakpoint
+CREATE INDEX `created_by` ON `Events` (`created_by`);--> statement-breakpoint
+CREATE INDEX `location_id` ON `Events` (`location_id`);--> statement-breakpoint
+CREATE INDEX `net_id` ON `Midterm_Votes` (`net_id`);--> statement-breakpoint
+CREATE INDEX `course_code` ON `Midterms` (`course_code`);--> statement-breakpoint
+CREATE INDEX `submitted_by` ON `Midterms` (`submitted_by`);--> statement-breakpoint
+CREATE INDEX `location_id` ON `Midterms` (`location_id`);--> statement-breakpoint
+CREATE INDEX `idx_poll_log_service` ON `Poll_Log` (`service`);--> statement-breakpoint
+CREATE INDEX `idx_poll_log_started` ON `Poll_Log` (`started_at`);--> statement-breakpoint
+CREATE INDEX `rso_id` ON `RSO_Memberships` (`rso_id`);--> statement-breakpoint
+CREATE INDEX `event_id` ON `RSVPs` (`event_id`);--> statement-breakpoint
+CREATE INDEX `idx_ubc_log_id` ON `Unknown_Building_Codes` (`log_id`);--> statement-breakpoint
+CREATE INDEX `idx_ubc_raw_code` ON `Unknown_Building_Codes` (`raw_code`);
+*/

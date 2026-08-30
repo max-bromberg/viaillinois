@@ -1,10 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import mysql from 'mysql2/promise';
-import { startTestDb, stopTestDb, testDbConfig } from './testDb.js';
+import { startTestDb, testDbConfig } from './testDb.js';
 
 describe('test database harness', () => {
   beforeAll(async () => { await startTestDb(); }, 120_000);
-  afterAll(async () => { await stopTestDb(); }, 60_000);
 
   it('accepts connections on the throwaway port', async () => {
     const conn = await mysql.createConnection(testDbConfig);
