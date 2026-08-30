@@ -343,7 +343,7 @@
                     </td>
                     <td class="px-4 py-2.5 hidden md:table-cell text-muted-foreground whitespace-nowrap">
                       {fmtDate(event.start_time)}<br/>
-                      <span class="text-xs">{fmtTime(event.start_time)} – {fmtTime(event.end_time)}</span>
+                      <span class="text-xs">{fmtTime(event.start_time)} to {fmtTime(event.end_time)}</span>
                     </td>
                     <td class="px-4 py-2.5 hidden lg:table-cell text-muted-foreground">
                       {#if event.building}{event.building} · {event.room_number}{/if}
@@ -458,7 +458,7 @@
                       <span class="text-xs px-1.5 py-0.5 rounded font-medium {roleBadgeClass(member.role)}">{member.role}</span>
                     </td>
                     <td class="px-4 py-2.5 hidden md:table-cell text-muted-foreground text-xs">
-                      {member.joined_at ? fmtDate(member.joined_at) : '—'}
+                      {member.joined_at ? fmtDate(member.joined_at) : 'unknown'}
                     </td>
                     <td class="px-4 py-2.5 text-right">
                       {#if confirmRemoveNetId === member.net_id}
@@ -503,9 +503,9 @@
             >Add</button>
           </div>
           <p class="text-xs text-muted-foreground">
-            <strong>Member</strong> — view access only ·
-            <strong>Editor</strong> — can create and manage events ·
-            <strong>Board</strong> — full RSO management
+            <strong>Member</strong>: view access only ·
+            <strong>Editor</strong>: can create and manage events ·
+            <strong>Board</strong>: full RSO management
           </p>
         </div>
       </div>

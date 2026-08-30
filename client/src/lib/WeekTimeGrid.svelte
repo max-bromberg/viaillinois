@@ -46,7 +46,7 @@
     return { top, height };
   }
 
-  // Reactive derivation — explicit dependency on events/midterms/weekDays
+  // Reactive derivation, with an explicit dependency on events/midterms/weekDays
   // so Svelte re-runs this whenever filters change
   $: itemsByDay = weekDays.map(day => ({
     events: events.filter(ev => isSameDay(new Date(ev.start_time), day)),
@@ -54,7 +54,7 @@
   }));
 </script>
 
-<!-- No max-height or overflow-y-auto — let parent determine height -->
+<!-- No max-height or overflow-y-auto, so the parent determines height -->
 <div class="border rounded-lg overflow-hidden bg-card">
   <!-- Sticky header -->
   <div class="grid grid-cols-[3rem_repeat(7,1fr)] border-b bg-muted sticky top-0 z-10">
@@ -99,7 +99,7 @@
           {isSameDay(day, today) ? 'bg-primary/5' : ''}"
         style="height: {TOTAL_H}px;"
       >
-        <!-- Hour lines (skip the very first — it's covered by the header border) -->
+        <!-- Hour lines (skip the very first, which is covered by the header border) -->
         {#each HOURS as _, i}
           {#if i > 0}
             <div

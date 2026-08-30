@@ -272,7 +272,7 @@
   // ── Data Sources functions ────────────────────────────────────────────────
 
   function relativeTime(isoStr) {
-    if (!isoStr) return '—';
+    if (!isoStr) return 'never';
     const diff = Date.now() - new Date(isoStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'just now';
@@ -283,7 +283,7 @@
   }
 
   function runDuration(startedAt, finishedAt) {
-    if (!startedAt || !finishedAt) return '—';
+    if (!startedAt || !finishedAt) return 'not recorded';
     const ms = new Date(finishedAt) - new Date(startedAt);
     if (ms < 1000) return `${ms}ms`;
     if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
@@ -365,7 +365,7 @@
       await navigator.clipboard.writeText(text);
       showToast('Copied to clipboard');
     } catch {
-      showToast('Copy failed — select text manually', 'error');
+      showToast('Copy failed. Select the text manually.', 'error');
     }
   }
 
@@ -891,7 +891,7 @@
                         {new Date(mt.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                         ·
                         {new Date(mt.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        –
+                        to
                         {new Date(mt.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                       </span>
                       {#if mt.building}
@@ -941,7 +941,7 @@
 
         <!-- Run-now warning banner -->
         <div class="rounded-md border border-yellow-400/40 bg-yellow-50/50 dark:bg-yellow-900/10 px-4 py-2.5 text-xs text-yellow-800 dark:text-yellow-300">
-          Manual runs are resource-intensive — trigger conservatively. The facilities poller uses a full Playwright browser session.
+          Manual runs are resource-intensive, so trigger them conservatively. The facilities poller uses a full Playwright browser session.
         </div>
 
         {#if pollLoading}

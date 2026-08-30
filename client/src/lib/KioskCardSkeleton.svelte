@@ -3,7 +3,7 @@
     <!-- RSO name (text-xl uppercase tracking-widest in real component) -->
     <div class="shimmer h-5 w-48 mx-auto"></div>
 
-    <!-- Event title (text-7xl in real component — use tall placeholders) -->
+    <!-- Event title (text-7xl in real component, so use tall placeholders) -->
     <div class="space-y-3">
       <div class="shimmer h-16 w-full mx-auto"></div>
       <div class="shimmer h-16 w-4/5 mx-auto"></div>

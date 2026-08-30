@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-  <title>Updates – VIA</title>
+  <title>Updates: VIA</title>
   <meta name="description" content="Platform updates, new features, and improvements to VIA." />
 </svelte:head>
 

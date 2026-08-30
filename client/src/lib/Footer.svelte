@@ -41,7 +41,7 @@
 
     <div class="border-t mt-8 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2">
       <p class="text-xs text-muted-foreground">
-        &copy; {new Date().getFullYear()} VIA — Virtually Integrated Agenda
+        &copy; {new Date().getFullYear()} VIA: Virtually Integrated Agenda
       </p>
       <div class="flex items-center gap-3 text-xs text-muted-foreground">
         <a href="/terms"   on:click|preventDefault={() => navigate('/terms')}   class="hover:text-foreground transition-colors">Terms</a>

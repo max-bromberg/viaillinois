@@ -109,7 +109,7 @@
     {:else if locationId}
       <p class="text-sm text-muted-foreground">Venue ID: {locationId}</p>
     {:else}
-      <p class="text-sm text-muted-foreground">No venue selected — use the finder below.</p>
+      <p class="text-sm text-muted-foreground">No venue selected. Use the finder below.</p>
     {/if}
     {#if !locationId && startTime && endTime}
       <VenueRecommender {startTime} {endTime} on:select={handleVenueSelect} />

@@ -38,7 +38,7 @@
     <div class="flex items-center gap-4 p-3">
       <span class="text-base font-bold w-12 shrink-0 {scoreColor(recommendation.score)}">{recommendation.score}%</span>
       <div class="flex-1 min-w-0">
-        <p class="font-medium text-sm truncate">{fmtDateTime(recommendation.start)} – {fmtTime(recommendation.end)}</p>
+        <p class="font-medium text-sm truncate">{fmtDateTime(recommendation.start)} to {fmtTime(recommendation.end)}</p>
         <p class="text-xs text-muted-foreground">{recommendation.location.building} {recommendation.location.room_number} · Cap {recommendation.location.max_capacity}</p>
       </div>
       <div class="hidden sm:flex flex-wrap gap-1 max-w-[200px]">

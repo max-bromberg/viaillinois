@@ -20,7 +20,7 @@
 
   // ── UI mode ──────────────────────────────────────────────────────────────
   let inputMode = 'wizard';     // 'wizard' | 'advanced'
-  let wizardStep = 1;           // 1–5
+  let wizardStep = 1;           // 1-5
   let outputTab = 'curated';    // 'curated' | 'all'
 
   // ── Constraints ──────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@
         midtermSensitivity,
       });
       if (!recommendations.curatedPicks.length && !recommendations.allOptions.length) {
-        showToast('No slots found for those constraints — try relaxing Required constraints', 'error');
+        showToast('No slots found for those constraints. Try relaxing the Required constraints.', 'error');
       }
     } catch (e) {
       showToast(e.message, 'error');
@@ -182,7 +182,7 @@
   }
 </script>
 
-<svelte:head><title>Intelligent Scheduler – VIA</title></svelte:head>
+<svelte:head><title>Intelligent Scheduler: VIA</title></svelte:head>
 
 <div class="max-w-5xl mx-auto space-y-6 pb-20">
 
@@ -208,7 +208,7 @@
         <div class="grid grid-cols-2 gap-4 mb-6 p-4 bg-muted/30 rounded-md border text-sm">
           <div>
             <p class="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Time</p>
-            <p class="font-medium">{fmtDateTime(selectedRec.start)} – {fmtTime(selectedRec.end)}</p>
+            <p class="font-medium">{fmtDateTime(selectedRec.start)} to {fmtTime(selectedRec.end)}</p>
           </div>
           <div>
             <p class="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Venue</p>
@@ -415,8 +415,8 @@
             <div class="text-sm space-y-3">
               <div class="grid grid-cols-2 gap-x-6 gap-y-2">
                 <div><span class="text-muted-foreground">Duration:</span> <span class="font-medium">{durationMinutes} min</span></div>
-                <div><span class="text-muted-foreground">Dates:</span> <span class="font-medium">{startDate || '—'} → {endDate || '—'}</span></div>
-                <div><span class="text-muted-foreground">Time window:</span> <span class="font-medium">{enableTimeConstraint ? `${timeStartHour}:00–${timeEndHour}:00 (${TIER_LABELS[timeTier]})` : 'Any'}</span></div>
+                <div><span class="text-muted-foreground">Dates:</span> <span class="font-medium">{startDate || 'any'} → {endDate || 'any'}</span></div>
+                <div><span class="text-muted-foreground">Time window:</span> <span class="font-medium">{enableTimeConstraint ? `${timeStartHour}:00 to ${timeEndHour}:00 (${TIER_LABELS[timeTier]})` : 'Any'}</span></div>
                 <div><span class="text-muted-foreground">Target courses:</span> <span class="font-medium">{targetCourses.length > 0 ? targetCourses.join(', ') : 'None'}</span></div>
                 <div><span class="text-muted-foreground">Midterm sensitivity:</span> <span class="font-medium">{targetCourses.length > 0 ? midtermSensitivity : 'N/A'}</span></div>
                 <div><span class="text-muted-foreground">Buildings:</span> <span class="font-medium">{buildingConstraints.length > 0 ? buildingConstraints.map(b => `${b.building} (${TIER_LABELS[b.tier]})`).join(', ') : 'Any'}</span></div>
@@ -486,7 +486,7 @@
                 {#if enableTimeConstraint}
                   <div class="flex items-center gap-2 flex-wrap">
                     <input type="number" bind:value={timeStartHour} min="0" max="23" class="w-14 border rounded-md px-2 py-1.5 text-xs bg-background" />
-                    <span class="text-xs text-muted-foreground">–</span>
+                    <span class="text-xs text-muted-foreground">to</span>
                     <input type="number" bind:value={timeEndHour} min="0" max="23" class="w-14 border rounded-md px-2 py-1.5 text-xs bg-background" />
                     <select bind:value={timeTier} class="border rounded-md px-2 py-1.5 text-xs bg-background">
                       {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
