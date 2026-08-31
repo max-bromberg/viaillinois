@@ -10,6 +10,10 @@ database.
 - Docker with the Compose plugin
 - Git, with the deployment checkout able to fetch tags
 - `curl`
+- A docker network named `internal`, created once with `docker network create internal`.
+  The reverse proxy and the application both join it, and the proxy resolves the
+  application by service name on it. `docker-compose.yml` declares the network as
+  external, so compose attaches to the existing one rather than creating its own.
 - A `.env` file beside `docker-compose.yml` holding `DB_USER`, `DB_PASSWORD`, `DB_NAME`,
   `CLIENT_URL`, `JWT_SECRET` and the Azure credentials
 - Enough free disk for the retained backups. Each dump is roughly the size of the database.
