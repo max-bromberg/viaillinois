@@ -8,7 +8,7 @@
   const K_CONNECTIONS   = 3;
   const BASE_SPAWN_RATE = 0.15;  // pulses per segment per second at rest
   const HOT_SPAWN_MULT  = 4;     // multiplier when segment is near mouse
-  const HOVER_RADIUS    = 150;   // px — distance at which nodes become "hot"
+  const HOVER_RADIUS    = 150;   // px, the distance at which nodes become "hot"
   const HOTNESS_RISE    = 5.0;   // hotness units/second when cursor approaches
   const HOTNESS_FALL    = 2.5;   // hotness units/second when cursor leaves
 

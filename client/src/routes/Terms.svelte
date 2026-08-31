@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Terms of Service – VIA</title>
+  <title>Terms of Service: VIA</title>
   <meta name="description" content="Terms of Service for VIA, the event hub for UIUC ECE student organizations." />
 </svelte:head>
 
@@ -49,7 +49,7 @@
     <p class="text-sm text-muted-foreground leading-relaxed">
       RSO board members who post events are responsible for the accuracy of that content,
       including dates, times, locations, and descriptions. VIA makes no guarantee that event
-      information is current or complete. Event details may change — always verify with the
+      information is current or complete. Event details may change, so always verify with the
       hosting organization before attending.
     </p>
   </div>

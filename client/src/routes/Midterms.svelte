@@ -15,7 +15,7 @@
   let showForm = false;
   let userVotes = {};
 
-  // Sort state — default chronological
+  // Sort state, chronological by default
   let sortCol = 'start_time';
   let sortDir = 'asc';
 
@@ -109,7 +109,7 @@
     loading = true;
     try {
       await createMidterm({ ...form, location_id: selectedLocation.location_id });
-      showToast('Midterm submitted — thanks!');
+      showToast('Midterm submitted, thanks!');
       showForm = false;
       form = { course_code: '', title: '', start_time: '', end_time: '' };
       locationQuery = '';
@@ -158,7 +158,7 @@
 </script>
 
 <svelte:head>
-  <title>Midterms – VIA</title>
+  <title>Midterms: VIA</title>
   <meta name="description" content="Community-sourced ECE midterm exam schedule at UIUC. Help RSO boards avoid scheduling conflicts during exam weeks." />
 </svelte:head>
 

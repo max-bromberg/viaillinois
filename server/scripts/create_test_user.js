@@ -1,7 +1,7 @@
 /**
  * create_test_user.js
  * Creates a local-auth test user: net_id="testuser", password="test".
- * Safe to re-run — uses INSERT IGNORE.
+ * Safe to re-run, since it uses INSERT IGNORE.
  *
  * Usage: node --env-file=.env server/scripts/create_test_user.js
  * Run from the repo root (via/).

@@ -143,3 +143,12 @@ docs/superpowers/
 
 # Subagent-driven development working dirs
 .superpowers/
+
+# Production schema dumps, taken for migration baselining. Never commit one.
+via-schema-only.sql
+
+# Course era documents and local working notes, kept outside version control
+assignment/
+doc/
+memory/
+docs/data-ingestion-db-changes.md

@@ -81,10 +81,10 @@
 
 <svelte:head>
   {#if event}
-    <title>{event.title} – VIA</title>
+    <title>{event.title}: VIA</title>
     <meta name="description" content="{event.rso_name} · {formattedDate} · {event.building} {event.room_number}" />
   {:else}
-    <title>Event – VIA</title>
+    <title>Event: VIA</title>
   {/if}
 </svelte:head>
 
@@ -151,7 +151,7 @@
     <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
       <div class="flex items-center gap-2 text-sm">
         <span>📅</span>
-        <span>{formattedDate}, {formattedStartTime} – {formattedEndTime}</span>
+        <span>{formattedDate}, {formattedStartTime} to {formattedEndTime}</span>
       </div>
       <div class="flex items-center gap-2 text-sm">
         <span>📍</span>

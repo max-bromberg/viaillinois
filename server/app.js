@@ -16,9 +16,17 @@ import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import { query } from './db/pool.js';
+import { currentVersion } from './db/migrate.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Read once at module load, because the version cannot change while the
+// process is running.
+const APP_VERSION = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+).version;
 
 const app = express();
 
@@ -37,7 +45,26 @@ app.use(session({
 app.use(passport.initialize());
 app.use(attachUser);
 
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+/**
+ * Readiness, not liveness. The cutover script gates on this, so it has to fail
+ * when the process is running but cannot serve traffic: no database, or a
+ * database that has never been migrated.
+ */
+app.get('/health', async (_req, res) => {
+  try {
+    await query('SELECT 1');
+    const migrationVersion = await currentVersion();
+    if (migrationVersion === null) {
+      return res.status(503).json({ status: 'unavailable', error: 'no migrations applied' });
+    }
+    res.json({ status: 'ok', version: APP_VERSION, migrationVersion });
+  } catch (err) {
+    // The reason stays in the logs. A database error message carries the host,
+    // the user and driver internals, and this endpoint answers anyone.
+    console.error('health check failed:', err.message);
+    res.status(503).json({ status: 'unavailable', error: 'database unavailable' });
+  }
+});
 
 app.use('/auth',              authRouter);
 app.use('/api/v1/events',     eventsRouter);

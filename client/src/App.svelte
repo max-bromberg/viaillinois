@@ -46,7 +46,7 @@
       const { user } = await getMe();
       currentUser.set(user);
     } catch {
-      // Not logged in — fine for public routes
+      // Not logged in, which is fine for public routes
     } finally {
       authLoading = false;
     }
@@ -66,7 +66,7 @@
   <CircuitBackground />
 
   <div class="relative z-20 w-full bg-amber-400/90 text-amber-950 text-center text-xs font-medium py-1.5 px-4">
-    VIA is in beta and under active development — your data is here to stay, but you may occasionally hit a bug or brief downtime as we keep improving.
+    VIA is in beta and under active development. Your data is here to stay, but you may occasionally hit a bug or brief downtime as we keep improving.
   </div>
 
   {#if $toast}

@@ -5,7 +5,7 @@
  *
  * Usage: node server/scripts/seed.js
  * Run AFTER scrape_courses.js (needs Locations + Courses rows to reference).
- * Safe to re-run — uses INSERT IGNORE throughout.
+ * Safe to re-run, since it uses INSERT IGNORE throughout.
  */
 
 import 'dotenv/config';
@@ -50,7 +50,7 @@ function generateEvents(rsoIds, locationIds) {
       created_by:  USERS[i % USERS.length].net_id,
       location_id: locationIds[i % locationIds.length],
       title:       titles[i % titles.length],
-      description: `Event ${i} — auto-generated for demo purposes.`,
+      description: `Event ${i}, auto-generated for demo purposes.`,
       start_time:  start.toISOString().slice(0, 19).replace('T', ' '),
       end_time:    end.toISOString().slice(0, 19).replace('T', ' '),
       is_private:  i % 10 === 0,
@@ -222,7 +222,7 @@ async function main() {
   for (const rso of RSOS) {
     await insertRso(rso);
   }
-  // Always fetch canonical IDs — INSERT IGNORE may skip rows on re-run
+  // Always fetch canonical IDs, because INSERT IGNORE may skip rows on re-run
   const rsoPlaceholders = RSOS.map(() => '?').join(', ');
   const rsoRows = await query(`SELECT rso_id FROM RSOs WHERE name IN (${rsoPlaceholders}) ORDER BY rso_id`, RSOS.map(r => r.name));
   const rsoIds = rsoRows.map(r => r.rso_id);

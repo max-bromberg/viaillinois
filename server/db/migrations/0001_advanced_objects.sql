@@ -1,9 +1,13 @@
-USE via;
-
+-- The trigger and the procedure exist in the repository but were never applied to
+-- production, so CALL GetRSOStats returns error 1305 there and midterm auto confirmation
+-- never fires. Bodies are copied verbatim from the superseded server/db/advanced.sql.
+--
+-- DELIMITER does not appear here. It is a command of the mysql client, not SQL, and the
+-- runner sends statements over the protocol. Statements are separated by the breakpoint
+-- marker instead. The DROP statements keep the migration safe to retry, since MySQL does
+-- not roll back DDL if a later statement in the same migration fails.
 DROP TRIGGER IF EXISTS trg_auto_confirm_midterm;
-
-DELIMITER $$
-
+--> statement-breakpoint
 CREATE TRIGGER trg_auto_confirm_midterm
 AFTER INSERT ON Midterm_Votes
 FOR EACH ROW
@@ -20,14 +24,10 @@ BEGIN
         WHERE midterm_id = NEW.midterm_id
           AND status = 'Pending';
     END IF;
-END $$
-
-DELIMITER ;
-
+END;
+--> statement-breakpoint
 DROP PROCEDURE IF EXISTS GetRSOStats;
-
-DELIMITER $$
-
+--> statement-breakpoint
 CREATE PROCEDURE GetRSOStats(IN p_rso_id INT)
 BEGIN
     DECLARE v_event_count INT DEFAULT 0;
@@ -55,6 +55,4 @@ BEGIN
     ELSE
         SELECT NULL AS tag_name, 0 AS usage_count WHERE 1 = 0;
     END IF;
-END $$
-
-DELIMITER ;
+END;

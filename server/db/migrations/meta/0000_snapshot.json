@@ -1,0 +1,1312 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "prevId": "",
+  "version": "5",
+  "dialect": "mysql",
+  "tables": {
+    "Course_Sections": {
+      "name": "Course_Sections",
+      "columns": {
+        "section_id": {
+          "autoincrement": true,
+          "name": "section_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "course_code": {
+          "autoincrement": false,
+          "name": "course_code",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "autoincrement": false,
+          "name": "location_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day_of_week": {
+          "autoincrement": false,
+          "name": "day_of_week",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "autoincrement": false,
+          "name": "start_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "autoincrement": false,
+          "name": "end_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "semester": {
+          "autoincrement": false,
+          "name": "semester",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "section_type": {
+          "autoincrement": false,
+          "name": "section_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "Course_Sections_section_id": {
+          "name": "Course_Sections_section_id",
+          "columns": [
+            "section_id"
+          ]
+        }
+      },
+      "indexes": {
+        "location_id": {
+          "name": "location_id",
+          "columns": [
+            "location_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "Course_Sections_ibfk_1": {
+          "name": "Course_Sections_ibfk_1",
+          "tableFrom": "Course_Sections",
+          "tableTo": "Courses",
+          "columnsFrom": [
+            "course_code"
+          ],
+          "columnsTo": [
+            "course_code"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "Course_Sections_ibfk_2": {
+          "name": "Course_Sections_ibfk_2",
+          "tableFrom": "Course_Sections",
+          "tableTo": "Locations",
+          "columnsFrom": [
+            "location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {
+        "uq_section": {
+          "name": "uq_section",
+          "columns": [
+            "course_code",
+            "location_id",
+            "day_of_week",
+            "start_time",
+            "end_time",
+            "semester"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "Courses": {
+      "name": "Courses",
+      "columns": {
+        "course_code": {
+          "autoincrement": false,
+          "name": "course_code",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "autoincrement": false,
+          "name": "title",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Courses_course_code": {
+          "name": "Courses_course_code",
+          "columns": [
+            "course_code"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "Event_Tags": {
+      "name": "Event_Tags",
+      "columns": {
+        "event_id": {
+          "autoincrement": false,
+          "name": "event_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag_name": {
+          "autoincrement": false,
+          "name": "tag_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Event_Tags_event_id_tag_name": {
+          "name": "Event_Tags_event_id_tag_name",
+          "columns": [
+            "event_id",
+            "tag_name"
+          ]
+        }
+      },
+      "indexes": {
+        "tag_name": {
+          "name": "tag_name",
+          "columns": [
+            "tag_name"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "Event_Tags_ibfk_1": {
+          "name": "Event_Tags_ibfk_1",
+          "tableFrom": "Event_Tags",
+          "tableTo": "Events",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "event_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "Event_Tags_ibfk_2": {
+          "name": "Event_Tags_ibfk_2",
+          "tableFrom": "Event_Tags",
+          "tableTo": "Tags",
+          "columnsFrom": [
+            "tag_name"
+          ],
+          "columnsTo": [
+            "tag_name"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "Events": {
+      "name": "Events",
+      "columns": {
+        "event_id": {
+          "autoincrement": true,
+          "name": "event_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rso_id": {
+          "autoincrement": false,
+          "name": "rso_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "autoincrement": false,
+          "name": "created_by",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "autoincrement": false,
+          "name": "location_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "autoincrement": false,
+          "name": "title",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_time": {
+          "autoincrement": false,
+          "name": "start_time",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "autoincrement": false,
+          "name": "end_time",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_private": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "is_private",
+          "type": "tinyint(1)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Events_event_id": {
+          "name": "Events_event_id",
+          "columns": [
+            "event_id"
+          ]
+        }
+      },
+      "indexes": {
+        "rso_id": {
+          "name": "rso_id",
+          "columns": [
+            "rso_id"
+          ],
+          "isUnique": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "columns": [
+            "created_by"
+          ],
+          "isUnique": false
+        },
+        "location_id": {
+          "name": "location_id",
+          "columns": [
+            "location_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "Events_ibfk_1": {
+          "name": "Events_ibfk_1",
+          "tableFrom": "Events",
+          "tableTo": "RSOs",
+          "columnsFrom": [
+            "rso_id"
+          ],
+          "columnsTo": [
+            "rso_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "Events_ibfk_2": {
+          "name": "Events_ibfk_2",
+          "tableFrom": "Events",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "net_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "Events_ibfk_3": {
+          "name": "Events_ibfk_3",
+          "tableFrom": "Events",
+          "tableTo": "Locations",
+          "columnsFrom": [
+            "location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {
+        "chk_event_times": {
+          "name": "chk_event_times",
+          "value": "(`end_time` > `start_time`)"
+        }
+      }
+    },
+    "Facility_Reservations": {
+      "name": "Facility_Reservations",
+      "columns": {
+        "reservation_id": {
+          "autoincrement": true,
+          "name": "reservation_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "autoincrement": false,
+          "name": "location_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customer": {
+          "default": "''",
+          "autoincrement": false,
+          "name": "customer",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_name": {
+          "default": "''",
+          "autoincrement": false,
+          "name": "event_name",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "autoincrement": false,
+          "name": "start_time",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "autoincrement": false,
+          "name": "end_time",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "default": "'astra'",
+          "autoincrement": false,
+          "name": "source",
+          "type": "set('tableau','astra')",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scraped_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "scraped_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Facility_Reservations_reservation_id": {
+          "name": "Facility_Reservations_reservation_id",
+          "columns": [
+            "reservation_id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "Facility_Reservations_ibfk_1": {
+          "name": "Facility_Reservations_ibfk_1",
+          "tableFrom": "Facility_Reservations",
+          "tableTo": "Locations",
+          "columnsFrom": [
+            "location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {
+        "uq_reservation": {
+          "name": "uq_reservation",
+          "columns": [
+            "location_id",
+            "start_time",
+            "end_time"
+          ]
+        }
+      },
+      "checkConstraint": {
+        "chk_reservation_times": {
+          "name": "chk_reservation_times",
+          "value": "(`end_time` > `start_time`)"
+        }
+      }
+    },
+    "LocalAccounts": {
+      "name": "LocalAccounts",
+      "columns": {
+        "net_id": {
+          "autoincrement": false,
+          "name": "net_id",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "autoincrement": false,
+          "name": "password_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "LocalAccounts_net_id": {
+          "name": "LocalAccounts_net_id",
+          "columns": [
+            "net_id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "LocalAccounts_ibfk_1": {
+          "name": "LocalAccounts_ibfk_1",
+          "tableFrom": "LocalAccounts",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "net_id"
+          ],
+          "columnsTo": [
+            "net_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "Locations": {
+      "name": "Locations",
+      "columns": {
+        "location_id": {
+          "autoincrement": true,
+          "name": "location_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "building": {
+          "autoincrement": false,
+          "name": "building",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "room_number": {
+          "autoincrement": false,
+          "name": "room_number",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_capacity": {
+          "autoincrement": false,
+          "name": "max_capacity",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "has_av_equipment": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "has_av_equipment",
+          "type": "tinyint(1)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Locations_location_id": {
+          "name": "Locations_location_id",
+          "columns": [
+            "location_id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {
+        "uq_room": {
+          "name": "uq_room",
+          "columns": [
+            "building",
+            "room_number"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "Midterm_Votes": {
+      "name": "Midterm_Votes",
+      "columns": {
+        "midterm_id": {
+          "autoincrement": false,
+          "name": "midterm_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "net_id": {
+          "autoincrement": false,
+          "name": "net_id",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vote_value": {
+          "autoincrement": false,
+          "name": "vote_value",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Midterm_Votes_midterm_id_net_id": {
+          "name": "Midterm_Votes_midterm_id_net_id",
+          "columns": [
+            "midterm_id",
+            "net_id"
+          ]
+        }
+      },
+      "indexes": {
+        "net_id": {
+          "name": "net_id",
+          "columns": [
+            "net_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "Midterm_Votes_ibfk_1": {
+          "name": "Midterm_Votes_ibfk_1",
+          "tableFrom": "Midterm_Votes",
+          "tableTo": "Midterms",
+          "columnsFrom": [
+            "midterm_id"
+          ],
+          "columnsTo": [
+            "midterm_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "Midterm_Votes_ibfk_2": {
+          "name": "Midterm_Votes_ibfk_2",
+          "tableFrom": "Midterm_Votes",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "net_id"
+          ],
+          "columnsTo": [
+            "net_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {
+        "chk_vote_value": {
+          "name": "chk_vote_value",
+          "value": "(`vote_value` in (-(1),1))"
+        }
+      }
+    },
+    "Midterms": {
+      "name": "Midterms",
+      "columns": {
+        "midterm_id": {
+          "autoincrement": true,
+          "name": "midterm_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "course_code": {
+          "autoincrement": false,
+          "name": "course_code",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_by": {
+          "autoincrement": false,
+          "name": "submitted_by",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "autoincrement": false,
+          "name": "location_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "autoincrement": false,
+          "name": "title",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "autoincrement": false,
+          "name": "start_time",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "autoincrement": false,
+          "name": "end_time",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "default": "'Pending'",
+          "autoincrement": false,
+          "name": "status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Midterms_midterm_id": {
+          "name": "Midterms_midterm_id",
+          "columns": [
+            "midterm_id"
+          ]
+        }
+      },
+      "indexes": {
+        "course_code": {
+          "name": "course_code",
+          "columns": [
+            "course_code"
+          ],
+          "isUnique": false
+        },
+        "submitted_by": {
+          "name": "submitted_by",
+          "columns": [
+            "submitted_by"
+          ],
+          "isUnique": false
+        },
+        "location_id": {
+          "name": "location_id",
+          "columns": [
+            "location_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "Midterms_ibfk_1": {
+          "name": "Midterms_ibfk_1",
+          "tableFrom": "Midterms",
+          "tableTo": "Courses",
+          "columnsFrom": [
+            "course_code"
+          ],
+          "columnsTo": [
+            "course_code"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "Midterms_ibfk_2": {
+          "name": "Midterms_ibfk_2",
+          "tableFrom": "Midterms",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "submitted_by"
+          ],
+          "columnsTo": [
+            "net_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "Midterms_ibfk_3": {
+          "name": "Midterms_ibfk_3",
+          "tableFrom": "Midterms",
+          "tableTo": "Locations",
+          "columnsFrom": [
+            "location_id"
+          ],
+          "columnsTo": [
+            "location_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {
+        "chk_midterm_status": {
+          "name": "chk_midterm_status",
+          "value": "(`status` in (_latin1\\'Pending\\',_latin1\\'Confirmed\\',_latin1\\'Cancelled\\'))"
+        },
+        "chk_midterm_times": {
+          "name": "chk_midterm_times",
+          "value": "(`end_time` > `start_time`)"
+        }
+      }
+    },
+    "Poll_Log": {
+      "name": "Poll_Log",
+      "columns": {
+        "log_id": {
+          "autoincrement": true,
+          "name": "log_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service": {
+          "autoincrement": false,
+          "name": "service",
+          "type": "enum('courses','facilities','astra')",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "autoincrement": false,
+          "name": "started_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finished_at": {
+          "autoincrement": false,
+          "name": "finished_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rows_processed": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "rows_processed",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rows_skipped": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "rows_skipped",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error_count": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "error_count",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_error": {
+          "autoincrement": false,
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "autoincrement": false,
+          "name": "metadata",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "Poll_Log_log_id": {
+          "name": "Poll_Log_log_id",
+          "columns": [
+            "log_id"
+          ]
+        }
+      },
+      "indexes": {
+        "idx_poll_log_service": {
+          "name": "idx_poll_log_service",
+          "columns": [
+            "service"
+          ],
+          "isUnique": false
+        },
+        "idx_poll_log_started": {
+          "name": "idx_poll_log_started",
+          "columns": [
+            "started_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "RSO_Memberships": {
+      "name": "RSO_Memberships",
+      "columns": {
+        "net_id": {
+          "autoincrement": false,
+          "name": "net_id",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rso_id": {
+          "autoincrement": false,
+          "name": "rso_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "default": "'Member'",
+          "autoincrement": false,
+          "name": "role",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "joined_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "joined_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "RSO_Memberships_net_id_rso_id": {
+          "name": "RSO_Memberships_net_id_rso_id",
+          "columns": [
+            "net_id",
+            "rso_id"
+          ]
+        }
+      },
+      "indexes": {
+        "rso_id": {
+          "name": "rso_id",
+          "columns": [
+            "rso_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "RSO_Memberships_ibfk_1": {
+          "name": "RSO_Memberships_ibfk_1",
+          "tableFrom": "RSO_Memberships",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "net_id"
+          ],
+          "columnsTo": [
+            "net_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "RSO_Memberships_ibfk_2": {
+          "name": "RSO_Memberships_ibfk_2",
+          "tableFrom": "RSO_Memberships",
+          "tableTo": "RSOs",
+          "columnsFrom": [
+            "rso_id"
+          ],
+          "columnsTo": [
+            "rso_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {
+        "chk_membership_role": {
+          "name": "chk_membership_role",
+          "value": "(`role` in (_latin1\\'Member\\',_latin1\\'Board\\',_latin1\\'Admin\\'))"
+        }
+      }
+    },
+    "RSOs": {
+      "name": "RSOs",
+      "columns": {
+        "rso_id": {
+          "autoincrement": true,
+          "name": "rso_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "autoincrement": false,
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "autoincrement": false,
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logo_color": {
+          "default": "'#000000'",
+          "autoincrement": false,
+          "name": "logo_color",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "founded_year": {
+          "autoincrement": false,
+          "name": "founded_year",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "compositePrimaryKeys": {
+        "RSOs_rso_id": {
+          "name": "RSOs_rso_id",
+          "columns": [
+            "rso_id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "RSVPs": {
+      "name": "RSVPs",
+      "columns": {
+        "net_id": {
+          "autoincrement": false,
+          "name": "net_id",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "autoincrement": false,
+          "name": "event_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "default": "'Going'",
+          "autoincrement": false,
+          "name": "status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "RSVPs_net_id_event_id": {
+          "name": "RSVPs_net_id_event_id",
+          "columns": [
+            "net_id",
+            "event_id"
+          ]
+        }
+      },
+      "indexes": {
+        "event_id": {
+          "name": "event_id",
+          "columns": [
+            "event_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "RSVPs_ibfk_1": {
+          "name": "RSVPs_ibfk_1",
+          "tableFrom": "RSVPs",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "net_id"
+          ],
+          "columnsTo": [
+            "net_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "RSVPs_ibfk_2": {
+          "name": "RSVPs_ibfk_2",
+          "tableFrom": "RSVPs",
+          "tableTo": "Events",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "event_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {
+        "chk_rsvp_status": {
+          "name": "chk_rsvp_status",
+          "value": "(`status` in (_latin1\\'Going\\',_latin1\\'Maybe\\',_latin1\\'Not Going\\'))"
+        }
+      }
+    },
+    "Tags": {
+      "name": "Tags",
+      "columns": {
+        "tag_name": {
+          "autoincrement": false,
+          "name": "tag_name",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Tags_tag_name": {
+          "name": "Tags_tag_name",
+          "columns": [
+            "tag_name"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "Unknown_Building_Codes": {
+      "name": "Unknown_Building_Codes",
+      "columns": {
+        "code_id": {
+          "autoincrement": true,
+          "name": "code_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_id": {
+          "autoincrement": false,
+          "name": "log_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_code": {
+          "autoincrement": false,
+          "name": "raw_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seen_at": {
+          "default": "(CURRENT_TIMESTAMP)",
+          "autoincrement": false,
+          "name": "seen_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Unknown_Building_Codes_code_id": {
+          "name": "Unknown_Building_Codes_code_id",
+          "columns": [
+            "code_id"
+          ]
+        }
+      },
+      "indexes": {
+        "idx_ubc_log_id": {
+          "name": "idx_ubc_log_id",
+          "columns": [
+            "log_id"
+          ],
+          "isUnique": false
+        },
+        "idx_ubc_raw_code": {
+          "name": "idx_ubc_raw_code",
+          "columns": [
+            "raw_code"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "Unknown_Building_Codes_ibfk_1": {
+          "name": "Unknown_Building_Codes_ibfk_1",
+          "tableFrom": "Unknown_Building_Codes",
+          "tableTo": "Poll_Log",
+          "columnsFrom": [
+            "log_id"
+          ],
+          "columnsTo": [
+            "log_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "Users": {
+      "name": "Users",
+      "columns": {
+        "net_id": {
+          "autoincrement": false,
+          "name": "net_id",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "full_name": {
+          "autoincrement": false,
+          "name": "full_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "autoincrement": false,
+          "name": "email",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_global_admin": {
+          "default": 0,
+          "autoincrement": false,
+          "name": "is_global_admin",
+          "type": "tinyint(1)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "compositePrimaryKeys": {
+        "Users_net_id": {
+          "name": "Users_net_id",
+          "columns": [
+            "net_id"
+          ]
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "uniqueConstraints": {
+        "uq_email": {
+          "name": "uq_email",
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    }
+  },
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {
+      "Facility_Reservations": {
+        "columns": {
+          "scraped_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "RSO_Memberships": {
+        "columns": {
+          "joined_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      },
+      "Unknown_Building_Codes": {
+        "columns": {
+          "seen_at": {
+            "isDefaultAnExpression": true
+          }
+        }
+      }
+    },
+    "indexes": {}
+  }
+}

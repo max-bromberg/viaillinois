@@ -12,10 +12,10 @@
 
 <svelte:head>
   {#if update}
-    <title>{update.title} – VIA Updates</title>
+    <title>{update.title}: VIA Updates</title>
     <meta name="description" content={update.summary} />
   {:else}
-    <title>Not Found – VIA Updates</title>
+    <title>Not Found: VIA Updates</title>
   {/if}
 </svelte:head>
 

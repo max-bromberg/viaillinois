@@ -17,7 +17,13 @@ RUN npm ci --omit=dev
 # then install the browser binary separately. Splitting the two steps avoids
 # the retry loop that occurs when --with-deps tries apt-get on an un-updated
 # slim image and silently fails, causing playwright to re-download the browser.
+# default-mysql-client provides mysqldump and mysql, which the backup and
+# restore steps of the cutover shell out to. verifyBackup restores every dump
+# and compares row counts before the maintenance window opens, so a dump this
+# client cannot produce correctly fails the deploy rather than passing as a
+# backup that would not have restored.
 RUN apt-get update && \
+    apt-get install -y --no-install-recommends default-mysql-client && \
     npx playwright install-deps chromium && \
     rm -rf /var/lib/apt/lists/*
 RUN npx playwright install chromium
@@ -26,4 +32,4 @@ COPY server/ ./
 COPY --from=client-build /app/client/dist ../client/dist
 
 EXPOSE 3001
-CMD ["node", "index.js"]
+CMD ["node", "--experimental-strip-types", "index.js"]

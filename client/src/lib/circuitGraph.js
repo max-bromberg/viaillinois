@@ -1,6 +1,6 @@
 /**
  * Pure graph logic for the circuit background animation.
- * No DOM, no canvas — all functions are independently testable.
+ * No DOM and no canvas, so all functions are independently testable.
  *
  * Types:
  *   Node:    { x, y, id, hotness }
@@ -72,7 +72,7 @@ export function generateSegments(nodes, k) {
 export function spawnPulse(segment) {
   segment.pulses.push({
     t:     0,
-    speed: 0.08 + Math.random() * 0.14, // t-units/second → ~7–22s end-to-end per segment
+    speed: 0.08 + Math.random() * 0.14, // t-units/second → ~7-22s end-to-end per segment
   });
 }
 

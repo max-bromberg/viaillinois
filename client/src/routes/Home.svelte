@@ -66,7 +66,7 @@
   async function fetchEvents() {
     loading = true;
     error = null;
-    // Read directly from variables — $: hasClientFilters may not have re-evaluated yet
+    // Read directly from variables, since $: hasClientFilters may not have re-evaluated yet
     // when fetchEvents is called synchronously after assigning selectedRsoIds/showInternal.
     const clientFiltered = selectedRsoIds.length > 0 || !showInternal;
     try {
@@ -122,7 +122,7 @@
 </script>
 
 <svelte:head>
-  <title>Events – VIA</title>
+  <title>Events: VIA</title>
   <meta name="description" content="Browse and filter upcoming ECE RSO events at UIUC. RSVP to events from your favourite student organizations." />
 </svelte:head>
 

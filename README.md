@@ -1,4 +1,4 @@
-# VIA — Virtually Integrated Agenda
+# VIA: Virtually Integrated Agenda
 
 A centralized event management platform for UIUC's ECE department Registered Student Organizations (RSOs).
 
@@ -6,11 +6,11 @@ VIA gives students a single place to discover events across all ECE RSOs, and gi
 
 ## Features
 
-- **Public event feed** — browse and filter upcoming ECE RSO events
-- **Logistics dashboard** — RSO admins create, edit, and manage events
-- **UIUC NetID login** — authenticate with your Illinois credentials via Azure AD OIDC
-- **Conflict detection** — surface scheduling conflicts before they happen
-- **QR codes** — per-event QR codes for check-in
+- **Public event feed**: browse and filter upcoming ECE RSO events
+- **Logistics dashboard**: RSO admins create, edit, and manage events
+- **UIUC NetID login**: authenticate with your Illinois credentials via Azure AD OIDC
+- **Conflict detection**: surface scheduling conflicts before they happen
+- **QR codes**: per-event QR codes for check-in
 
 ## Tech Stack
 
@@ -56,17 +56,20 @@ VIA gives students a single place to discover events across all ECE RSOs, and gi
 
 4. **Create the database**
 
+   The schema is built by running the migrations, not by loading a schema file.
+
    ```bash
-   mysql -u root -p < server/db/schema.sql
+   mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS via"
+   cd server && node --experimental-strip-types db/migrate.ts
    ```
 
 5. **Run in development**
 
    ```bash
-   # Terminal 1 — backend (runs on :3001)
+   # Terminal 1, backend (runs on :3001)
    cd server && npm run dev
 
-   # Terminal 2 — frontend (runs on :5173)
+   # Terminal 2, frontend (runs on :5173)
    cd client && npm run dev
    ```
 
@@ -100,7 +103,7 @@ server/
   app.js       Express app setup
   index.js     Server entry point
   controllers/ Route handlers
-  db/          Database layer (raw mysql2 — no ORM)
+  db/          Database layer (mysql2 and Drizzle over one pool, plus migrations)
   middleware/  Auth, error handling
   routes/      Express routers
   services/    Business logic
@@ -116,18 +119,40 @@ cd client && npm test
 
 ## Deployment
 
-The stack is fully self-contained via Docker Compose — MySQL and the Node/Svelte server run as sibling services with no external database required.
+The stack is fully self-contained via Docker Compose. MySQL and the Node/Svelte server run as sibling services, with no external database required.
 
 ```bash
 cp .env.example .env   # fill in DB_USER, DB_PASSWORD, secrets, URLs
 docker compose up -d
 ```
 
-MySQL data is persisted in a named Docker volume (`db_data`). The schema is applied automatically on first boot from `server/db/schema.sql`. To seed initial data after the containers are healthy:
+Production deploys go through the cutover script, which backs up the database, proves the
+backup restores, applies migrations and rolls back if the new build does not come up
+healthy. See [docs/deployment.md](docs/deployment.md) for the full procedure, the settings
+it accepts, and its current limitations.
+
+```bash
+scripts/cutover.sh v0.2.0
+```
+
+MySQL data is persisted in a named Docker volume (`db_data`), and the schema comes from the
+migrations under `server/db/migrations`, which the cutover applies. To seed initial data
+after the containers are healthy:
 
 ```bash
 docker compose exec via node scripts/seed.js
 ```
+
+## Releases
+
+The whole platform carries one version number, held in the root `package.json` and mirrored
+into the server and client manifests. `scripts/bump-version.sh <patch|minor|major>` bumps
+all three, opens `CHANGELOG.md` for the release note, and creates an annotated tag. A
+running server reports its version at `GET /health`, alongside the applied migration
+version, so you can ask a deployment what it is rather than inferring it from a deploy log.
+Every release passes the gate in `.github/workflows/gate.yml` first. See
+[docs/deployment.md](docs/deployment.md) for the full procedure and [CHANGELOG.md](CHANGELOG.md)
+for what shipped when.
 
 ## Contributing
 

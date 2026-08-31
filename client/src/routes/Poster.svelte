@@ -291,7 +291,7 @@
     ctx.fillStyle = bodyMuted;
     if (showDateTime) {
       ctx.fillText(`📅  ${fmtDate(event.start_time)}`, M, y); y += 38;
-      ctx.fillText(`🕐  ${fmtTime(event.start_time)} – ${fmtTime(event.end_time)}`, M, y); y += 38;
+      ctx.fillText(`🕐  ${fmtTime(event.start_time)} to ${fmtTime(event.end_time)}`, M, y); y += 38;
     }
     if (showLocation && event.building) {
       ctx.fillText(`📍  ${event.building} · ${event.room_number}`, M, y); y += 38;
@@ -389,7 +389,7 @@
 </script>
 
 <svelte:head>
-  <title>{event ? `${event.title} – Poster` : 'Event Poster'} – VIA</title>
+  <title>{event ? `Poster for ${event.title}` : 'Event Poster'}: VIA</title>
 </svelte:head>
 
 <button
@@ -559,7 +559,7 @@
   <!-- ── Preview ───────────────────────────────────────────────────────────── -->
   <div class="flex-1 min-w-0 space-y-4">
     <div class="flex items-center justify-between gap-3 flex-wrap">
-      <p class="text-sm text-muted-foreground">Live preview — what you see is what downloads</p>
+      <p class="text-sm text-muted-foreground">Live preview: what you see is what downloads</p>
       <button
         class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md
                hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0"
@@ -584,7 +584,7 @@
         class="block rounded-xl shadow-xl border-2"
         style="width:100%; max-width:520px; border-color:{accentColor}; display:block;"
       ></canvas>
-      <p class="text-xs text-muted-foreground">800 × 1050 px — suitable for print and social media.</p>
+      <p class="text-xs text-muted-foreground">800 × 1050 px, suitable for print and social media.</p>
     {:else}
       <p class="text-sm text-muted-foreground">Event not found.</p>
     {/if}

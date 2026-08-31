@@ -92,8 +92,8 @@
   });
   $: periodLabel = view === 'week'
     ? (weekStart.getMonth() === weekEnd.getMonth()
-        ? `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()}–${weekEnd.getDate()}, ${weekStart.getFullYear()}`
-        : `${fmt(weekStart, { month: 'short', day: 'numeric' })} – ${fmt(weekEnd, { month: 'short', day: 'numeric', year: 'numeric' })}`)
+        ? `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()}-${weekEnd.getDate()}, ${weekStart.getFullYear()}`
+        : `${fmt(weekStart, { month: 'short', day: 'numeric' })} to ${fmt(weekEnd, { month: 'short', day: 'numeric', year: 'numeric' })}`)
     : `${MONTHS[month]} ${year}`;
 
   // ── RSO color map (reactive) ──────────────────────────────────────────────
@@ -181,7 +181,7 @@
         const { midterms: mids } = await getConfirmedMidterms();
         allMidterms = mids || [];
       } catch {
-        allMidterms = []; // stub not yet implemented — silently degrade
+        allMidterms = []; // stub not yet implemented, so degrade silently
       }
     } catch (err) {
       error = err?.message || 'Failed to load events';
@@ -216,7 +216,7 @@
 </script>
 
 <svelte:head>
-  <title>Calendar – VIA</title>
+  <title>Calendar: VIA</title>
   <meta name="description" content="Week and month calendar view of ECE RSO events at UIUC." />
 </svelte:head>
 

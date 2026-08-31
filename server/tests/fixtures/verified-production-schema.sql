@@ -1,3 +1,12 @@
+-- Frozen reference schema. NOT the schema of record, and nothing loads this at runtime.
+--
+-- This is the content of the former server/db/schema.sql, which was verified statement for
+-- statement against a dump of the production database on 2026-08-29. See
+-- docs/superpowers/notes/2026-08-27-baseline-diff.md. The migrations under db/migrations are
+-- the authority now. This copy is kept only so that tests can prove the baseline migration
+-- still reproduces the schema that production was verified to have. Do not edit it to match
+-- a schema change: a schema change is a new migration, and this file records history.
+
 CREATE DATABASE IF NOT EXISTS via;
 USE via;
 

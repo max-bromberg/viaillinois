@@ -1,6 +1,6 @@
 <svelte:head>
-  <title>About – VIA</title>
-  <meta name="description" content="VIA is the centralized event platform for UIUC ECE student organizations — one place to discover events, coordinate scheduling, and stay on top of midterms." />
+  <title>About: VIA</title>
+  <meta name="description" content="VIA is the centralized event platform for UIUC ECE student organizations, one place to discover events, coordinate scheduling, and stay on top of midterms." />
 </svelte:head>
 
 <div class="max-w-2xl mx-auto space-y-6">
@@ -10,7 +10,7 @@
     <h1 class="text-3xl font-bold tracking-tight">About VIA</h1>
     <p class="text-muted-foreground text-lg leading-relaxed">
       <strong class="text-foreground">Virtually Integrated Agenda</strong> is the shared event hub
-      for UIUC ECE student organizations — one place to discover what's happening and
+      for UIUC ECE student organizations, one place to discover what's happening and
       coordinate your schedule.
     </p>
   </div>
@@ -20,12 +20,12 @@
     <h2 class="text-xl font-semibold">Why VIA?</h2>
     <p class="text-sm text-muted-foreground leading-relaxed">
       UIUC's ECE department is home to many active student organizations, each running
-      their own events across scattered channels — mailing lists, Discord servers, physical
+      their own events across scattered channels: mailing lists, Discord servers, physical
       flyers. Students miss events they'd love, and RSO leaders burn time duplicating
       announcements everywhere.
     </p>
     <p class="text-sm text-muted-foreground leading-relaxed">
-      VIA gives every ECE RSO a shared public calendar and a private coordination layer —
+      VIA gives every ECE RSO a shared public calendar and a private coordination layer,
       so members always know what's on, and board members can plan without the noise.
     </p>
   </div>
@@ -79,7 +79,7 @@
       <div class="border rounded-lg p-4 bg-card space-y-1.5">
         <h3 class="font-medium text-sm">Instant Reach</h3>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          Your events surface automatically to the entire ECE student body —
+          Your events surface automatically to the entire ECE student body,
           no mailing lists to manage, no flyers to print.
         </p>
       </div>

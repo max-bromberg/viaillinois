@@ -9,7 +9,6 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
-      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
       interval: 10s
@@ -27,6 +26,10 @@ services:
         condition: service_healthy
     ports:
       - "3000:3001"
+    volumes:
+      # Backups have to outlive the container that writes them, and they must
+      # not sit inside the database volume that a restore replaces.
+      - ${BACKUP_DIR:-./backups}:/backups
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -35,6 +38,11 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-via}
+      # Backup verification and restore need an account that can create and
+      # drop databases. Root's password is DB_PASSWORD, set above on the db
+      # service, so these default to it.
+      DB_ADMIN_USER: ${DB_ADMIN_USER:-root}
+      DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:-${DB_PASSWORD}}
       CLIENT_URL: ${CLIENT_URL}
       SERVER_URL: ${SERVER_URL:-${CLIENT_URL}}
       JWT_SECRET: ${JWT_SECRET}

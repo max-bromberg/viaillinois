@@ -48,7 +48,7 @@
       class="px-2.5 py-1 text-xs font-medium rounded border transition-all
         {tier ? TIER_CLASSES[tier] : 'border-border hover:bg-accent text-foreground'}"
       on:click={() => cycleDay(day)}
-      title="{day}: {tier ? TIER_LABELS[tier] : 'unset — click to set'}"
+      title="{day}: {tier ? TIER_LABELS[tier] : 'unset, click to set'}"
     >
       {day}{tier ? ` · ${TIER_LABELS[tier]}` : ''}
     </button>

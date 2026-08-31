@@ -17,7 +17,7 @@ console.log('[courses] manual run starting...');
 
 try {
   const { year, semester, totalCourses, totalSections, totalErrors } = await runOnce();
-  console.log(`[courses] done — ${semester} ${year}: ${totalCourses} courses, ${totalSections} sections, ${totalErrors} errors`);
+  console.log(`[courses] done: ${semester} ${year}: ${totalCourses} courses, ${totalSections} sections, ${totalErrors} errors`);
 
   // Row counts for Stage 3 documentation
   try {
@@ -29,7 +29,7 @@ try {
     console.log(`Course_Sections: ${sections.cnt}`);
     console.log(`Locations:       ${locations.cnt}`);
   } catch {
-    console.log('(SQL stubs not yet implemented — row counts unavailable)');
+    console.log('(SQL stubs not yet implemented, so row counts are unavailable)');
   }
 } catch (err) {
   console.error('[courses] failed:', err.message);

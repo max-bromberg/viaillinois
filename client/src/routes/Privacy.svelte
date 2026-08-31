@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Privacy Policy – VIA</title>
+  <title>Privacy Policy: VIA</title>
   <meta name="description" content="Privacy Policy for VIA, the event hub for UIUC ECE student organizations." />
 </svelte:head>
 
@@ -25,7 +25,7 @@
     <h3 class="text-sm font-medium">When you sign in with your UIUC NetID</h3>
     <p class="text-sm text-muted-foreground leading-relaxed">
       Authentication is handled by Microsoft Azure Active Directory using your UIUC
-      credentials — VIA never sees your password. Upon successful sign-in, we store
+      credentials, so VIA never sees your password. Upon successful sign-in, we store
       your NetID, display name, and @illinois.edu email address in our database to
       identify your account and display your name within the platform.
     </p>
@@ -49,7 +49,7 @@
     <h2 class="text-lg font-semibold">3. Cookies</h2>
     <p class="text-sm text-muted-foreground leading-relaxed">
       VIA uses a single <code class="font-mono text-xs bg-muted px-1 py-0.5 rounded">via_token</code> HttpOnly cookie to keep you signed in between
-      sessions. This cookie contains a signed JWT with your NetID and admin status — no
+      sessions. This cookie contains a signed JWT with your NetID and admin status, and no
       tracking identifiers. A short-lived session cookie is also set during the sign-in
       redirect flow and expires immediately after authentication completes.
     </p>
