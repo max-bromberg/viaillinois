@@ -26,6 +26,8 @@ services:
         condition: service_healthy
     ports:
       - "3000:3001"
+    networks:
+      - default
     volumes:
       # Backups have to outlive the container that writes them, and they must
       # not sit inside the database volume that a restore replaces.
@@ -57,3 +59,13 @@ services:
 
 volumes:
   db_data:
+
+# Production puts the reverse proxy and the application on one network that is
+# created outside compose, and the proxy resolves this service by name on it.
+# The network is declared external because compose must attach to the existing
+# one rather than create a second network of its own. A host that does not have
+# it yet needs "docker network create internal" once, before the first deploy.
+networks:
+  default:
+    external: true
+    name: internal

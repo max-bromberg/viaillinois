@@ -31,6 +31,9 @@ jobs:
       - name: Bump script tests
         run: npx vitest run scripts/tests/bumpVersion.test.js
 
+      - name: Compose file tests
+        run: npx vitest run scripts/tests/composeFile.test.js
+
       - name: Server fast tests
         run: npm test --prefix server
 
