@@ -4,6 +4,11 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+## 0.2.2 (2026-08-30)
+
+- The compose file now declares the external network named internal that the reverse proxy uses to reach the application by service name. It was previously an edit that existed only on the production host.
+- A test guards the compose file against the three ways it has drifted or could drift: a schema mount into docker-entrypoint-initdb.d, a missing host backup mount, and a missing external network. The gate runs it.
+
 ## 0.2.1 (2026-08-30)
 
 - The release gate now runs on pull requests to main and on version tags, and its three jobs are required by branch protection.
