@@ -9,6 +9,16 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
+    networks:
+      via_internal:
+        aliases:
+          # The shared network carries every stack on this host, and Compose
+          # gives each service the alias of its own name on every network it
+          # joins. Three stacks there run a service called db, so that name
+          # resolves to three different servers and each connection is a draw
+          # between them. This name belongs to one stack and resolves to one
+          # server.
+          - via-db
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
       interval: 10s
@@ -28,6 +38,7 @@ services:
       - "3000:3001"
     networks:
       - default
+      - via_internal
     volumes:
       # Backups have to outlive the container that writes them, and they must
       # not sit inside the database volume that a restore replaces.
@@ -35,7 +46,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DB_HOST: db
+      DB_HOST: via-db
       DB_PORT: 3306
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -69,3 +80,7 @@ networks:
   default:
     external: true
     name: internal
+  # Private to this stack, so the database is reachable from the application
+  # and from nowhere else on the host.
+  via_internal:
+    driver: bridge
