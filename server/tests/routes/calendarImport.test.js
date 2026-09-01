@@ -19,8 +19,10 @@ vi.mock('../../db/queries/events.js', () => ({
   findEventsByUid: vi.fn(), createEvent: vi.fn(),
 }));
 vi.mock('../../db/queries/advanced.js', () => ({ createEventTransactional: vi.fn(), callGetRSOStats: vi.fn() }));
+const memberships = vi.hoisted(() => ({ value: [] }));
 vi.mock('../../db/queries/rso.js', () => ({
-  getMembership: vi.fn().mockResolvedValue({ role: 'Admin' }), getUserMemberships: vi.fn().mockResolvedValue([]),
+  getMembership: vi.fn().mockResolvedValue({ role: 'Admin' }),
+  getUserMemberships: vi.fn(async () => memberships.value),
 }));
 vi.mock('../../db/queries/users.js', () => ({ getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn() }));
 vi.mock('../../db/queries/midterms.js', () => ({
@@ -102,21 +104,56 @@ describe('POST /api/v1/midterms/import', () => {
     applyMidtermImport.mockClear();
     planMidtermImport.mockResolvedValue({ entries: [], skipped: 0, unmatched: [] });
     applyMidtermImport.mockResolvedValue({ created: 2, updated: 0, skipped: 0, unmatched: [] });
+    memberships.value = [];
   });
 
   it('refuses an anonymous request', async () => {
     expect((await request(app).post('/api/v1/midterms/import').send({ ics: ICS })).status).toBe(401);
   });
 
-  /** Midterms are one shared listing, so only a global admin may replace it. */
-  it('refuses a signed in user who is not a global admin', async () => {
+  /**
+   * An import writes the shared exam schedule, so it is held to the same bar as
+   * deleting from it: a global admin, or anyone who sits on an RSO board.
+   */
+  it('refuses a signed in user who runs nothing', async () => {
     const res = await request(app).post('/api/v1/midterms/import').set('Cookie', member).send({ ics: ICS });
     expect(res.status).toBe(403);
+    expect(applyMidtermImport).not.toHaveBeenCalled();
+  });
+
+  it('refuses an ordinary member of an RSO', async () => {
+    memberships.value = [{ rso_id: 3, name: 'IEEE UIUC', role: 'Member' }];
+    const res = await request(app).post('/api/v1/midterms/import').set('Cookie', member).send({ ics: ICS });
+    expect(res.status).toBe(403);
+    expect(applyMidtermImport).not.toHaveBeenCalled();
+  });
+
+  it('refuses an editor of an RSO', async () => {
+    memberships.value = [{ rso_id: 3, name: 'IEEE UIUC', role: 'Editor' }];
+    const res = await request(app).post('/api/v1/midterms/import').set('Cookie', member).send({ ics: ICS });
+    expect(res.status).toBe(403);
+    expect(applyMidtermImport).not.toHaveBeenCalled();
   });
 
   it('imports for a global admin', async () => {
     const res = await request(app).post('/api/v1/midterms/import').set('Cookie', admin).send({ ics: ICS });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ created: 2 });
+  });
+
+  it('imports for a board member of any RSO', async () => {
+    memberships.value = [{ rso_id: 3, name: 'IEEE UIUC', role: 'Board' }];
+    const res = await request(app).post('/api/v1/midterms/import').set('Cookie', member).send({ ics: ICS });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ created: 2 });
+  });
+
+  it('previews for a board member without writing anything', async () => {
+    memberships.value = [{ rso_id: 3, name: 'IEEE UIUC', role: 'Board' }];
+    const res = await request(app).post('/api/v1/midterms/import')
+      .set('Cookie', member).send({ ics: ICS, preview: true });
+    expect(res.status).toBe(200);
+    expect(planMidtermImport).toHaveBeenCalled();
+    expect(applyMidtermImport).not.toHaveBeenCalled();
   });
 });

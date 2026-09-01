@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { importMidterms } from '../controllers/calendarImport.js';
 import {
-  listMidterms, createMidterm,
+  listMidterms, createMidterm, deleteMidterm,
   getConfirmedMidtermsHandler, getAdminMidterms, updateMidtermStatus,
   getCourses,
 } from '../controllers/midterms.js';
@@ -19,4 +19,5 @@ router.get('/',             listMidterms);
 router.post('/',            requireAuth, createMidterm);
 router.post('/import',      importLimiter, requireAuth, importMidterms);
 router.patch('/:id/status', requireAuth, updateMidtermStatus);
+router.delete('/:id',       requireAuth, deleteMidterm);
 export default router;

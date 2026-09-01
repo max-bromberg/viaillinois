@@ -1,5 +1,6 @@
 <script>
   import { locationLabel } from '../lib/locationLabel.js';
+  import { campusDate, campusTime } from '../lib/campusTime.js';
   import { onMount } from 'svelte';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
@@ -25,11 +26,9 @@
     ? `${window.location.origin}/events/${id}`
     : `/events/${id}`;
   $: tags = event?.tags ? event.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-  $: startDate  = event ? new Date(event.start_time) : null;
-  $: endDate    = event ? new Date(event.end_time)   : null;
-  $: formattedDate      = startDate ? startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
-  $: formattedStartTime = startDate ? startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
-  $: formattedEndTime   = endDate   ? endDate.toLocaleTimeString('en-US',   { hour: 'numeric', minute: '2-digit' }) : '';
+  $: formattedDate      = campusDate(event?.start_time, { weekday: 'long', month: 'long', day: 'numeric' });
+  $: formattedStartTime = campusTime(event?.start_time);
+  $: formattedEndTime   = campusTime(event?.end_time);
 
   onMount(async () => {
     try {

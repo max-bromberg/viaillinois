@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { campusDateTime, campusTime } from '../lib/campusTime.js';
   import { currentUser, adminRsoIds } from '../stores/auth.js';
   import { navigate } from '../lib/router.js';
   import { recommend } from '../api/scheduler.js';
@@ -173,12 +174,10 @@
   }
 
   function fmtTime(iso) {
-    return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return campusTime(iso);
   }
   function fmtDateTime(iso) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' +
-           d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return campusDateTime(iso, { separator: ' · ' });
   }
 </script>
 

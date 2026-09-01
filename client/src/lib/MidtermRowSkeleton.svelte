@@ -1,3 +1,8 @@
+<script>
+  /** Matches the column the real row adds for those who may delete. */
+  export let canDelete = false;
+</script>
+
 <tr class="border-b">
   <!-- Col 1: title + subtitle -->
   <td class="py-3 px-4">
@@ -19,5 +24,12 @@
   <td class="py-3 px-4">
     <div class="shimmer h-5 w-16 rounded"></div>
   </td>
+
+  <!-- Col 5: the delete control, present only for those who have one -->
+  {#if canDelete}
+    <td class="py-3 px-4">
+      <div class="shimmer h-6 w-14 rounded ml-auto"></div>
+    </td>
+  {/if}
 
 </tr>

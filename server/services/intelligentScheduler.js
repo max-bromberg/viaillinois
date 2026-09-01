@@ -11,6 +11,21 @@ const SENSITIVITY = {
 };
 
 const TIER_PENALTIES = { strongly_preferred: 35, nice_to_have: 10 };
+
+/**
+ * Read a Date built from calendar components back as the wall clock it stands
+ * for, in the shape everything else in the database is stored in.
+ *
+ * Every Date in this file is assembled from an explicit year, month, day and
+ * hour rather than from an instant, so its calendar fields are the reading that
+ * was meant. Converting one to UTC instead moved the whole recommendation by
+ * the offset of whatever container the scheduler happened to run in.
+ */
+function wallClock(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    + ` ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Maps the short codes used in the UI to the canonical building names stored in
@@ -44,7 +59,7 @@ export async function recommend(params) {
   const [ey, em, ed] = dateRange.end.split('-').map(Number);
   const midtermEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
   midtermEnd.setTime(midtermEnd.getTime() + windowHours * 3_600_000);
-  const midtermEndStr = midtermEnd.toISOString().slice(0, 19).replace('T', ' ');
+  const midtermEndStr = wallClock(midtermEnd);
 
   const [allEvents, targetMidterms, allReservations, allLocations, allSections] = await Promise.all([
     getPublicEvents({ startDate: dateRange.start, endDate: dateRange.end, limit: 1000 }),
@@ -135,8 +150,8 @@ function generateSlots(startStr, endStr, durationMins, timeConstraint, dayConstr
         if (slotEnd.getHours() > endH || (slotEnd.getHours() === endH && slotEnd.getMinutes() > 0)) continue;
 
         slots.push({
-          start: slotStart.toISOString(),
-          end: slotEnd.toISOString(),
+          start: wallClock(slotStart),
+          end: wallClock(slotEnd),
           dayName,
           dayTier: dayTierMap[dayName] ?? null,
         });

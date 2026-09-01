@@ -1,5 +1,6 @@
 <script>
   import { locationLabel } from '../lib/locationLabel.js';
+  import { campusDate, campusTime } from '../lib/campusTime.js';
   import { onMount } from 'svelte';
   import { navigate } from '../lib/router.js';
   import { getEvent } from '../api/events.js';
@@ -124,12 +125,8 @@
     if (c.length < 6) return '99,102,241';
     return `${parseInt(c.substr(0,2),16)},${parseInt(c.substr(2,2),16)},${parseInt(c.substr(4,2),16)}`;
   }
-  function fmtDate(d) {
-    return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  }
-  function fmtTime(d) {
-    return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  }
+  const fmtDate = d => campusDate(d, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const fmtTime = d => campusTime(d);
   function wrapText(ctx, text, maxWidth) {
     const words = (text || '').split(' ');
     const lines = []; let cur = '';

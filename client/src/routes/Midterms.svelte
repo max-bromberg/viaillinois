@@ -1,19 +1,26 @@
 <script>
   import { onMount } from 'svelte';
-  import { getMidterms, createMidterm } from '../api/midterms.js';
+  import { getMidterms, createMidterm, deleteMidterm } from '../api/midterms.js';
   import { searchLocations } from '../api/locations.js';
   import MidtermRow from '../lib/MidtermRow.svelte';
   import { locationLabel } from '../lib/locationLabel.js';
   import MidtermRowSkeleton from '../lib/MidtermRowSkeleton.svelte';
+  import CalendarImport from '../lib/CalendarImport.svelte';
   import { Input } from '$lib/components/ui/input';
   import { Button } from '$lib/components/ui/button';
   import { showToast } from '../stores/ui.js';
-  import { currentUser } from '../stores/auth.js';
+  import { currentUser, isGlobalAdmin, isRsoAdmin } from '../stores/auth.js';
 
   let midterms = [];
   let loading = false;
   let courseFilter = '';
   let showForm = false;
+  let showImport = false;
+
+  // The schedule belongs to no single RSO, so anyone on a board may correct it,
+  // as may a global admin. A board member cannot reach the admin page, so for
+  // them this listing is the only place the controls can be.
+  $: canManage = $isGlobalAdmin || $isRsoAdmin;
 
   // Sort state, chronological by default
   let sortCol = 'start_time';
@@ -132,6 +139,16 @@
     setTimeout(() => { showSuggestions = false; }, 150);
   }
 
+  async function handleDelete(midtermId) {
+    try {
+      await deleteMidterm(midtermId);
+      showToast('Midterm deleted');
+      await load();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
   onMount(load);
 </script>
 
@@ -148,8 +165,17 @@
       {#if $currentUser}
         <Button size="sm" class="whitespace-nowrap" on:click={() => showForm = !showForm}>+ Submit</Button>
       {/if}
+      {#if canManage}
+        <Button size="sm" variant="outline" class="whitespace-nowrap" on:click={() => showImport = !showImport}>
+          {showImport ? 'Close import' : 'Import calendar'}
+        </Button>
+      {/if}
     </div>
   </div>
+
+  {#if showImport}
+    <CalendarImport kind="midterms" on:imported={load} />
+  {/if}
 
   {#if showForm}
     <form on:submit|preventDefault={handleSubmit} class="border rounded-lg p-4 bg-card grid grid-cols-2 gap-3">
@@ -215,20 +241,25 @@
               {/if}
             </th>
           {/each}
+          {#if canManage}
+            <th class="py-2 px-4 text-xs font-semibold uppercase tracking-wide text-right">
+              <span class="sr-only">Actions</span>
+            </th>
+          {/if}
         </tr>
       </thead>
       <tbody>
         {#if loading}
           {#each Array(5) as _}
-            <MidtermRowSkeleton />
+            <MidtermRowSkeleton canDelete={canManage} />
           {/each}
         {:else if sorted.length === 0}
-          <tr><td colspan="5" class="py-8 text-center text-sm text-muted-foreground">
+          <tr><td colspan={canManage ? 5 : 4} class="py-8 text-center text-sm text-muted-foreground">
             {courseFilter ? 'No exams match your search.' : 'No midterms found.'}
           </td></tr>
         {:else}
           {#each sorted as midterm (midterm.midterm_id)}
-            <MidtermRow {midterm} />
+            <MidtermRow {midterm} canDelete={canManage} on:delete={e => handleDelete(e.detail.midterm_id)} />
           {/each}
         {/if}
       </tbody>

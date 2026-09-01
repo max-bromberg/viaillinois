@@ -4,6 +4,7 @@
   import { Label } from '$lib/components/ui/label';
   import { Button } from '$lib/components/ui/button';
   import LocationPicker from './LocationPicker.svelte';
+  import { toDateTimeLocal } from './campusTime.js';
 
   export let rsoId;
   export let initial = {};
@@ -15,8 +16,11 @@
 
   let title       = initial.title       || '';
   let description = initial.description || '';
-  let startTime   = initial.start_time  ? initial.start_time.slice(0, 16) : '';
-  let endTime     = initial.end_time    ? initial.end_time.slice(0, 16) : '';
+  // The form is filled with the hour the organizer typed. Reading the published
+  // instant in the browser's own zone instead would move the event by that
+  // zone's offset the moment an untouched form was saved.
+  let startTime   = toDateTimeLocal(initial.start_time);
+  let endTime     = toDateTimeLocal(initial.end_time);
   let locationId   = initial.location_id   || null;
   let locationText = initial.location_text || null;
   let isPrivate   = initial.is_private  || false;

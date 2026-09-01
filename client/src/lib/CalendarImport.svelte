@@ -1,12 +1,16 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
   import { importCalendar } from '../api/calendar.js';
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
+  import { campusDateTime } from './campusTime.js';
 
   /** Which listing to import into. */
   export let kind = 'events';
   /** Required when importing events. */
   export let rsoId = undefined;
+
+  const dispatch = createEventDispatcher();
 
   let ics = '';
   let plan = null;
@@ -14,10 +18,7 @@
   let error = null;
   let busy = false;
 
-  const formatted = (start) =>
-    new Date(start.replace(' ', 'T')).toLocaleString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-    });
+  const formatted = start => campusDateTime(start, { separator: ', ' });
 
   async function readFile(event) {
     const file = event.target.files?.[0];
@@ -48,6 +49,8 @@
     try {
       result = await importCalendar({ kind, rsoId, ics, preview: false });
       plan = null;
+      // The listing behind this panel is stale the moment this succeeds.
+      dispatch('imported', result);
     } catch (e) {
       error = e.message;
     } finally {

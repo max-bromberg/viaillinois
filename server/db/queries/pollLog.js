@@ -1,4 +1,12 @@
 import { query } from '../pool.js';
+import { toCampusWallClock } from '../../lib/timezone.js';
+
+/**
+ * A run stamp written by this process, in the same campus wall clock every
+ * other time in the database is kept in. Handing the driver a Date instead
+ * would record whatever zone the container was started in.
+ */
+const stamp = value => (value instanceof Date ? toCampusWallClock(value) : value);
 
 /**
  * Insert a new Poll_Log row to mark the start of a poller run.
@@ -9,7 +17,7 @@ import { query } from '../pool.js';
 export async function insertPollLog(service, startedAt) {
   const result = await query(
     'INSERT INTO Poll_Log (service, started_at) VALUES (?, ?)',
-    [service, startedAt]
+    [service, stamp(startedAt)]
   )
   return result.insertId
 }
@@ -25,7 +33,7 @@ export async function finalizePollLog(logId, { finishedAt, rowsProcessed, rowsSk
     `UPDATE Poll_Log SET finished_at=?, rows_processed=?, rows_skipped=?,
      error_count=?, last_error=?, metadata=?
      WHERE log_id=?`,
-    [finishedAt, rowsProcessed, rowsSkipped, errorCount, lastError || null, metadata ? JSON.stringify(metadata) : null, logId]
+    [stamp(finishedAt), rowsProcessed, rowsSkipped, errorCount, lastError || null, metadata ? JSON.stringify(metadata) : null, logId]
   )
 }
 

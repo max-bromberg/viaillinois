@@ -1,4 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { query } from '../pool.js';
+import { db } from '../client.ts';
+import { midterms } from '../schema/schema.ts';
+import { campusNow } from '../../lib/timezone.js';
 
 /**
  * List midterms, optionally filtered by course_code and date range.
@@ -24,6 +28,9 @@ export async function getMidterms(filters = {}) {
   }
 
   const whereClause = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : ''
+  // Whether an exam is upcoming, ongoing or past is judged against the campus
+  // clock. NOW() is the database container's clock, which is not the same one.
+  const now = campusNow()
   return query( // apparently case statements is a thing https://www.w3schools.com/sql/func_mysql_case.asp
     `
     SELECT
@@ -34,8 +41,8 @@ export async function getMidterms(filters = {}) {
         m.start_time,
         m.end_time,
         CASE
-            WHEN NOW() < m.start_time THEN 'upcoming'
-            WHEN NOW() BETWEEN m.start_time AND m.end_time THEN 'ongoing'
+            WHEN ? < m.start_time THEN 'upcoming'
+            WHEN ? BETWEEN m.start_time AND m.end_time THEN 'ongoing'
             ELSE 'past'
         END AS status,
         m.location_text,
@@ -48,7 +55,7 @@ export async function getMidterms(filters = {}) {
     ${whereClause}
     ORDER BY m.start_time ASC
     `,
-    params
+    [now, now, ...params]
   )
 }
 
@@ -88,7 +95,7 @@ export async function findMidtermsByUid(uids) {
  * @returns {Promise<Array<{ midterm_id, title, course_code, start_time, end_time, building, room_number }>>}
  */
 export async function getConfirmedMidterms() {
-  return query('SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, m.location_text, l.building, l.room_number FROM Midterms m LEFT JOIN Locations l ON m.location_id = l.location_id WHERE m.status = "Confirmed" AND m.end_time > NOW() ORDER BY m.start_time ASC')
+  return query('SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, m.location_text, l.building, l.room_number FROM Midterms m LEFT JOIN Locations l ON m.location_id = l.location_id WHERE m.status = "Confirmed" AND m.end_time > ? ORDER BY m.start_time ASC', [campusNow()])
 }
 
 /**
@@ -107,6 +114,27 @@ export async function getAllMidtermsAdmin() {
  */
 export async function setMidtermStatus(midtermId, status) {
   return query('UPDATE Midterms SET status = ? WHERE midterm_id = ?', [status, midtermId])
+}
+
+/**
+ * Remove a midterm outright.
+ *
+ * Cancelling leaves the row in place, which is right for an exam that was
+ * scheduled and then called off, and wrong for one that should never have been
+ * listed at all. An admin needs both.
+ *
+ * A midterm that came from the HKN calendar is recreated by the next import of
+ * that calendar, because the import matches on external_uid and finds nothing.
+ * Cancelling is the way to keep one of those off the page for good.
+ *
+ * Written with Drizzle, which is the direction the data layer is moving in.
+ *
+ * @param {number} midtermId
+ * @returns {Promise<{ affectedRows: number }>}
+ */
+export async function deleteMidterm(midtermId) {
+  const [result] = await db.delete(midterms).where(eq(midterms.midtermId, midtermId))
+  return { affectedRows: result.affectedRows }
 }
 
 /**

@@ -1,10 +1,10 @@
 <script>
   import { locationLabel } from './locationLabel.js';
+  import { campusDate, campusTime } from './campusTime.js';
   export let event;
 
-  $: start = new Date(event.start_time);
-  $: date = start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  $: time = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  $: date = campusDate(event.start_time, { weekday: 'long', month: 'long', day: 'numeric' });
+  $: time = campusTime(event.start_time);
 </script>
 
 <div class="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-16 select-none">

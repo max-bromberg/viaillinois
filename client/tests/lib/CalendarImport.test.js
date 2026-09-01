@@ -129,3 +129,59 @@ describe('CalendarImport', () => {
     expect(await findByText(/Reading day/)).toBeTruthy();
   });
 });
+
+/**
+ * The listing behind this panel is stale the moment an import succeeds, so the
+ * panel says when it has written something and the page reloads itself.
+ */
+describe('CalendarImport announces a finished import', () => {
+  beforeEach(() => {
+    importCalendar.mockReset();
+    importCalendar.mockResolvedValue(PLAN);
+  });
+
+  it('says nothing while only previewing', async () => {
+    const imported = vi.fn();
+    const { getByLabelText, getByRole, findByText } = render(CalendarImport, {
+      props: { kind: 'midterms' },
+      events: { imported },
+    });
+    await pasteCalendar(getByLabelText);
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    await findByText(/Weekly meeting/);
+    expect(imported).not.toHaveBeenCalled();
+  });
+
+  it('reports what it wrote once the import is confirmed', async () => {
+    const imported = vi.fn();
+    const { getByLabelText, getByRole, findByText } = render(CalendarImport, {
+      props: { kind: 'midterms' },
+      events: { imported },
+    });
+    await pasteCalendar(getByLabelText);
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    await findByText(/Weekly meeting/);
+
+    importCalendar.mockResolvedValue({ created: 2, updated: 1, skipped: 0 });
+    await fireEvent.click(getByRole('button', { name: /import 2 entries/i }));
+
+    await waitFor(() => expect(imported).toHaveBeenCalled());
+    expect(imported.mock.calls[0][0].detail).toMatchObject({ created: 2, updated: 1 });
+  });
+
+  it('says nothing when the import fails', async () => {
+    const imported = vi.fn();
+    const { getByLabelText, getByRole, findByText } = render(CalendarImport, {
+      props: { kind: 'midterms' },
+      events: { imported },
+    });
+    await pasteCalendar(getByLabelText);
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    await findByText(/Weekly meeting/);
+
+    importCalendar.mockRejectedValue(new Error('nope'));
+    await fireEvent.click(getByRole('button', { name: /import 2 entries/i }));
+    await findByText(/nope/);
+    expect(imported).not.toHaveBeenCalled();
+  });
+});

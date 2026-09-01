@@ -31,3 +31,14 @@ describe('KioskCard location', () => {
     expect(getByText(/Location to be announced/)).toBeTruthy();
   });
 });
+
+/** The kiosk hangs in a building lobby, so it shows the clock on the wall. */
+describe('KioskCard shows campus time', () => {
+  it('shows the hour the event starts on campus', () => {
+    const { getByText } = render(KioskCard, {
+      event: { ...base, start_time: '2026-04-10T18:00:00-05:00' },
+    });
+    expect(getByText('6:00 PM')).toBeTruthy();
+    expect(getByText('Friday, April 10')).toBeTruthy();
+  });
+});

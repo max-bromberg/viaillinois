@@ -7,13 +7,15 @@
   import CalendarFilter from '../lib/CalendarFilter.svelte';
   import UpdatesWidget from '../lib/UpdatesWidget.svelte';
   import WeekTimeGrid from '../lib/WeekTimeGrid.svelte';
+  import { campusFields, calendarDayKey, campusTodayMarker, fallsOnDay } from '../lib/campusTime.js';
 
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                   'July', 'August', 'September', 'October', 'November', 'December'];
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Today on campus. A reader in another zone still opens the calendar on the
+  // day Champaign is having, which is the day the events on it belong to.
+  const today = campusTodayMarker();
 
   // ── View/nav state ────────────────────────────────────────────────────────
   let view = 'week'; // 'week' | 'month'
@@ -43,10 +45,10 @@
     return d;
   }
 
+  /** Two columns stand for the same day. */
   function isSameDay(a, b) {
-    return a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate();
+    const key = calendarDayKey(a);
+    return key !== '' && key === calendarDayKey(b);
   }
 
   function fmt(date, opts) {
@@ -107,21 +109,17 @@
   $: daysInMonth = new Date(year, month + 1, 0).getDate();
 
   function buildMonthCells(y, m, startWd, total, evs, mids) {
+    // A month cell is a campus day, so each entry lands in the cell for the day
+    // it happens on in Champaign rather than the day it falls on for the reader.
     const byDay = {};
-    for (const ev of evs) {
-      const d = new Date(ev.start_time);
-      if (d.getFullYear() === y && d.getMonth() === m) {
-        const day = d.getDate();
-        (byDay[day] ??= []).push({ ...ev, _type: 'event' });
-      }
-    }
-    for (const mt of mids) {
-      const d = new Date(mt.start_time);
-      if (d.getFullYear() === y && d.getMonth() === m) {
-        const day = d.getDate();
-        (byDay[day] ??= []).push({ ...mt, _type: 'midterm' });
-      }
-    }
+    const place = (row, type) => {
+      const f = campusFields(row.start_time);
+      if (!f || f.year !== y || f.month !== m + 1) return;
+      (byDay[f.day] ??= []).push({ ...row, _type: type });
+    };
+    for (const ev of evs) place(ev, 'event');
+    for (const mt of mids) place(mt, 'midterm');
+
     const result = [];
     for (let i = 0; i < startWd; i++) result.push(null);
     for (let d = 1; d <= total; d++) {
@@ -136,9 +134,9 @@
   // ── Week cells (for consistency, computed from filtered data) ──────────────
   $: weekCells = weekDays.map(day => {
     const items = [
-      ...filteredEvents.filter(ev => isSameDay(new Date(ev.start_time), day))
+      ...filteredEvents.filter(ev => fallsOnDay(ev.start_time, day))
                        .map(ev => ({ ...ev, _type: 'event' })),
-      ...filteredMidterms.filter(mt => isSameDay(new Date(mt.start_time), day))
+      ...filteredMidterms.filter(mt => fallsOnDay(mt.start_time, day))
                          .map(mt => ({ ...mt, _type: 'midterm' })),
     ].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
     return { date: day, items };
@@ -165,8 +163,10 @@
       if (v === 'week') {
         const we = new Date(ws);
         we.setDate(we.getDate() + 6);
-        startDate = ws.toISOString().slice(0, 10);
-        endDate = we.toISOString().slice(0, 10);
+        // The week markers name calendar days. Sending them through toISOString
+        // converted them to UTC, which asked for the wrong week west of it.
+        startDate = calendarDayKey(ws);
+        endDate = calendarDayKey(we);
       } else {
         const dm = new Date(y, m + 1, 0).getDate();
         startDate = `${y}-${String(m + 1).padStart(2, '0')}-01`;

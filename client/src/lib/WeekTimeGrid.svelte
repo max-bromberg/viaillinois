@@ -1,10 +1,12 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { campusFields, calendarDayKey, campusTodayMarker, fallsOnDay } from './campusTime.js';
 
   export let weekDays = [];
   export let events = [];
   export let midterms = [];
-  export let today = new Date();
+  /** A day marker for today on campus, so the highlighted column is the right one. */
+  export let today = campusTodayMarker();
   export let rsoColorMap = {};
   export let loading = false;
 
@@ -16,19 +18,18 @@
   const TOTAL_H = (HOUR_END - HOUR_START) * SLOT_H;
   const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => i + HOUR_START);
 
+  /** Two columns stand for the same day. */
   function isSameDay(a, b) {
-    return a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate();
+    const key = calendarDayKey(a);
+    return key !== '' && key === calendarDayKey(b);
   }
 
   function fmtTime(dateStr) {
-    const d = new Date(dateStr);
-    const h = d.getHours();
-    const m = d.getMinutes();
-    const ampm = h >= 12 ? 'pm' : 'am';
-    const h12 = h % 12 || 12;
-    return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, '0')}${ampm}`;
+    const f = campusFields(dateStr);
+    if (!f) return '';
+    const ampm = f.hour >= 12 ? 'pm' : 'am';
+    const h12 = f.hour % 12 || 12;
+    return f.minute === 0 ? `${h12}${ampm}` : `${h12}:${String(f.minute).padStart(2, '0')}${ampm}`;
   }
 
   function fmtHour(h) {
@@ -37,10 +38,12 @@
   }
 
   function placeItem(startTime, endTime) {
-    const s = new Date(startTime);
-    const e = new Date(endTime);
-    const startFrac = s.getHours() + s.getMinutes() / 60;
-    const endFrac = e.getHours() + e.getMinutes() / 60;
+    // A row on the grid is an hour on the campus clock, so an event is placed
+    // by the hour it starts on campus rather than in the reader's own zone.
+    const s = campusFields(startTime) ?? { hour: 0, minute: 0 };
+    const e = campusFields(endTime) ?? s;
+    const startFrac = s.hour + s.minute / 60;
+    const endFrac = e.hour + e.minute / 60;
     const top = Math.max(0, Math.min((startFrac - HOUR_START) * SLOT_H, TOTAL_H - 20));
     const height = Math.max(22, Math.min((endFrac - startFrac) * SLOT_H, TOTAL_H - top));
     return { top, height };
@@ -49,8 +52,8 @@
   // Reactive derivation, with an explicit dependency on events/midterms/weekDays
   // so Svelte re-runs this whenever filters change
   $: itemsByDay = weekDays.map(day => ({
-    events: events.filter(ev => isSameDay(new Date(ev.start_time), day)),
-    midterms: midterms.filter(m => isSameDay(new Date(m.start_time), day)),
+    events: events.filter(ev => fallsOnDay(ev.start_time, day)),
+    midterms: midterms.filter(m => fallsOnDay(m.start_time, day)),
   }));
 </script>
 
