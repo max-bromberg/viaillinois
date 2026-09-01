@@ -1,7 +1,7 @@
 import {
   planEventImport, applyEventImport, planMidtermImport, applyMidtermImport,
 } from '../services/calendarImport.js';
-import { checkRsoEditor } from '../middleware/auth.js';
+import { checkRsoEditor, checkAnyRsoBoard } from '../middleware/auth.js';
 
 /**
  * Importing a calendar file.
@@ -40,9 +40,18 @@ export async function importEvents(req, res, next) {
   } catch (err) { respondToImportError(err, res, next); }
 }
 
+/**
+ * An import writes the shared exam schedule, so it is held to the same bar as
+ * deleting from it: a global admin, or anyone who sits on an RSO board. The
+ * schedule belongs to no single RSO, so there is no RSO to be on the board of
+ * for a given exam, and sitting on any board is the bar. An ordinary member
+ * cannot import, and neither can an editor, whose remit is that RSO's own
+ * events. Every import previews first, so nothing is written unseen.
+ */
 export async function importMidterms(req, res, next) {
   try {
-    if (!req.user?.is_global_admin) return res.status(403).json({ error: 'Global admin required' });
+    const permitted = req.user?.is_global_admin || await checkAnyRsoBoard(req.user.net_id);
+    if (!permitted) return res.status(403).json({ error: 'Global admin or RSO board access required' });
     const { ics, preview = false } = req.body;
     if (!ics) return res.status(400).json({ error: 'ics required' });
 

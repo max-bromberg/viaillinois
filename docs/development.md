@@ -62,8 +62,15 @@ database, and neither should you: it is on a different port with a different nam
 ## Importing a calendar
 
 Events and midterms can be imported from an .ics file exported from Google Calendar,
-Outlook or Apple Calendar. The panel is on the RSO dashboard for events and on the admin
-Midterms tab for midterms.
+Outlook or Apple Calendar. The panel for events is on the RSO dashboard, and the one for
+midterms is on the midterm schedule at `/midterms` and on the admin Midterms tab.
+
+An event import needs board or editor access to the RSO it writes to. A midterm import
+writes the shared exam schedule, so it is held to the same bar as deleting from it: a
+global admin, or anyone who sits on an RSO board, decided by `checkAnyRsoBoard`. It was
+previously open to global admins alone, which left the boards who read that schedule
+unable to load it. An ordinary member cannot import, and neither can an editor, whose
+remit is that RSO's own events.
 
 The file is read in the browser and its text is posted to `POST /api/v1/events/import` or
 `POST /api/v1/midterms/import`. With `preview: true` nothing is written and the plan comes
@@ -87,12 +94,12 @@ A midterm can be deleted outright, which is a different act from cancelling it.
 Cancelling keeps the row and is right for an exam that was scheduled and then called off.
 Deleting is for an entry that should never have been listed.
 
-Deleting is open to global admins and to anyone who sits on an RSO board. The midterm
-schedule belongs to no single RSO, so there is no RSO to be on the board of for a given
-exam, and `checkAnyRsoBoard` in `server/middleware/auth.js` asks only whether the person
-sits on a board at all. Boards are the people who schedule around this listing, and so
-the people who notice what is wrong with it. An ordinary member cannot delete, and
-neither can an editor, whose remit is that RSO's own events.
+Deleting is open to global admins and to anyone who sits on an RSO board, the same bar as
+importing. The midterm schedule belongs to no single RSO, so there is no RSO to be on the
+board of for a given exam, and `checkAnyRsoBoard` in `server/middleware/auth.js` asks only
+whether the person sits on a board at all. Boards are the people who schedule around this
+listing, and so the people who notice what is wrong with it. An ordinary member cannot
+delete, and neither can an editor, whose remit is that RSO's own events.
 
 That decides where the control lives. Global admins delete from the admin Midterms tab,
 which also reaches past exams. Board members cannot open the admin page at all, so for

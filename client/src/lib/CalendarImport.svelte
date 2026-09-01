@@ -1,4 +1,5 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
   import { importCalendar } from '../api/calendar.js';
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
@@ -8,6 +9,8 @@
   export let kind = 'events';
   /** Required when importing events. */
   export let rsoId = undefined;
+
+  const dispatch = createEventDispatcher();
 
   let ics = '';
   let plan = null;
@@ -46,6 +49,8 @@
     try {
       result = await importCalendar({ kind, rsoId, ics, preview: false });
       plan = null;
+      // The listing behind this panel is stale the moment this succeeds.
+      dispatch('imported', result);
     } catch (e) {
       error = e.message;
     } finally {

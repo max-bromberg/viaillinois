@@ -864,7 +864,7 @@
     <!-- ── Midterms Tab ──────────────────────────────────────────────────── -->
     {#if activeTab === 'midterms'}
       <div class="space-y-4">
-        <CalendarImport kind="midterms" />
+        <CalendarImport kind="midterms" on:imported={() => { midtermsLoaded = false; loadMidterms(); }} />
 
         <!-- Status filter pills -->
         <div class="flex items-center gap-2 flex-wrap">
