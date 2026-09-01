@@ -59,4 +59,29 @@ describe('docker-compose.yml', () => {
     expect(network).toContain('name: internal');
     expect(section(compose, ['services', 'via', 'networks'])).toContain('- default');
   });
+
+  it('keeps the database off the shared network', () => {
+    // The shared network carries every stack on the host, and Compose gives
+    // each service the alias of its own name there. Three stacks run a service
+    // called db, so that name resolves to three servers and every connection
+    // is a draw between them. The database has no reason to be reachable from
+    // the other stacks at all, so it stays on a network private to this one.
+    const networks = section(compose, ['services', 'db', 'networks']);
+    expect(networks).toContain('via_internal');
+    expect(networks).not.toContain('default');
+  });
+
+  it('gives the database a name that no other stack answers to', () => {
+    expect(section(compose, ['services', 'db', 'networks'])).toContain('via-db');
+    expect(section(compose, ['services', 'via', 'environment'])).toContain('DB_HOST: via-db');
+  });
+
+  it('puts the application on both networks', () => {
+    // The proxy reaches the application on the shared network, and the
+    // application reaches the database on the private one.
+    const networks = section(compose, ['services', 'via', 'networks']);
+    expect(networks).toContain('- default');
+    expect(networks).toContain('- via_internal');
+    expect(section(compose, ['networks', 'via_internal'])).not.toBeNull();
+  });
 });

@@ -14,6 +14,10 @@ database.
   The reverse proxy and the application both join it, and the proxy resolves the
   application by service name on it. `docker-compose.yml` declares the network as
   external, so compose attaches to the existing one rather than creating its own.
+  The database does not join it. It sits on a second network that compose creates and
+  that belongs to this stack alone, and the application reaches it there under the name
+  `via-db`. The reason is written out under "Why the database is not on the shared
+  network" below.
 - A `.env` file beside `docker-compose.yml` holding `DB_USER`, `DB_PASSWORD`, `DB_NAME`,
   `CLIENT_URL`, `JWT_SECRET` and the Azure credentials
 - Enough free disk for the retained backups. Each dump is roughly the size of the database.
@@ -140,6 +144,29 @@ site goes down:
 
 If step 5, 6 or 7 fails, the script restores the backup it took in step 3, checks out the
 previous tag, and rebuilds and restarts the previous image. Then it exits non-zero.
+
+## Why the database is not on the shared network
+
+The production host runs many unrelated stacks, and `internal` carries all of them.
+Compose gives every service the alias of its own service name on each network it joins,
+so a service called `db` answers to the name `db` there. Three stacks on that host run a
+service by that name, which meant `db` resolved to three different servers: this
+database, a proxy manager's MariaDB, and an unrelated PostgreSQL. Docker hands the
+addresses out in turn, so every connection was a draw between the three, and roughly two
+in three were refused.
+
+The symptoms were intermittent and looked like several different problems. Users saw
+`Access denied` on the public feed at random. A cutover took a valid backup and then
+failed to verify it seconds later, because the dump and the verification drew different
+servers. None of it was a credential problem or a connection pool problem.
+
+The database now sits on a network private to this stack and answers to `via-db`, a name
+no other stack uses. Only the application joins both networks, because only the
+application needs to be reachable by the proxy. Nothing else on the host can reach the
+database at all, which is how it should have been from the start.
+
+A test in `scripts/tests/composeFile.test.js` holds this arrangement in place, and the
+gate runs it.
 
 ## Reading the deploy log
 

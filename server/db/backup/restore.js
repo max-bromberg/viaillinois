@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
-import { createReadStream } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import mysql from 'mysql2/promise';
 import { writeDefaultsFile } from './credentials.js';
+import { feedDump } from './feed.js';
 
 /**
  * Restore a dump over a database, replacing its current contents entirely.
@@ -32,7 +32,7 @@ export async function restoreBackup({ path, config }) {
         if (code === 0) resolve();
         else reject(new Error(`restore exited ${code}: ${stderr}`));
       });
-      createReadStream(path).pipe(child.stdin);
+      feedDump(child, path, reject);
     });
   } finally {
     await rm(tmpDir, { recursive: true, force: true });

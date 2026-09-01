@@ -55,6 +55,22 @@ describe('backup', () => {
     ).rejects.toThrow(/row count mismatch|Widgets/);
   });
 
+  it('reports the restore error when the client aborts partway through a dump', async () => {
+    const result = await createBackup({
+      config: testDbConfig,
+      destination: new LocalDestination(dir, 10),
+    });
+    // A statement the client rejects, followed by more than a pipe buffer of
+    // further input. The client exits on the first error and stops reading, so
+    // the bytes still being written have nowhere to go. That has to surface as
+    // the restore error, not as a write failure on a closed pipe.
+    const filler = "-- padding to exceed the pipe buffer\n".repeat(40_000);
+    await writeFile(result.path, `THIS IS NOT SQL;\n${filler}`);
+    await expect(
+      verifyBackup({ path: result.path, expectedTables: result.tables, config: testDbConfig })
+    ).rejects.toThrow(/restore exited/);
+  });
+
   it('prunes to the retention count, keeping the newest', async () => {
     const destination = new LocalDestination(dir, 2);
     for (let i = 0; i < 4; i++) {
