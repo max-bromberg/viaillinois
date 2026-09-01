@@ -59,10 +59,22 @@ describe('deleteMidterm', () => {
     expect(left).toHaveLength(2);
   });
 
-  /** A confirmed midterm is exactly the one an admin most needs to withdraw. */
-  it('removes a confirmed midterm as readily as a pending one', async () => {
+  /**
+   * A confirmed midterm is the one students actually read, and so the one an
+   * admin most needs to be able to withdraw. Midterm 1 is the confirmed one
+   * here; midterm 2 is pending and so never appears in that listing at all.
+   * The state before the delete is asserted as well, so a fixture that drifts
+   * says so rather than looking like a broken delete.
+   */
+  it('takes a confirmed midterm out of the listing students read', async () => {
+    const before = await midtermsDb.getConfirmedMidterms();
+    expect(before.map(m => m.midterm_id)).toEqual([1]);
+
     await midtermsDb.deleteMidterm(1);
-    const confirmed = await midtermsDb.getConfirmedMidterms();
-    expect(confirmed.map(m => m.midterm_id)).toEqual([2]);
+
+    expect(await midtermsDb.getConfirmedMidterms()).toHaveLength(0);
+    // The pending one is untouched, so the delete took only what it named.
+    const left = await midtermsDb.getAllMidtermsAdmin();
+    expect(left.map(m => m.midterm_id)).toEqual([2]);
   });
 });
