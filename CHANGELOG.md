@@ -4,6 +4,8 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+## 0.3.0 (2026-09-01)
+
 - Events and midterms can be imported from an .ics calendar file. The file is read in the browser and its text is posted, so there is no upload endpoint and nothing is written to disk. An import previews first: it lists what it would create or update, which room each entry resolved to, and what it could not read, and writes nothing until that is confirmed. Importing the same file again updates what the first import created rather than duplicating it, matched on the identifier the calendar gave each entry. Rows entered by hand carry no such identifier and are never touched. A location is only claimed as a known room when the text names both a building and a room number, so ECEB 1002 resolves and a bare 1002 stays as written. Midterm entries have their course read out of the title and are imported as confirmed, since HKN is the authority; titles naming no known course are reported rather than guessed at.
 - Midterm crowdsourcing is gone. The votes table and the trigger that confirmed a midterm once its score reached five are dropped, along with the vote endpoint and the vote column in the listing. Midterms now come from HKN, so a midterm can have no submitting user.
 - An RSO board can add people who have never signed in. Paste a list of NetIDs or Illinois addresses and the roster is recorded straight away; anyone without an account gets a placeholder row carrying no name and no email, marked as invited, and they find themselves a member the first time they sign in. Entries that cannot be a NetID are reported back rather than silently dropped.
