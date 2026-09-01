@@ -1,5 +1,6 @@
 import * as midtermsDb from '../db/queries/midterms.js';
 import * as coursesDb from '../db/queries/courses.js';
+import { campusStartOfToday } from '../lib/timezone.js';
 
 export async function getCourses(req, res, next) {
   try {
@@ -12,10 +13,12 @@ export async function listMidterms(req, res, next) {
   try {
     const { courseCode } = req.query;
     const all = await midtermsDb.getMidterms({ courseCode: courseCode || null });
-    // Hide midterms once the calendar day after they take place has begun.
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const midterms = all.filter(m => new Date(m.end_time) >= today);
+    // Hide midterms once the calendar day after they take place has begun. The
+    // day that counts is the campus one, and end_time is campus wall clock, so
+    // the two are compared as the strings they are rather than through a Date,
+    // which would read both of them in whatever zone this process runs in.
+    const startOfToday = campusStartOfToday();
+    const midterms = all.filter(m => String(m.end_time ?? '') >= startOfToday);
     res.json({ midterms });
   } catch (err) { next(err); }
 }
@@ -45,6 +48,24 @@ export async function getAdminMidterms(req, res, next) {
     if (!req.user?.is_global_admin) return res.status(403).json({ error: 'Global admin required' });
     const midterms = await midtermsDb.getAllMidtermsAdmin();
     res.json({ midterms });
+  } catch (err) { next(err); }
+}
+
+/**
+ * Remove a midterm. Global admins only, the same bar as confirming one.
+ *
+ * The listing is read by students planning around exam weeks, so an entry that
+ * should not be there needs a way off the page rather than a status that keeps
+ * it in the admin listing forever.
+ */
+export async function deleteMidterm(req, res, next) {
+  try {
+    if (!req.user?.is_global_admin) return res.status(403).json({ error: 'Global admin required' });
+    const midtermId = parseInt(req.params.id);
+    if (isNaN(midtermId)) return res.status(400).json({ error: 'id must be an integer' });
+    const result = await midtermsDb.deleteMidterm(midtermId);
+    if (!result.affectedRows) return res.status(404).json({ error: 'Midterm not found' });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 }
 

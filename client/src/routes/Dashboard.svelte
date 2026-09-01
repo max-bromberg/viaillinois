@@ -1,5 +1,6 @@
 <script>
   import { locationLabel } from '../lib/locationLabel.js';
+  import { campusDate, campusTime } from '../lib/campusTime.js';
   import { onMount } from 'svelte';
   import { currentUser, adminRsoIds, boardRsoIds } from '../stores/auth.js';
   import { getMe } from '../api/users.js';
@@ -55,12 +56,8 @@
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  function fmtDate(d) {
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-  function fmtTime(d) {
-    return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  }
+  const fmtDate = d => campusDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtTime = d => campusTime(d);
   function roleBadgeClass(role) {
     if (role === 'Board')  return 'bg-primary/15 text-primary';
     if (role === 'Editor') return 'bg-amber-500/15 text-amber-700 dark:text-amber-400';

@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
+  import { campusToday } from './campusTime.js';
 
   export let value = '';        // YYYY-MM-DD string
   export let placeholder = 'Pick a date';
@@ -17,9 +18,11 @@
   const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
   function initView() {
-    const d = value ? new Date(value + 'T00:00:00') : new Date();
-    viewYear = d.getFullYear();
-    viewMonth = d.getMonth();
+    // Opening on no value opens on the current month on campus, which is the
+    // month whose events the picker is about to filter.
+    const day = value || campusToday();
+    viewYear = parseInt(day.slice(0, 4));
+    viewMonth = parseInt(day.slice(5, 7)) - 1;
   }
   initView();
 
@@ -70,8 +73,8 @@
   }
 
   function isToday(day) {
-    const t = new Date();
-    return t.getFullYear() === viewYear && t.getMonth() === viewMonth && t.getDate() === day;
+    const pad = n => String(n).padStart(2, '0');
+    return campusToday() === `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`;
   }
 
   function isDisabled(day) {

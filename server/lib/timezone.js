@@ -30,6 +30,51 @@ function offsetMinutesAt(instant) {
 
 const pad = n => String(Math.floor(Math.abs(n))).padStart(2, '0');
 
+/** The campus wall clock reading of an instant, field by field. */
+function campusParts(instant) {
+  const parts = FORMATTER.formatToParts(instant)
+    .reduce((acc, part) => ({ ...acc, [part.type]: part.value }), {});
+  // Intl reports midnight as hour 24 of the previous day under hour12: false.
+  return { ...parts, hour: parts.hour === '24' ? '00' : parts.hour };
+}
+
+/**
+ * Read an instant as campus wall clock, in the shape MySQL stores and compares.
+ *
+ * @param {Date} instant
+ * @returns {string} YYYY-MM-DD HH:MM:SS
+ */
+export function toCampusWallClock(instant) {
+  const { year, month, day, hour, minute, second } = campusParts(instant);
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+/**
+ * The current campus wall clock.
+ *
+ * Stored times are campus wall clock, so a comparison against the present has
+ * to be made against this rather than against the database's NOW(). MySQL runs
+ * in whatever zone its container was started in, and comparing that against a
+ * campus wall clock is out by five or six hours.
+ *
+ * @param {Date} [instant]
+ * @returns {string} YYYY-MM-DD HH:MM:SS
+ */
+export function campusNow(instant = new Date()) {
+  return toCampusWallClock(instant);
+}
+
+/**
+ * Midnight at the start of the campus day that is currently underway.
+ *
+ * @param {Date} [instant]
+ * @returns {string} YYYY-MM-DD 00:00:00
+ */
+export function campusStartOfToday(instant = new Date()) {
+  const { year, month, day } = campusParts(instant);
+  return `${year}-${month}-${day} 00:00:00`;
+}
+
 function formatOffset(minutes) {
   const sign = minutes >= 0 ? '+' : '-';
   return `${sign}${pad(minutes / 60)}:${pad(minutes % 60)}`;
@@ -47,10 +92,7 @@ export function toIsoWithOffset(value) {
   let wallClock;
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
-    const parts = FORMATTER.formatToParts(value)
-      .reduce((acc, part) => ({ ...acc, [part.type]: part.value }), {});
-    const hour = parts.hour === '24' ? '00' : parts.hour;
-    wallClock = `${parts.year}-${parts.month}-${parts.day} ${hour}:${parts.minute}:${parts.second}`;
+    wallClock = toCampusWallClock(value);
   } else {
     wallClock = String(value).replace('T', ' ').slice(0, 19);
   }

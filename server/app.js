@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { passport, attachUser } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { campusTimeJson } from './middleware/campusTime.js';
 import authRouter     from './routes/auth.js';
 import eventsRouter   from './routes/events.js';
 import rsosRouter     from './routes/rsos.js';
@@ -60,6 +61,11 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(attachUser);
+
+// Every time this API publishes leaves with the campus offset on it. Mounted
+// once here rather than per route, because a route that forgot was the whole
+// of the inconsistency this replaces.
+app.use(campusTimeJson);
 
 /**
  * Readiness, not liveness. The cutover script gates on this, so it has to fail

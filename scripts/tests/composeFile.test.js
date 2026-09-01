@@ -51,6 +51,18 @@ describe('docker-compose.yml', () => {
     expect(section(compose, ['services', 'via', 'volumes'])).toContain(':/backups');
   });
 
+  /**
+   * VIA serves one campus, so both containers keep that campus's clock. The
+   * database decides what CURRENT_TIMESTAMP writes into a column default, and
+   * the application decides what a Date written by a poller reads as. Left on
+   * the image default of UTC, those two stamps sit five or six hours away from
+   * the event times stored beside them.
+   */
+  it('runs both containers on campus time', () => {
+    expect(section(compose, ['services', 'db', 'environment'])).toContain('TZ: America/Chicago');
+    expect(section(compose, ['services', 'via', 'environment'])).toContain('TZ: America/Chicago');
+  });
+
   it('joins the external network that the reverse proxy reaches it on', () => {
     // The proxy in front of production resolves the application by service
     // name on this network. Publishing port 3000 is not a substitute: the

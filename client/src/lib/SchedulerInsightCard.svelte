@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { campusDateTime, campusTime } from './campusTime.js';
 
   // recommendation: { start, end, location, score, insights }
   export let recommendation;
@@ -18,15 +19,8 @@
     return 'text-rose-600 dark:text-rose-400';
   }
 
-  function fmtDateTime(iso) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' +
-           d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  }
-
-  function fmtTime(iso) {
-    return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  }
+  const fmtDateTime = iso => campusDateTime(iso, { separator: ' · ' });
+  const fmtTime = iso => campusTime(iso);
 
   $: topInsights = recommendation.insights.slice(0, 3);
   $: remainingInsights = recommendation.insights.slice(3);

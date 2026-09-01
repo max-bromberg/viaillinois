@@ -2,6 +2,7 @@
   import { importCalendar } from '../api/calendar.js';
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
+  import { campusDateTime } from './campusTime.js';
 
   /** Which listing to import into. */
   export let kind = 'events';
@@ -14,10 +15,7 @@
   let error = null;
   let busy = false;
 
-  const formatted = (start) =>
-    new Date(start.replace(' ', 'T')).toLocaleString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-    });
+  const formatted = start => campusDateTime(start, { separator: ', ' });
 
   async function readFile(event) {
     const file = event.target.files?.[0];

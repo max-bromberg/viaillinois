@@ -3,6 +3,10 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
+      # VIA serves one campus and stores wall clock times, so the database keeps
+      # that campus's clock. On the image default of UTC, every CURRENT_TIMESTAMP
+      # column default landed five or six hours away from the event times beside it.
+      TZ: America/Chicago
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME:-via}
       MYSQL_USER: ${DB_USER}
@@ -44,6 +48,9 @@ services:
       # not sit inside the database volume that a restore replaces.
       - ${BACKUP_DIR:-./backups}:/backups
     environment:
+      # As on the database, and for the same reason: a time this process writes
+      # or reads has to mean the same thing as one the database wrote.
+      TZ: America/Chicago
       NODE_ENV: production
       PORT: 3001
       DB_HOST: via-db

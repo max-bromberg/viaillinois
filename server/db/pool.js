@@ -14,6 +14,11 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit:  10,
   namedPlaceholders: true,
+  // Datetime columns hold campus wall clock, so they are read back as the
+  // strings they are. The driver would otherwise parse each one into a Date
+  // using the zone this process happens to run in, and JSON would then publish
+  // that as UTC, moving every event by the difference between the two.
+  dateStrings: true,
 });
 
 /**

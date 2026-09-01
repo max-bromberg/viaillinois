@@ -6,8 +6,9 @@
   import { getRsos, getRso, createRso, updateRso, deleteRso, addMember, removeMember } from '../api/rsos.js';
   import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser, getPollStatus, getPollHistory, getUnknownCodes, triggerPoll } from '../api/admin.js';
   import { showToast } from '../stores/ui.js';
-  import { getAdminMidterms, updateMidtermStatus } from '../api/midterms.js';
+  import { getAdminMidterms, updateMidtermStatus, deleteMidterm } from '../api/midterms.js';
   import CalendarImport from '../lib/CalendarImport.svelte';
+  import { campusDate, campusDateTime, campusTime } from '../lib/campusTime.js';
 
   // ── Access control ────────────────────────────────────────────────────────
   $: if (!$isGlobalAdmin) navigate('/');
@@ -20,6 +21,7 @@
   let midtermsLoading = false;
   let midtermsLoaded = false;
   let midtermsStatusFilter = 'Pending';
+  let confirmDeleteMidtermId = null; // midterm_id pending delete confirmation
 
   // ── RSOs tab state ────────────────────────────────────────────────────────
   let rsos = [];
@@ -264,6 +266,24 @@
     try {
       await updateMidtermStatus(midtermId, status);
       showToast(`Midterm ${status.toLowerCase()}`);
+      midtermsLoaded = false;
+      await loadMidterms();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  /**
+   * Remove a midterm outright.
+   *
+   * Cancelling keeps the row, which is right for an exam that was scheduled and
+   * then called off. An entry that should never have been listed needs to go.
+   */
+  async function handleDeleteMidterm(midtermId) {
+    try {
+      await deleteMidterm(midtermId);
+      showToast('Midterm deleted');
+      confirmDeleteMidtermId = null;
       midtermsLoaded = false;
       await loadMidterms();
     } catch (e) {
@@ -892,11 +912,11 @@
                     </div>
                     <div class="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
                       <span>
-                        {new Date(mt.start_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                        {campusDate(mt.start_time, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                         ·
-                        {new Date(mt.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        {campusTime(mt.start_time)}
                         to
-                        {new Date(mt.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        {campusTime(mt.end_time)}
                       </span>
                       <span>{locationLabel(mt)}</span>
                       <span>
@@ -928,7 +948,31 @@
                         on:click={() => handleMidtermStatus(mt.midterm_id, 'Pending')}
                       >Reset</button>
                     {/if}
+                    {#if confirmDeleteMidtermId === mt.midterm_id}
+                      <span class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-xs text-destructive font-medium">Delete this midterm?</span>
+                        <button
+                          class="px-2.5 py-1.5 text-xs bg-destructive text-white rounded-md hover:bg-destructive/90 transition-colors"
+                          on:click={() => handleDeleteMidterm(mt.midterm_id)}
+                        >Yes, delete</button>
+                        <button
+                          class="px-2.5 py-1.5 text-xs border border-input rounded-md hover:bg-accent transition-colors"
+                          on:click={() => confirmDeleteMidtermId = null}
+                        >Cancel</button>
+                      </span>
+                    {:else}
+                      <button
+                        class="px-3 py-1.5 text-xs border border-destructive/50 text-destructive rounded-md hover:bg-destructive/10 transition-colors"
+                        on:click={() => confirmDeleteMidtermId = mt.midterm_id}
+                      >Delete</button>
+                    {/if}
                   </div>
+                  {#if confirmDeleteMidtermId === mt.midterm_id && !mt.submitted_by}
+                    <p class="w-full text-xs text-muted-foreground px-4 pb-3">
+                      This midterm was imported from a calendar, so the next import of that
+                      calendar will add it back. Cancel it instead to keep it off the schedule.
+                    </p>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -1031,7 +1075,7 @@
                                   }
                                 }}
                               >
-                                <td class="py-1.5 pr-4">{new Date(row.started_at).toLocaleString()}</td>
+                                <td class="py-1.5 pr-4">{campusDateTime(row.started_at, { date: { month: 'short', day: 'numeric', year: 'numeric' }, time: { hour: 'numeric', minute: '2-digit' }, separator: ', ' })}</td>
                                 <td class="py-1.5 pr-4">{runDuration(row.started_at, row.finished_at)}</td>
                                 <td class="py-1.5 pr-4">{row.rows_processed}</td>
                                 <td class="py-1.5 pr-4">{row.rows_skipped}</td>

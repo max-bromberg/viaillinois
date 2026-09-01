@@ -1,5 +1,6 @@
 <script>
   import { locationLabel } from './locationLabel.js';
+  import { campusDate, campusTime } from './campusTime.js';
   import { currentUser } from '../stores/auth.js';
   import { rsvpEvent } from '../api/events.js';
   import { showToast } from '../stores/ui.js';
@@ -17,9 +18,8 @@
     || $currentUser?.memberships?.some(m => m.rso_id === rsoId);
 
   $: tags = event.tags ? event.tags.split(',').filter(Boolean) : [];
-  $: startDate = new Date(event.start_time);
-  $: formattedDate = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  $: formattedTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  $: formattedDate = campusDate(event.start_time);
+  $: formattedTime = campusTime(event.start_time);
 
   let rsvpStatus = event.user_rsvp ?? null;
   let _trackedId = event.event_id;

@@ -1,4 +1,5 @@
 import { query } from '../pool.js';
+import { campusNow } from '../../lib/timezone.js';
 
 /**
  * Get a user by net_id.
@@ -36,7 +37,7 @@ export async function upsertUser(userData) {
  * @returns {Promise<void>}
  */
 export async function inviteUser(netId) {
-  return query('INSERT IGNORE INTO Users (net_id, invited_at) VALUES (?, NOW())', [netId])
+  return query('INSERT IGNORE INTO Users (net_id, invited_at) VALUES (?, ?)', [netId, campusNow()])
 }
 
 /**

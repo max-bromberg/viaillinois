@@ -1,10 +1,10 @@
 <script>
   import { locationLabel } from './locationLabel.js';
+  import { campusDateTime } from './campusTime.js';
 
   export let midterm;
 
-  $: start = new Date(midterm.start_time);
-  $: formatted = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  $: formatted = campusDateTime(midterm.start_time);
 </script>
 
 <tr class="border-b bg-card hover:bg-muted/50 transition-colors">

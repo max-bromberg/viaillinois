@@ -73,3 +73,32 @@ describe('EventCard location', () => {
     expect(queryByText(/Zoom/)).toBeNull();
   });
 });
+
+/**
+ * VIA serves one campus, so a card shows campus time. The API sends the offset
+ * with each time, and rendering that in the reader's own zone moved the event
+ * for anyone not sitting in Illinois.
+ */
+describe('EventCard shows campus time', () => {
+  const timed = { ...mockEvent, start_time: '2026-04-10T18:00:00-05:00' };
+
+  it('shows the hour the event starts on campus', () => {
+    const { getByText } = render(EventCard, { event: timed });
+    expect(getByText(/Fri, Apr 10 at 6:00 PM/)).toBeTruthy();
+  });
+
+  it('shows the same hour for a reader on the other side of the world', () => {
+    // The same instant, written from Tokyo's point of view.
+    const { getByText } = render(EventCard, {
+      event: { ...mockEvent, start_time: '2026-04-11T08:00:00+09:00' },
+    });
+    expect(getByText(/Fri, Apr 10 at 6:00 PM/)).toBeTruthy();
+  });
+
+  it('keeps a winter event on central standard time', () => {
+    const { getByText } = render(EventCard, {
+      event: { ...mockEvent, start_time: '2026-01-15T18:00:00-06:00' },
+    });
+    expect(getByText(/Thu, Jan 15 at 6:00 PM/)).toBeTruthy();
+  });
+});

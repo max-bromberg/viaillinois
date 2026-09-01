@@ -82,3 +82,59 @@ whereas free text is merely less precise.
 Repeating entries are imported as their first occurrence only. `RRULE` is not expanded,
 because doing it correctly needs the whole timezone and exception machinery, and no
 calendar imported so far uses it.
+
+A global admin can delete a midterm outright from the admin Midterms tab, which is a
+different act from cancelling it. Cancelling keeps the row and is right for an exam that
+was scheduled and then called off. Deleting is for an entry that should never have been
+listed. One consequence is worth knowing: a deleted midterm that came from a calendar is
+recreated by the next import of that calendar, because the import matches on
+`external_uid` and finds nothing. Cancelling is how to keep one of those off the page for
+good, and the admin page says so at the point of deleting.
+
+## Time
+
+VIA serves one campus, so every time it shows is that campus's time,
+`America/Chicago`. A reader in another timezone is shown the hour the event
+starts in Champaign, because that is the hour they would have to turn up at.
+
+Times are stored as wall clock in `datetime` columns, with no zone, because that
+is what the organizer typed. That is only half an answer, and the missing half
+is where the times on the site used to disagree with each other. The rules that
+close it are these.
+
+The connection pool sets `dateStrings`, so a stored time is read back as the
+string it is. Without it the driver parses each one into a `Date` using the zone
+the server process happens to run in, and JSON then publishes it as UTC, which
+moves every event by the difference between the two.
+
+The campus clock lives in `server/lib/timezone.js`. `campusNow` and
+`campusStartOfToday` give the present as campus wall clock, and no query uses
+MySQL's `NOW()` to compare against a stored time. `NOW()` is the database
+container's clock, and comparing it against a campus wall clock is out by five
+or six hours, which is what decided whether a midterm read as upcoming or past.
+
+Every JSON response goes through `server/middleware/campusTime.js`, which stamps
+the campus offset onto each time on the way out. A published time therefore names
+one instant, and a reader anywhere resolves it to the same one. It is mounted once
+in `app.js` rather than per route, because a route that forgot was the original
+inconsistency. Dates with no time of day are left alone: a date names a day, and
+giving it an offset would shift it by one for half the readers.
+
+The client renders with `client/src/lib/campusTime.js` and never with the
+browser's own zone. `campusDate`, `campusTime` and `campusDateTime` format;
+`campusFields` gives the campus clock fields that the week grid positions by;
+`toDateTimeLocal` fills a `datetime-local` input with the wall clock the
+organizer typed, so that saving an untouched form does not move the event.
+
+A calendar column is a day rather than an instant, and the two are not
+interchangeable. Columns are carried as a `Date` at local midnight so the
+existing day arithmetic keeps working, and read back with `calendarDayKey`.
+Use `fallsOnDay` to ask whether a time belongs in a column. Converting a column
+through a timezone slides it to the day before for any reader west of UTC.
+
+Both containers run on `TZ=America/Chicago`, set in `docker-compose.yml` and in
+`Dockerfile.server`, so that a `CURRENT_TIMESTAMP` column default is written on
+the same clock as everything beside it. Nothing above depends on that being set,
+which is deliberate: the test suites pass under any `TZ`, and running them under
+a few is the quickest way to catch a new reading of a time that has slipped back
+to the local zone.

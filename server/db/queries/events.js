@@ -1,4 +1,5 @@
 import { query } from '../pool.js';
+import { campusNow } from '../../lib/timezone.js';
 
 /**
  * STAGE 3 ADVANCED QUERY 1
@@ -234,7 +235,7 @@ export async function upsertRsvp(netId, eventId, status) {
  * @returns {Promise<Array<{event_id, title, start_time, end_time, rso_name, building, room_number}>>}
  */
 export async function getKioskEvents(limit = 10) {
-    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, e.location_text, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > NOW() ORDER BY e.start_time ASC LIMIT ?', [limit])
+    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, e.location_text, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > ? ORDER BY e.start_time ASC LIMIT ?', [campusNow(), limit])
 }
 
 /**

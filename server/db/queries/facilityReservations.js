@@ -1,4 +1,5 @@
 import { query } from '../pool.js';
+import { campusNow } from '../../lib/timezone.js';
 export { upsertLocation as upsertFacilityLocation } from './locations.js';
 
 /**
@@ -12,13 +13,13 @@ export async function upsertReservation(reservation) {
   const { location_id, customer, event_name, start_time, end_time, source } = reservation
   return query(
     `INSERT INTO Facility_Reservations (location_id, customer, event_name, start_time, end_time, source, scraped_at)
-     VALUES (?, ?, ?, ?, ?, ?, NOW())
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        customer = IF(VALUES(customer) != '', VALUES(customer), customer),
        event_name = IF(VALUES(event_name) != '', VALUES(event_name), event_name),
        source = source | VALUES(source),
-       scraped_at = NOW()`,
-    [location_id, customer, event_name, start_time, end_time, source]
+       scraped_at = VALUES(scraped_at)`,
+    [location_id, customer, event_name, start_time, end_time, source, campusNow()]
   )
 }
 
@@ -28,7 +29,7 @@ export async function upsertReservation(reservation) {
  * @returns {Promise<import('mysql2').ResultSetHeader>}
  */
 export async function deleteExpiredReservations() {
-  return query('DELETE FROM Facility_Reservations WHERE end_time < NOW()')
+  return query('DELETE FROM Facility_Reservations WHERE end_time < ?', [campusNow()])
 }
 
 /**

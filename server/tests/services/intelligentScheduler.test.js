@@ -286,3 +286,51 @@ describe('allOptions ordering', () => {
     }
   });
 });
+
+/**
+ * The scheduler works in campus wall clock, the same reading everything else in
+ * the database is stored in. Slots used to be published with toISOString, which
+ * converted them to UTC and so moved every recommendation by whatever offset
+ * the container it ran in happened to have.
+ */
+describe('scheduler times are campus wall clock', () => {
+  beforeEach(() => {
+    getByCapacity.mockResolvedValue(LOCS);
+    getPublicEvents.mockResolvedValue([]);
+    getConfirmedMidtermsForScheduler.mockResolvedValue([]);
+    getSectionsForCourses.mockResolvedValue([]);
+    getReservationsInRange.mockResolvedValue([]);
+  });
+
+  it('publishes a slot as a wall clock reading rather than as UTC', async () => {
+    const { allOptions } = await recommend(BASE_PARAMS);
+    expect(allOptions.length).toBeGreaterThan(0);
+    for (const pick of allOptions) {
+      expect(pick.start).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+      expect(pick.end).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    }
+  });
+
+  it('keeps a slot inside the hours it was asked for', async () => {
+    const { allOptions } = await recommend(BASE_PARAMS);
+    for (const pick of allOptions) {
+      const hour = Number(pick.start.slice(11, 13));
+      expect(hour).toBeGreaterThanOrEqual(17);
+      expect(hour).toBeLessThan(20);
+    }
+  });
+
+  /**
+   * The midterm lookahead reaches past the end of the requested range, and that
+   * bound is compared against a stored start_time. Sent as UTC it asked for the
+   * wrong window by the length of the container's offset.
+   */
+  it('asks for midterms up to a wall clock bound', async () => {
+    await recommend(BASE_PARAMS);
+    const { endDate } = getConfirmedMidtermsForScheduler.mock.calls.at(-1)[0];
+    // The end of the last requested day, plus the 72 hour medium window, which
+    // lands at the end of the third day after it.
+    const expected = new Date(IN_3_DAYS.getFullYear(), IN_3_DAYS.getMonth(), IN_3_DAYS.getDate() + 3);
+    expect(endDate).toBe(`${ymd(expected)} 23:59:59`);
+  });
+});
