@@ -1,6 +1,7 @@
 import * as midtermsDb from '../db/queries/midterms.js';
 import * as coursesDb from '../db/queries/courses.js';
 import { campusStartOfToday } from '../lib/timezone.js';
+import { checkAnyRsoBoard } from '../middleware/auth.js';
 
 export async function getCourses(req, res, next) {
   try {
@@ -52,15 +53,20 @@ export async function getAdminMidterms(req, res, next) {
 }
 
 /**
- * Remove a midterm. Global admins only, the same bar as confirming one.
+ * Remove a midterm. Global admins, and anyone who sits on an RSO board.
  *
  * The listing is read by students planning around exam weeks, so an entry that
  * should not be there needs a way off the page rather than a status that keeps
- * it in the admin listing forever.
+ * it in the admin listing forever. The schedule belongs to no single RSO, so
+ * there is no RSO to be on the board of for a given exam, and sitting on any
+ * board is the bar. Boards are the people who schedule around this listing and
+ * so the people who notice what is wrong with it. An ordinary member cannot,
+ * and neither can an editor, whose remit is that RSO's own events.
  */
 export async function deleteMidterm(req, res, next) {
   try {
-    if (!req.user?.is_global_admin) return res.status(403).json({ error: 'Global admin required' });
+    const permitted = req.user?.is_global_admin || await checkAnyRsoBoard(req.user.net_id);
+    if (!permitted) return res.status(403).json({ error: 'Global admin or RSO board access required' });
     const midtermId = parseInt(req.params.id);
     if (isNaN(midtermId)) return res.status(400).json({ error: 'id must be an integer' });
     const result = await midtermsDb.deleteMidterm(midtermId);

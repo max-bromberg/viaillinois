@@ -137,6 +137,27 @@ export async function checkRsoAdmin(netId, rsoId) {
 }
 
 /**
+ * Programmatic check that someone sits on the board of any RSO at all.
+ *
+ * The per RSO checks above answer "may this person act for RSO 7". Some things
+ * belong to no single RSO and so have no such question to ask. The midterm
+ * schedule is one: it is one shared listing of course exams, and the people who
+ * schedule around it are the RSO boards.
+ *
+ * @param {string} netId
+ * @returns {Promise<boolean>}
+ */
+export async function checkAnyRsoBoard(netId) {
+  const { getUserMemberships } = await import('../db/queries/rso.js');
+  try {
+    const memberships = await getUserMemberships(netId);
+    return (memberships ?? []).some(m => m.role === 'Board');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Programmatic Board-or-Editor check (manage events).
  * @param {string} netId
  * @param {number} rsoId

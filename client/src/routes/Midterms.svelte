@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { getMidterms, createMidterm } from '../api/midterms.js';
+  import { getMidterms, createMidterm, deleteMidterm } from '../api/midterms.js';
   import { searchLocations } from '../api/locations.js';
   import MidtermRow from '../lib/MidtermRow.svelte';
   import { locationLabel } from '../lib/locationLabel.js';
@@ -8,12 +8,17 @@
   import { Input } from '$lib/components/ui/input';
   import { Button } from '$lib/components/ui/button';
   import { showToast } from '../stores/ui.js';
-  import { currentUser } from '../stores/auth.js';
+  import { currentUser, isGlobalAdmin, isRsoAdmin } from '../stores/auth.js';
 
   let midterms = [];
   let loading = false;
   let courseFilter = '';
   let showForm = false;
+
+  // The schedule belongs to no single RSO, so anyone on a board may correct it,
+  // as may a global admin. A board member cannot reach the admin page, so for
+  // them this listing is the only place the control can be.
+  $: canDelete = $isGlobalAdmin || $isRsoAdmin;
 
   // Sort state, chronological by default
   let sortCol = 'start_time';
@@ -132,6 +137,16 @@
     setTimeout(() => { showSuggestions = false; }, 150);
   }
 
+  async function handleDelete(midtermId) {
+    try {
+      await deleteMidterm(midtermId);
+      showToast('Midterm deleted');
+      await load();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
   onMount(load);
 </script>
 
@@ -215,20 +230,25 @@
               {/if}
             </th>
           {/each}
+          {#if canDelete}
+            <th class="py-2 px-4 text-xs font-semibold uppercase tracking-wide text-right">
+              <span class="sr-only">Actions</span>
+            </th>
+          {/if}
         </tr>
       </thead>
       <tbody>
         {#if loading}
           {#each Array(5) as _}
-            <MidtermRowSkeleton />
+            <MidtermRowSkeleton {canDelete} />
           {/each}
         {:else if sorted.length === 0}
-          <tr><td colspan="5" class="py-8 text-center text-sm text-muted-foreground">
+          <tr><td colspan={canDelete ? 5 : 4} class="py-8 text-center text-sm text-muted-foreground">
             {courseFilter ? 'No exams match your search.' : 'No midterms found.'}
           </td></tr>
         {:else}
           {#each sorted as midterm (midterm.midterm_id)}
-            <MidtermRow {midterm} />
+            <MidtermRow {midterm} {canDelete} on:delete={e => handleDelete(e.detail.midterm_id)} />
           {/each}
         {/if}
       </tbody>

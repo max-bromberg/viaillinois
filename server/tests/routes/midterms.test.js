@@ -15,8 +15,10 @@ vi.mock('../../db/queries/midterms.js', () => ({
 vi.mock('../../db/queries/users.js', () => ({
   getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn(),
 }));
+const memberships = vi.hoisted(() => ({ value: [] }));
 vi.mock('../../db/queries/rso.js', () => ({
-  getMembership: vi.fn(), getUserMemberships: vi.fn().mockResolvedValue([]),
+  getMembership: vi.fn(),
+  getUserMemberships: vi.fn(async () => memberships.value),
 }));
 
 const app = (await import('../../app.js')).default;
@@ -80,6 +82,7 @@ describe('DELETE /api/v1/midterms/:id', () => {
   beforeEach(() => {
     midtermsDb.deleteMidterm.mockClear();
     midtermsDb.deleteMidterm.mockResolvedValue({ affectedRows: 1 });
+    memberships.value = [];
   });
 
   it('refuses an anonymous caller', async () => {
@@ -88,10 +91,49 @@ describe('DELETE /api/v1/midterms/:id', () => {
     expect(midtermsDb.deleteMidterm).not.toHaveBeenCalled();
   });
 
-  it('refuses a signed in user who is not a global admin', async () => {
+  it('refuses a signed in user who runs nothing', async () => {
     const res = await request(app).delete('/api/v1/midterms/1').set('Cookie', `via_token=${userToken}`);
     expect(res.status).toBe(403);
     expect(midtermsDb.deleteMidterm).not.toHaveBeenCalled();
+  });
+
+  it('refuses an ordinary member of an RSO', async () => {
+    memberships.value = [{ rso_id: 3, name: 'IEEE UIUC', role: 'Member' }];
+    const res = await request(app).delete('/api/v1/midterms/1').set('Cookie', `via_token=${userToken}`);
+    expect(res.status).toBe(403);
+    expect(midtermsDb.deleteMidterm).not.toHaveBeenCalled();
+  });
+
+  /**
+   * An editor may manage that RSO's own events. The midterm schedule is not any
+   * one RSO's, so it stays with the boards, who are the people scheduling
+   * around it.
+   */
+  it('refuses an editor of an RSO', async () => {
+    memberships.value = [{ rso_id: 3, name: 'IEEE UIUC', role: 'Editor' }];
+    const res = await request(app).delete('/api/v1/midterms/1').set('Cookie', `via_token=${userToken}`);
+    expect(res.status).toBe(403);
+    expect(midtermsDb.deleteMidterm).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The midterm schedule belongs to no single RSO, so there is no RSO to be on
+   * the board of for a given exam. Sitting on any board is the bar.
+   */
+  it('lets a board member of any RSO delete', async () => {
+    memberships.value = [{ rso_id: 3, name: 'IEEE UIUC', role: 'Board' }];
+    const res = await request(app).delete('/api/v1/midterms/5').set('Cookie', `via_token=${userToken}`);
+    expect(res.status).toBe(200);
+    expect(midtermsDb.deleteMidterm).toHaveBeenCalledWith(5);
+  });
+
+  it('lets someone who is a board member of only one of several RSOs delete', async () => {
+    memberships.value = [
+      { rso_id: 3, name: 'IEEE UIUC', role: 'Member' },
+      { rso_id: 4, name: 'HKN', role: 'Board' },
+    ];
+    const res = await request(app).delete('/api/v1/midterms/5').set('Cookie', `via_token=${userToken}`);
+    expect(res.status).toBe(200);
   });
 
   it('deletes the midterm for a global admin', async () => {

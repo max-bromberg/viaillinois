@@ -83,10 +83,23 @@ Repeating entries are imported as their first occurrence only. `RRULE` is not ex
 because doing it correctly needs the whole timezone and exception machinery, and no
 calendar imported so far uses it.
 
-A global admin can delete a midterm outright from the admin Midterms tab, which is a
-different act from cancelling it. Cancelling keeps the row and is right for an exam that
-was scheduled and then called off. Deleting is for an entry that should never have been
-listed. One consequence is worth knowing: a deleted midterm that came from a calendar is
+A midterm can be deleted outright, which is a different act from cancelling it.
+Cancelling keeps the row and is right for an exam that was scheduled and then called off.
+Deleting is for an entry that should never have been listed.
+
+Deleting is open to global admins and to anyone who sits on an RSO board. The midterm
+schedule belongs to no single RSO, so there is no RSO to be on the board of for a given
+exam, and `checkAnyRsoBoard` in `server/middleware/auth.js` asks only whether the person
+sits on a board at all. Boards are the people who schedule around this listing, and so
+the people who notice what is wrong with it. An ordinary member cannot delete, and
+neither can an editor, whose remit is that RSO's own events.
+
+That decides where the control lives. Global admins delete from the admin Midterms tab,
+which also reaches past exams. Board members cannot open the admin page at all, so for
+them the control is on the midterm schedule itself at `/midterms`, and it reaches the
+exams that listing shows, which are the ones that have not finished before today.
+
+One consequence is worth knowing: a deleted midterm that came from a calendar is
 recreated by the next import of that calendar, because the import matches on
 `external_uid` and finds nothing. Cancelling is how to keep one of those off the page for
 good, and the admin page says so at the point of deleting.
