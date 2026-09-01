@@ -20,12 +20,4 @@
     <div class="shimmer h-5 w-16 rounded"></div>
   </td>
 
-  <!-- Col 5: vote score + buttons -->
-  <td class="py-3 px-4">
-    <div class="flex items-center gap-2">
-      <div class="shimmer h-4 w-6"></div>
-      <div class="shimmer h-7 w-7 rounded-md"></div>
-      <div class="shimmer h-7 w-7 rounded-md"></div>
-    </div>
-  </td>
 </tr>

@@ -110,4 +110,22 @@
     </p>
   </div>
 
+  <!-- Contact -->
+  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
+    <h2 class="text-xl font-semibold">Contact</h2>
+    <p class="text-sm text-muted-foreground leading-relaxed">
+      Write to
+      <a href="mailto:mzainab2@illinois.edu" class="underline underline-offset-2 hover:text-foreground transition-colors">mzainab2@illinois.edu</a>
+      with anything about VIA: a problem with the site, a student organization that wants
+      to be listed, a request about your own information, a copyright complaint, or a
+      security issue you have found.
+    </p>
+    <p class="text-sm text-muted-foreground leading-relaxed">
+      Requests about your information are described in the
+      <a href="/privacy" class="underline underline-offset-2 hover:text-foreground transition-colors">Privacy Policy</a>,
+      and the <a href="/terms" class="underline underline-offset-2 hover:text-foreground transition-colors">Terms of Use</a>
+      set out what applies when you use the platform.
+    </p>
+  </div>
+
 </div>

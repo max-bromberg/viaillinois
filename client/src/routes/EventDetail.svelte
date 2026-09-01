@@ -1,4 +1,5 @@
 <script>
+  import { locationLabel } from '../lib/locationLabel.js';
   import { onMount } from 'svelte';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
@@ -82,7 +83,7 @@
 <svelte:head>
   {#if event}
     <title>{event.title}: VIA</title>
-    <meta name="description" content="{event.rso_name} · {formattedDate} · {event.building} {event.room_number}" />
+    <meta name="description" content="{event.rso_name} · {formattedDate} · {locationLabel(event)}" />
   {:else}
     <title>Event: VIA</title>
   {/if}
@@ -155,7 +156,7 @@
       </div>
       <div class="flex items-center gap-2 text-sm">
         <span>📍</span>
-        <span>{event.building} {event.room_number}</span>
+        <span>{locationLabel(event)}</span>
       </div>
       {#if event.max_capacity}
         <div class="flex items-center gap-2 text-sm text-muted-foreground">

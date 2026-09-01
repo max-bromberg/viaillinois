@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import mysql from 'mysql2/promise';
 import { startTestDb, resetTestDb, testDbConfig } from '../support/testDb.js';
 
@@ -12,6 +13,18 @@ const APP_PASSWORD = 'app_pw';
  * how it reached a cutover rehearsal undetected. Migrations therefore run on
  * the administrative account, and this reproduces the split.
  */
+/**
+ * How many migrations the journal declares. Reading it here keeps these
+ * assertions about stamping and privileges rather than about how many
+ * migrations happen to exist, which changes with every schema change.
+ */
+function migrationCount() {
+  const journal = JSON.parse(
+    readFileSync(new URL('../../db/migrations/meta/_journal.json', import.meta.url), 'utf8')
+  );
+  return journal.entries.length;
+}
+
 describe('migrating as the application user', () => {
   let applyMigrations;
 
@@ -44,17 +57,23 @@ describe('migrating as the application user', () => {
     process.env.DB_PASSWORD = testDbConfig.password;
   });
 
-  it('creates the trigger even though the application account may not', async () => {
+  /**
+   * MySQL refuses to create a stored program from an account without SUPER
+   * while binary logging is on, which the application account does not have.
+   * The migration runner therefore uses an administrative connection, and this
+   * proves it: the procedure exists after migrating as the application user.
+   */
+  it('creates a stored program even though the application account may not', async () => {
     const result = await applyMigrations();
-    expect(result.applied).toBe(2);
+    expect(result.applied).toBe(migrationCount());
 
     const conn = await mysql.createConnection(testDbConfig);
-    const [triggers] = await conn.query(
-      'SELECT trigger_name AS n FROM information_schema.triggers WHERE trigger_schema = ?',
+    const [routines] = await conn.query(
+      "SELECT routine_name AS n FROM information_schema.routines WHERE routine_schema = ? AND routine_type = 'PROCEDURE'",
       [testDbConfig.database]
     );
     await conn.end();
-    expect(triggers.map(r => r.n)).toContain('trg_auto_confirm_midterm');
+    expect(routines.map(r => r.n)).toContain('GetRSOStats');
   });
 
   it('releases the migration lock, so a later deploy is not blocked by the last one', async () => {

@@ -3,7 +3,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Button } from '$lib/components/ui/button';
-  import VenueRecommender from './VenueRecommender.svelte';
+  import LocationPicker from './LocationPicker.svelte';
 
   export let rsoId;
   export let initial = {};
@@ -17,13 +17,21 @@
   let description = initial.description || '';
   let startTime   = initial.start_time  ? initial.start_time.slice(0, 16) : '';
   let endTime     = initial.end_time    ? initial.end_time.slice(0, 16) : '';
-  let locationId  = initial.location_id || null;
+  let locationId   = initial.location_id   || null;
+  let locationText = initial.location_text || null;
   let isPrivate   = initial.is_private  || false;
   let selectedTags = initial.tags ? initial.tags.split(',').filter(Boolean) : [];
-  let selectedVenueLabel = '';
+
+  // What to show for a location the event already has. A room is described by
+  // the columns the listing queries return; free text is itself.
+  const initialLocationLabel = initial.building
+    ? `${initial.building} ${initial.room_number ?? ''}`.trim()
+    : (initial.location_text || '');
 
   $: isEditMode = !!initial.event_id;
-  $: canSubmit = title && startTime && endTime && endTime > startTime && locationId;
+  // A location is not required. Plenty of events are somewhere VIA has no room
+  // record for, and plenty more do not have one settled when they are created.
+  $: canSubmit = title && startTime && endTime && endTime > startTime;
 
   function toggleTag(tag) {
     selectedTags = selectedTags.includes(tag)
@@ -31,10 +39,9 @@
       : [...selectedTags, tag];
   }
 
-  function handleVenueSelect(e) {
-    const { location_id, building, room_number } = e.detail;
+  function handleLocationChange({ location_id, location_text }) {
     locationId = location_id;
-    selectedVenueLabel = `${building} ${room_number}`;
+    locationText = location_text;
   }
 
   function submit() {
@@ -42,7 +49,8 @@
     dispatch('submit', {
       rso_id: rsoId, title, description,
       start_time: startTime, end_time: endTime,
-      location_id: locationId, is_private: isPrivate,
+      location_id: locationId, location_text: locationText,
+      is_private: isPrivate,
       tags: selectedTags,
     });
   }
@@ -98,25 +106,8 @@
     </div>
   </div>
 
-  <!-- Venue Recommender -->
-  <div class="space-y-2">
-    <Label>Venue *</Label>
-    {#if selectedVenueLabel}
-      <p class="text-sm font-medium text-primary">
-        Selected: {selectedVenueLabel}
-        <button type="button" class="text-xs text-muted-foreground ml-2 hover:text-foreground" on:click={() => { locationId = null; selectedVenueLabel = ''; }}>change</button>
-      </p>
-    {:else if locationId}
-      <p class="text-sm text-muted-foreground">Venue ID: {locationId}</p>
-    {:else}
-      <p class="text-sm text-muted-foreground">No venue selected. Use the finder below.</p>
-    {/if}
-    {#if !locationId && startTime && endTime}
-      <VenueRecommender {startTime} {endTime} on:select={handleVenueSelect} />
-    {:else if !locationId}
-      <p class="text-xs text-muted-foreground">Enter start and end times to see venue recommendations.</p>
-    {/if}
-  </div>
+  <!-- Location -->
+  <LocationPicker initialLabel={initialLocationLabel} onChange={handleLocationChange} />
 
   <!-- Private toggle -->
   <div class="flex items-center gap-2">

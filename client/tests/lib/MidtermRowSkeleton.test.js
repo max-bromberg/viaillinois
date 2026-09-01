@@ -8,13 +8,14 @@ describe('MidtermRowSkeleton', () => {
     expect(container.querySelector('tr')).toBeTruthy();
   });
 
-  it('renders exactly 5 table cells', () => {
+  // Exam, time, location and status. The votes column went with crowdsourcing.
+  it('renders one cell per column of the midterm table', () => {
     const { container } = render(MidtermRowSkeleton);
-    expect(container.querySelectorAll('td').length).toBe(5);
+    expect(container.querySelectorAll('td').length).toBe(4);
   });
 
   it('renders shimmer elements', () => {
     const { container } = render(MidtermRowSkeleton);
-    expect(container.querySelectorAll('.shimmer').length).toBeGreaterThanOrEqual(6);
+    expect(container.querySelectorAll('.shimmer').length).toBeGreaterThanOrEqual(4);
   });
 });

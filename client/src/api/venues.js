@@ -1,2 +1,8 @@
 import { apiFetch } from './base.js';
-export const recommendVenue = (data) => apiFetch('/api/v1/venues/recommend', { method: 'POST', body: data });
+
+/**
+ * Search rooms by building name, building code or room number.
+ * @param {string} q
+ */
+export const searchVenues = (q) =>
+  apiFetch(`/api/v1/venues/search?q=${encodeURIComponent(q)}`);

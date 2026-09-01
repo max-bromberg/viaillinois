@@ -12,38 +12,7 @@
  *   Course Exp. → full names, already clean, e.g. "Electrical & Computer Eng Bldg"
  */
 
-const BUILDING_CODE_MAP = {
-  'ECEB':   'Electrical & Computer Eng Bldg',
-  'CIF':    'Campus Instructional Facility',
-  'CSL':    'Coordinated Science Laboratory',
-  'DCL':    'Digital Computer Laboratory',
-  'SC':     'Siebel Center for Comp Sci',
-  'MEB':    'Mechanical Engineering Building',
-  'TB':     'Transportation Building',
-  'AH':     'Altgeld Hall',
-  'TH':     'Talbot Laboratory',
-  'EH':     'Everitt Laboratory',
-  'NHB':    'Natural History Building',
-  'LH':     'Lincoln Hall',
-  'GH':     'Gregory Hall',
-  'MSEB':   'Materials Science & Eng Bldg',
-  'BUR':    'Burrill Hall',
-  'IH':     'Illini Hall',
-  'FLB':    'Foreign Languages Building',
-  'DKH':    'Davenport Hall',
-  'LIS':    'Library & Information Science',
-  'CB':     'Chemistry Annex',
-  'RAL':    'Rundell Atkins Laboratory',
-  'MRL':    'Materials Research Laboratory',
-  'NCEL':   'Newmark Civil Engineering Lab',
-  'MNTL':   'Micro & Nano Technology Lab',
-  'NCSA':   'National Ctr for Supercomputing',
-  'BH':     'Bevier Hall',
-  'HH':     'Henry Administration Building',
-  'KH':     'Krannert Art Museum',
-  'SB':     'Smith Memorial Hall',
-  'CAB':    'Central Administrative Building',
-};
+import { BUILDING_CODES } from './buildingCodes.js';
 
 const _unknownCodes = new Set();
 
@@ -66,7 +35,7 @@ export function resolveBuilding(input) {
 
   if (SHORT_CODE_RE.test(trimmed)) {
     const code = /^\d/.test(trimmed) ? trimmed.slice(1) : trimmed;
-    const canonical = BUILDING_CODE_MAP[code];
+    const canonical = BUILDING_CODES[code];
     if (canonical) return canonical;
     console.warn(`[normalizer] unknown building code: ${code} (raw: "${input}")`);
     _unknownCodes.add(code);

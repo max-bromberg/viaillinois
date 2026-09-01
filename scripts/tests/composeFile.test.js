@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -83,5 +84,22 @@ describe('docker-compose.yml', () => {
     expect(networks).toContain('- default');
     expect(networks).toContain('- via_internal');
     expect(section(compose, ['networks', 'via_internal'])).not.toBeNull();
+  });
+});
+
+/**
+ * The cutover refuses to run on a dirty working tree, because deploying from
+ * one would ship something other than the tag that was tested.
+ */
+describe('the deployment checkout', () => {
+  it('ignores the default backup directory', () => {
+    // BACKUP_DIR defaults to ./backups, which puts the dumps inside the
+    // deployment checkout. Tracked, they make the tree dirty the moment the
+    // first backup lands, and every deploy after that has to be cleared by
+    // hand before the cutover will start.
+    const ignored = spawnSync('git', ['check-ignore', '-q', 'backups/via-example.sql'], {
+      cwd: root,
+    });
+    expect(ignored.status).toBe(0);
   });
 });

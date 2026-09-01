@@ -1,4 +1,5 @@
 <script>
+  import { locationLabel } from '../lib/locationLabel.js';
   import { onMount } from 'svelte';
   import { navigate } from '../lib/router.js';
   import { getEvent } from '../api/events.js';
@@ -293,8 +294,8 @@
       ctx.fillText(`📅  ${fmtDate(event.start_time)}`, M, y); y += 38;
       ctx.fillText(`🕐  ${fmtTime(event.start_time)} to ${fmtTime(event.end_time)}`, M, y); y += 38;
     }
-    if (showLocation && event.building) {
-      ctx.fillText(`📍  ${event.building} · ${event.room_number}`, M, y); y += 38;
+    if (showLocation) {
+      ctx.fillText(`📍  ${locationLabel(event)}`, M, y); y += 38;
     }
 
     // Description

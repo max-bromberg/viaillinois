@@ -5,25 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/via_logo_black.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary -->
-    <title>VIA: Virtually Integrated Agenda</title>
-    <meta name="description" content="VIA is a centralized event platform for UIUC ECE student organizations. Discover RSO events, track midterms, and manage your organization's schedule, all in one place." />
-    <meta name="keywords" content="UIUC, ECE, RSO, events, student organizations, University of Illinois, engineering, calendar" />
-    <meta name="author" content="Team001-TableForFour" />
-
-    <!-- Open Graph / social sharing -->
-    <meta property="og:type"        content="website" />
-    <meta property="og:title"       content="VIA: Virtually Integrated Agenda" />
-    <meta property="og:description" content="Centralized event platform for UIUC ECE student organizations. Discover events, track midterms, and coordinate RSO scheduling." />
-    <meta property="og:image"       content="/via_logo_black.svg" />
-
-    <!-- Twitter / X card -->
-    <meta name="twitter:card"        content="summary" />
-    <meta name="twitter:title"       content="VIA: Virtually Integrated Agenda" />
-    <meta name="twitter:description" content="Centralized event platform for UIUC ECE student organizations." />
-
-    <!-- Indexing -->
+    <!--
+      The server fills these in per page before sending the document, in
+      server/middleware/htmlShell.js. What is here is the fallback for the
+      development server and for the rare case where the server cannot describe
+      a page, so the sharing and canonical tags are deliberately not here: the
+      server adds those, and a second copy would compete with them.
+    -->
+    <title>VIA: events from ECE student organizations at Illinois</title>
+    <meta name="description" content="Find every event run by Electrical and Computer Engineering student organizations at the University of Illinois Urbana-Champaign, in one place. Browse upcoming talks, workshops, socials and info sessions, and see the shared midterm calendar." />
     <meta name="robots" content="index, follow" />
+
+    <meta name="theme-color" content="#13294B" />
+    <meta property="og:site_name" content="VIA" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+
     <!-- Apply dark class before first paint to prevent flash -->
     <script>
       (function () {

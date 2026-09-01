@@ -1,0 +1,54 @@
+import {
+  planEventImport, applyEventImport, planMidtermImport, applyMidtermImport,
+} from '../services/calendarImport.js';
+import { checkRsoEditor } from '../middleware/auth.js';
+
+/**
+ * Importing a calendar file.
+ *
+ * The file arrives as text in the request body rather than as a multipart
+ * upload. The browser reads the .ics the admin picked and sends its contents,
+ * which keeps the server free of an upload parser and of any temporary files.
+ *
+ * Both endpoints take a preview flag. With it, nothing is written and the plan
+ * comes back for the admin to look at first.
+ */
+
+/** A malformed calendar is the sender's mistake, not a server fault. */
+function respondToImportError(err, res, next) {
+  if (/calendar/i.test(err.message)) return res.status(400).json({ error: err.message });
+  return next(err);
+}
+
+export async function importEvents(req, res, next) {
+  try {
+    const { rso_id, ics, preview = false } = req.body;
+    if (!ics || !rso_id) {
+      return res.status(400).json({ error: 'rso_id and ics required' });
+    }
+    const rsoId = parseInt(rso_id);
+
+    // Importing writes events for one RSO, so it needs that RSO's permission.
+    // requireRSOAdmin reads the id from the path, and this one is in the body.
+    const permitted = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, rsoId);
+    if (!permitted) return res.status(403).json({ error: 'RSO editor access required' });
+
+    if (preview) {
+      return res.json(await planEventImport({ ics, rsoId }));
+    }
+    res.json(await applyEventImport({ ics, rsoId, createdBy: req.user.net_id }));
+  } catch (err) { respondToImportError(err, res, next); }
+}
+
+export async function importMidterms(req, res, next) {
+  try {
+    if (!req.user?.is_global_admin) return res.status(403).json({ error: 'Global admin required' });
+    const { ics, preview = false } = req.body;
+    if (!ics) return res.status(400).json({ error: 'ics required' });
+
+    if (preview) {
+      return res.json(await planMidtermImport({ ics }));
+    }
+    res.json(await applyMidtermImport({ ics }));
+  } catch (err) { respondToImportError(err, res, next); }
+}

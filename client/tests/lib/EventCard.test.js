@@ -42,3 +42,34 @@ describe('EventCard', () => {
     expect(link.getAttribute('href')).toBe('/events/1');
   });
 });
+
+/**
+ * A location is optional and can be either a room or free text, so the card has
+ * three cases to render rather than one.
+ */
+describe('EventCard location', () => {
+  const base = { ...mockEvent, building: null, room_number: null, location_text: null };
+
+  it('shows the room when the event is in one', () => {
+    const { getByText } = render(EventCard, { event: mockEvent });
+    expect(getByText(/ECEB 1002/)).toBeTruthy();
+  });
+
+  it('shows the free text when there is no room', () => {
+    const { getByText } = render(EventCard, { event: { ...base, location_text: 'Zoom' } });
+    expect(getByText(/Zoom/)).toBeTruthy();
+  });
+
+  it('says the location is undecided when there is neither', () => {
+    const { getByText } = render(EventCard, { event: base });
+    expect(getByText(/Location to be announced/)).toBeTruthy();
+  });
+
+  it('prefers the room over the free text when both are present', () => {
+    const { getByText, queryByText } = render(EventCard, {
+      event: { ...mockEvent, location_text: 'Zoom' },
+    });
+    expect(getByText(/ECEB 1002/)).toBeTruthy();
+    expect(queryByText(/Zoom/)).toBeNull();
+  });
+});

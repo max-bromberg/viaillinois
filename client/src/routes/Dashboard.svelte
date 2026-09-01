@@ -1,10 +1,12 @@
 <script>
+  import { locationLabel } from '../lib/locationLabel.js';
   import { onMount } from 'svelte';
   import { currentUser, adminRsoIds, boardRsoIds } from '../stores/auth.js';
   import { getMe } from '../api/users.js';
   import { getRso, updateRso, addMember, removeMember, getRsoStats } from '../api/rsos.js';
   import { createEvent, updateEvent, deleteEvent } from '../api/events.js';
   import EventForm from '../lib/EventForm.svelte';
+  import CalendarImport from '../lib/CalendarImport.svelte';
   import { navigate } from '../lib/router.js';
   import { showToast } from '../stores/ui.js';
 
@@ -143,8 +145,15 @@
   async function handleAddMember() {
     if (!memberForm.netId.trim()) return;
     try {
-      await addMember(selectedRso.rso_id, memberForm);
-      showToast('Member added');
+      const result = await addMember(selectedRso.rso_id, memberForm);
+      const parts = [`${result.added} added`];
+      if (result.invited?.length) {
+        parts.push(`${result.invited.length} invited, who will find themselves a member when they first sign in`);
+      }
+      showToast(parts.join('. '));
+      if (result.rejected?.length) {
+        showToast(`Could not read: ${result.rejected.join(', ')}`, 'error');
+      }
       memberForm = { netId: '', role: 'Member' };
       await loadRso(selectedRso.rso_id);
     } catch (e) {
@@ -292,6 +301,13 @@
           </section>
         {/if}
 
+        <!-- Import from a calendar file -->
+        {#if showCreateForm}
+          <section class="border rounded-lg p-6 bg-card shadow-sm">
+            <CalendarImport kind="events" rsoId={selectedRso.rso_id} />
+          </section>
+        {/if}
+
         <!-- Edit form -->
         {#if editingEvent}
           <section class="border rounded-lg p-6 bg-card shadow-sm space-y-4">
@@ -346,7 +362,7 @@
                       <span class="text-xs">{fmtTime(event.start_time)} to {fmtTime(event.end_time)}</span>
                     </td>
                     <td class="px-4 py-2.5 hidden lg:table-cell text-muted-foreground">
-                      {#if event.building}{event.building} · {event.room_number}{/if}
+                      {locationLabel(event)}
                     </td>
                     <td class="px-4 py-2.5 hidden lg:table-cell max-w-[10rem]">
                       {#if event.tags}
@@ -452,7 +468,14 @@
               {:else}
                 {#each selectedRso.members as member (member.net_id)}
                   <tr class="border-t hover:bg-muted/40 transition-colors">
-                    <td class="px-4 py-2.5 font-medium">{member.full_name || member.net_id}</td>
+                    <td class="px-4 py-2.5 font-medium">
+                      {member.full_name || member.net_id}
+                      {#if member.invited_at}
+                        <span class="ml-2 text-xs font-normal px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">
+                          invited
+                        </span>
+                      {/if}
+                    </td>
                     <td class="px-4 py-2.5 hidden sm:table-cell text-muted-foreground">{member.net_id}</td>
                     <td class="px-4 py-2.5">
                       <span class="text-xs px-1.5 py-0.5 rounded font-medium {roleBadgeClass(member.role)}">{member.role}</span>
@@ -489,7 +512,7 @@
           <div class="flex gap-2 flex-wrap">
             <input
               class="border rounded-md px-3 py-1.5 text-sm bg-background flex-1 min-w-32"
-              placeholder="NetID"
+              placeholder="NetID, or paste a list of NetIDs or Illinois addresses"
               bind:value={memberForm.netId}
             />
             <select class="border rounded-md px-3 py-1.5 text-sm bg-background" bind:value={memberForm.role}>

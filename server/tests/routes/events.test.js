@@ -25,6 +25,8 @@ vi.mock('../../db/queries/rso.js',   () => ({
 vi.mock('../../db/queries/users.js', () => ({ getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn() }));
 
 const app = (await import('../../app.js')).default;
+const { signToken } = await import('../../middleware/auth.js');
+const { createEventTransactional } = await import('../../db/queries/advanced.js');
 
 describe('GET /api/v1/events', () => {
   it('returns 200 with events array', async () => {
@@ -51,17 +53,80 @@ describe('GET /api/v1/events/:id', () => {
 });
 
 describe('POST /api/v1/events', () => {
+  const cookie = `via_token=${signToken({ net_id: 'tester', is_global_admin: 1 })}`;
+
+  const body = {
+    rso_id: 1,
+    title: 'New',
+    start_time: '2027-04-01 18:00:00',
+    end_time: '2027-04-01 19:00:00',
+  };
+
+  const post = payload =>
+    request(app).post('/api/v1/events').set('Cookie', cookie).send(payload);
+
+  beforeEach(() => {
+    createEventTransactional.mockClear();
+    createEventTransactional.mockResolvedValue({ eventId: 42 });
+  });
+
   it('returns 401 without auth token', async () => {
     const res = await request(app).post('/api/v1/events').send({ title: 'New' });
     expect(res.status).toBe(401);
   });
-});
 
-// NOTE: test coverage for authenticated POST paths (conflict 409, unauthorized 403, success 201)
-// is limited because auth middleware (passport JWT) rejects every request without a valid signed
-// token. The app uses httpOnly cookies with real JWT secrets that are not available in the test
-// environment. To test the conflict/unauthorized branches directly, either:
-//   a) extract createEvent business logic into a unit-testable function independent of Express, or
-//   b) add a test-only JWT secret in vitest.setup.js and sign tokens with it.
-// The isGlobalAdmin flag and membership-check bypass introduced in Fix 1/Fix 2 are covered by
-// the logic of createEventTransactional itself; its mock is already wired in the vi.mock above.
+  it('creates an event in a known room', async () => {
+    const res = await post({ ...body, location_id: 7 });
+    expect(res.status).toBe(201);
+    expect(createEventTransactional.mock.calls[0][0]).toMatchObject({ location_id: 7 });
+  });
+
+  /**
+   * A location is optional. These two are the cases that the venue finder made
+   * impossible to express: somewhere that is not a room, and not knowing yet.
+   */
+  it('creates an event whose location is free text', async () => {
+    const res = await post({ ...body, location_text: 'Zoom' });
+    expect(res.status).toBe(201);
+    expect(createEventTransactional.mock.calls[0][0]).toMatchObject({
+      location_id: null,
+      location_text: 'Zoom',
+    });
+  });
+
+  it('creates an event with no location at all', async () => {
+    const res = await post(body);
+    expect(res.status).toBe(201);
+    expect(createEventTransactional.mock.calls[0][0]).toMatchObject({
+      location_id: null,
+      location_text: null,
+    });
+  });
+
+  it('trims free text and treats an empty string as no location', async () => {
+    const res = await post({ ...body, location_text: '   ' });
+    expect(res.status).toBe(201);
+    expect(createEventTransactional.mock.calls[0][0]).toMatchObject({ location_text: null });
+  });
+
+  it('still requires a title', async () => {
+    const res = await post({ ...body, title: undefined });
+    expect(res.status).toBe(400);
+  });
+
+  it('still requires an RSO and a time range', async () => {
+    expect((await post({ ...body, rso_id: undefined })).status).toBe(400);
+    expect((await post({ ...body, start_time: undefined })).status).toBe(400);
+    expect((await post({ ...body, end_time: undefined })).status).toBe(400);
+  });
+
+  it('reports a booking conflict', async () => {
+    createEventTransactional.mockResolvedValue({ conflict: true });
+    expect((await post({ ...body, location_id: 7 })).status).toBe(409);
+  });
+
+  it('reports missing RSO permission', async () => {
+    createEventTransactional.mockResolvedValue({ unauthorized: true });
+    expect((await post(body)).status).toBe(403);
+  });
+});

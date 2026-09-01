@@ -1,8 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import { getMidterms, createMidterm, voteMidterm } from '../api/midterms.js';
+  import { getMidterms, createMidterm } from '../api/midterms.js';
   import { searchLocations } from '../api/locations.js';
   import MidtermRow from '../lib/MidtermRow.svelte';
+  import { locationLabel } from '../lib/locationLabel.js';
   import MidtermRowSkeleton from '../lib/MidtermRowSkeleton.svelte';
   import { Input } from '$lib/components/ui/input';
   import { Button } from '$lib/components/ui/button';
@@ -13,7 +14,6 @@
   let loading = false;
   let courseFilter = '';
   let showForm = false;
-  let userVotes = {};
 
   // Sort state, chronological by default
   let sortCol = 'start_time';
@@ -24,7 +24,7 @@
       sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     } else {
       sortCol = col;
-      sortDir = col === 'score' ? 'desc' : 'asc';
+      sortDir = 'asc';
     }
   }
 
@@ -43,11 +43,9 @@
     if (sortCol === 'start_time') {
       av = new Date(a.start_time).getTime();
       bv = new Date(b.start_time).getTime();
-    } else if (sortCol === 'score') {
-      av = a.score ?? 0; bv = b.score ?? 0;
     } else if (sortCol === 'location') {
-      av = `${a.building} ${a.room_number}`.toLowerCase();
-      bv = `${b.building} ${b.room_number}`.toLowerCase();
+      av = locationLabel(a).toLowerCase();
+      bv = locationLabel(b).toLowerCase();
     } else if (sortCol === 'status') {
       av = a.status?.toLowerCase() ?? ''; bv = b.status?.toLowerCase() ?? '';
     } else { // exam
@@ -78,26 +76,6 @@
       showToast(e.message, 'error');
     } finally {
       loading = false;
-    }
-  }
-
-  async function handleVote(midtermId, value) {
-    if (!$currentUser) { showToast('Sign in to vote', 'error'); return; }
-    const previousVote = userVotes[midtermId] || 0;
-    const snapshotMidterms = midterms;
-    const snapshotVotes = userVotes;
-    try {
-      await voteMidterm(midtermId, value);
-      midterms = midterms.map(m =>
-        m.midterm_id === midtermId
-          ? { ...m, score: (m.score || 0) + value - previousVote }
-          : m
-      );
-      userVotes = { ...userVotes, [midtermId]: value };
-    } catch (e) {
-      midterms = snapshotMidterms;
-      userVotes = snapshotVotes;
-      showToast(e.message, 'error');
     }
   }
 
@@ -226,7 +204,7 @@
     <table class="w-full text-left">
       <thead class="bg-muted">
         <tr>
-          {#each [['exam','Exam'],['start_time','Time'],['location','Location'],['status','Status'],['score','Votes']] as [col, label]}
+          {#each [['exam','Exam'],['start_time','Time'],['location','Location'],['status','Status']] as [col, label]}
             <th
               class="py-2 px-4 text-xs font-semibold uppercase tracking-wide cursor-pointer select-none hover:bg-muted/70 transition-colors whitespace-nowrap"
               on:click={() => toggleSort(col)}
@@ -250,7 +228,7 @@
           </td></tr>
         {:else}
           {#each sorted as midterm (midterm.midterm_id)}
-            <MidtermRow {midterm} userVote={userVotes[midterm.midterm_id]} on:vote={(e) => handleVote(midterm.midterm_id, e.detail)} />
+            <MidtermRow {midterm} />
           {/each}
         {/if}
       </tbody>

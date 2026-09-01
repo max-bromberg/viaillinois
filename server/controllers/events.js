@@ -58,14 +58,30 @@ export async function getEvent(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * A location is optional, and can be either a room VIA knows about or free
+ * text. Empty free text is stored as nothing rather than as an empty string,
+ * so that "no location" has one representation instead of two.
+ */
+function readLocation(body) {
+  const text = typeof body.location_text === 'string' ? body.location_text.trim() : '';
+  return {
+    location_id: body.location_id ?? null,
+    location_text: text || null,
+  };
+}
+
 export async function createEvent(req, res, next) {
   try {
-    const { rso_id, location_id, title, description, start_time, end_time, is_private = false, tags = [] } = req.body;
-    if (!rso_id || !location_id || !title || !start_time || !end_time) {
-      return res.status(400).json({ error: 'rso_id, location_id, title, start_time, end_time required' });
+    const { rso_id, title, description, start_time, end_time, is_private = false, tags = [] } = req.body;
+    if (!rso_id || !title || !start_time || !end_time) {
+      return res.status(400).json({ error: 'rso_id, title, start_time, end_time required' });
     }
     const result = await advancedDb.createEventTransactional(
-      { rso_id, created_by: req.user.net_id, location_id, title, description, start_time, end_time, is_private },
+      {
+        rso_id, created_by: req.user.net_id, ...readLocation(req.body),
+        title, description, start_time, end_time, is_private,
+      },
       tags,
       req.user.is_global_admin
     );
@@ -82,12 +98,16 @@ export async function updateEvent(req, res, next) {
     if (!event) return res.status(404).json({ error: 'Event not found' });
     const isAdmin = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, event.rso_id);
     if (!isAdmin) return res.status(403).json({ error: 'RSO editor access required' });
-    const { location_id, title, description, start_time, end_time, is_private, tags } = req.body;
+    const { title, description, start_time, end_time, is_private, tags } = req.body;
+    const { location_id, location_text } = readLocation(req.body);
+    // Two events with no room cannot collide, so there is nothing to check.
     if (location_id && start_time && end_time) {
       const conflict = await checkConflict(location_id, start_time, end_time, eventId);
       if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
     }
-    await eventsDb.updateEvent(eventId, { location_id, title, description, start_time, end_time, is_private });
+    await eventsDb.updateEvent(eventId, {
+      location_id, location_text, title, description, start_time, end_time, is_private,
+    });
     if (tags) await eventsDb.setEventTags(eventId, tags);
     res.json({ ok: true });
   } catch (err) { next(err); }

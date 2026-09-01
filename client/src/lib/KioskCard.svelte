@@ -1,4 +1,5 @@
 <script>
+  import { locationLabel } from './locationLabel.js';
   export let event;
 
   $: start = new Date(event.start_time);
@@ -13,7 +14,7 @@
     <div class="text-3xl text-muted-foreground space-y-2">
       <p>{date}</p>
       <p>{time}</p>
-      <p class="text-2xl">{event.building} {event.room_number}</p>
+      <p class="text-2xl">{locationLabel(event)}</p>
     </div>
   </div>
 </div>

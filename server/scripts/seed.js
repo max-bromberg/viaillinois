@@ -1,7 +1,6 @@
 /**
  * seed.js
- * Inserts demo data: RSOs, Users, Events, Tags, Event_Tags, RSVPs, Midterms, Midterm_Votes.
- * Produces 1000+ rows in RSVPs and Midterm_Votes for Stage 3 row count requirement.
+ * Inserts demo data: RSOs, Users, Events, Tags, Event_Tags, RSVPs, Midterms.
  *
  * Usage: node server/scripts/seed.js
  * Run AFTER scrape_courses.js (needs Locations + Courses rows to reference).
@@ -77,21 +76,6 @@ function generateMidterms(courseCodes, locationIds, submitterNetIds) {
     });
   }
   return midterms;
-}
-
-// Generate 1250 Midterm_Votes (50 users × 25 midterms each = 1250)
-function generateMidtermVotes(userNetIds, midtermIds) {
-  const votes = [];
-  for (let u = 0; u < userNetIds.length; u++) {
-    for (let m = 0; m < Math.min(25, midtermIds.length); m++) {
-      votes.push({
-        midterm_id: midtermIds[(u + m) % midtermIds.length],
-        net_id:     userNetIds[u],
-        vote_value: (u + m) % 3 === 0 ? -1 : 1,
-      });
-    }
-  }
-  return votes;
 }
 
 // Assign users to RSOs: 1 Admin + 2 Board + 4 Members per RSO, plus each user joins a second RSO as Member
@@ -195,13 +179,6 @@ async function insertMembership(netId, rsoId, role) {
   );
 }
 
-async function insertMidtermVote(vote) {
-  return query(
-    'INSERT IGNORE INTO Midterm_Votes (midterm_id, net_id, vote_value) VALUES (?, ?, ?)',
-    [vote.midterm_id, vote.net_id, vote.vote_value]
-  );
-}
-
 async function getSomeCourseCodes(limit) {
   return query(`SELECT course_code FROM Courses LIMIT ${parseInt(limit, 10)}`);
 }
@@ -261,7 +238,7 @@ async function main() {
     await insertRsvp(rsvp);
   }
 
-  // Midterms + Midterm_Votes (third 1000+ row table for Stage 3)
+  // Midterms
   const courseRows = await getSomeCourseCodes(50);
   const courseCodes = courseRows.length ? courseRows.map(r => r.course_code) : ['ECE 110'];
 
@@ -272,17 +249,10 @@ async function main() {
     if (result.insertId) midtermIds.push(result.insertId);
   }
 
-  const midtermVotes = generateMidtermVotes(
-    USERS.map(u => u.net_id),
-    midtermIds.length ? midtermIds : Array.from({length: 50}, (_, i) => i + 1)
-  );
-  for (const vote of midtermVotes) {
-    await insertMidtermVote(vote);
-  }
 
-  // Row counts for Stage 3
-  const tables = ['Users', 'RSOs', 'RSO_Memberships', 'Events', 'RSVPs', 'Tags', 'Event_Tags', 'Midterms', 'Midterm_Votes'];
-  console.log('\n=== Row Counts (Screenshot for Stage 3) ===');
+  // Row counts
+  const tables = ['Users', 'RSOs', 'RSO_Memberships', 'Events', 'RSVPs', 'Tags', 'Event_Tags', 'Midterms'];
+  console.log('\n=== Row Counts ===');
   for (const t of tables) {
     const [row] = await query(`SELECT COUNT(*) AS cnt FROM ${t}`);
     console.log(`${t.padEnd(15)}: ${row.cnt}`);

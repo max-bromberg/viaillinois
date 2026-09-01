@@ -10,12 +10,33 @@ export async function getUserByNetId(netId) {
 }
 
 /**
- * Insert or update a user (for Azure AD upsert on login).
+ * Insert or update a user, on sign in.
+ *
+ * Clearing invited_at is the point at which an invitation becomes an account:
+ * the row may already exist because an RSO board added this person to its
+ * roster before they had ever signed in, and this is them arriving.
+ *
  * @param {{ net_id: string, full_name: string, email: string }} userData
  * @returns {Promise<void>}
  */
 export async function upsertUser(userData) {
-  return query('INSERT INTO Users (net_id, full_name, email) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE full_name = ?, email = ?', [userData.net_id, userData.full_name, userData.email, userData.full_name, userData.email])
+  return query(
+    `INSERT INTO Users (net_id, full_name, email) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE full_name = ?, email = ?, invited_at = NULL`,
+    [userData.net_id, userData.full_name, userData.email, userData.full_name, userData.email]
+  )
+}
+
+/**
+ * Create a row for someone who has not signed in yet, so that a membership can
+ * point at them. Does nothing if they already exist, whether as an invitation
+ * or as a real account.
+ *
+ * @param {string} netId
+ * @returns {Promise<void>}
+ */
+export async function inviteUser(netId) {
+  return query('INSERT IGNORE INTO Users (net_id, invited_at) VALUES (?, NOW())', [netId])
 }
 
 /**

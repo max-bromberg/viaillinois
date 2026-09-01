@@ -51,7 +51,9 @@ export const events = mysqlTable("Events", {
 	eventId: int("event_id").autoincrement().notNull(),
 	rsoId: int("rso_id").notNull().references(() => rsOs.rsoId, { onDelete: "cascade" } ),
 	createdBy: varchar("created_by", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
-	locationId: int("location_id").notNull().references(() => locations.locationId, { onDelete: "cascade" } ),
+	locationId: int("location_id").references(() => locations.locationId, { onDelete: "cascade" } ),
+	locationText: varchar("location_text", { length: 200 }),
+	externalUid: varchar("external_uid", { length: 255 }),
 	title: varchar({ length: 200 }).notNull(),
 	description: text(),
 	startTime: datetime("start_time", { mode: 'string'}).notNull(),
@@ -63,6 +65,7 @@ export const events = mysqlTable("Events", {
 	index("created_by").on(table.createdBy),
 	index("location_id").on(table.locationId),
 	primaryKey({ columns: [table.eventId], name: "Events_event_id"}),
+	unique("uq_event_external_uid").on(table.rsoId, table.externalUid),
 	check("chk_event_times", sql`(\`end_time\` > \`start_time\`)`),
 ]);
 
@@ -104,22 +107,13 @@ export const locations = mysqlTable("Locations", {
 	unique("uq_room").on(table.building, table.roomNumber),
 ]);
 
-export const midtermVotes = mysqlTable("Midterm_Votes", {
-	midtermId: int("midterm_id").notNull().references(() => midterms.midtermId, { onDelete: "cascade" } ),
-	netId: varchar("net_id", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
-	voteValue: int("vote_value").notNull(),
-},
-(table) => [
-	index("net_id").on(table.netId),
-	primaryKey({ columns: [table.midtermId, table.netId], name: "Midterm_Votes_midterm_id_net_id"}),
-	check("chk_vote_value", sql`(\`vote_value\` in (-(1),1))`),
-]);
-
 export const midterms = mysqlTable("Midterms", {
 	midtermId: int("midterm_id").autoincrement().notNull(),
 	courseCode: varchar("course_code", { length: 20 }).notNull().references(() => courses.courseCode, { onDelete: "cascade" } ),
-	submittedBy: varchar("submitted_by", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
-	locationId: int("location_id").notNull().references(() => locations.locationId, { onDelete: "cascade" } ),
+	submittedBy: varchar("submitted_by", { length: 20 }).references(() => users.netId, { onDelete: "cascade" } ),
+	locationId: int("location_id").references(() => locations.locationId, { onDelete: "cascade" } ),
+	locationText: varchar("location_text", { length: 200 }),
+	externalUid: varchar("external_uid", { length: 255 }),
 	title: varchar({ length: 200 }).notNull(),
 	startTime: datetime("start_time", { mode: 'string'}).notNull(),
 	endTime: datetime("end_time", { mode: 'string'}).notNull(),
@@ -130,6 +124,7 @@ export const midterms = mysqlTable("Midterms", {
 	index("submitted_by").on(table.submittedBy),
 	index("location_id").on(table.locationId),
 	primaryKey({ columns: [table.midtermId], name: "Midterms_midterm_id"}),
+	unique("uq_midterm_external_uid").on(table.externalUid),
 	check("chk_midterm_status", sql`(\`status\` in (_latin1\'Pending\',_latin1\'Confirmed\',_latin1\'Cancelled\'))`),
 	check("chk_midterm_times", sql`(\`end_time\` > \`start_time\`)`),
 ]);
@@ -206,9 +201,10 @@ export const unknownBuildingCodes = mysqlTable("Unknown_Building_Codes", {
 
 export const users = mysqlTable("Users", {
 	netId: varchar("net_id", { length: 20 }).notNull(),
-	fullName: varchar("full_name", { length: 100 }).notNull(),
-	email: varchar({ length: 100 }).notNull(),
+	fullName: varchar("full_name", { length: 100 }),
+	email: varchar({ length: 100 }),
 	isGlobalAdmin: tinyint("is_global_admin").default(0).notNull(),
+	invitedAt: datetime("invited_at", { mode: 'string'}),
 },
 (table) => [
 	primaryKey({ columns: [table.netId], name: "Users_net_id"}),

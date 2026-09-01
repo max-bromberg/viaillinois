@@ -65,10 +65,6 @@
 {:else}
   <CircuitBackground />
 
-  <div class="relative z-20 w-full bg-amber-400/90 text-amber-950 text-center text-xs font-medium py-1.5 px-4">
-    VIA is in beta and under active development. Your data is here to stay, but you may occasionally hit a bug or brief downtime as we keep improving.
-  </div>
-
   {#if $toast}
     <div class="fixed top-4 right-4 z-50 rounded-md px-4 py-2 text-sm font-medium shadow-md
       {$toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}">

@@ -1,4 +1,5 @@
 <script>
+  import { locationLabel } from '../lib/locationLabel.js';
   import { onMount } from 'svelte';
   import { navigate } from '../lib/router.js';
   import { isGlobalAdmin } from '../stores/auth.js';
@@ -6,6 +7,7 @@
   import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser, getPollStatus, getPollHistory, getUnknownCodes, triggerPoll } from '../api/admin.js';
   import { showToast } from '../stores/ui.js';
   import { getAdminMidterms, updateMidtermStatus } from '../api/midterms.js';
+  import CalendarImport from '../lib/CalendarImport.svelte';
 
   // ── Access control ────────────────────────────────────────────────────────
   $: if (!$isGlobalAdmin) navigate('/');
@@ -842,6 +844,8 @@
     <!-- ── Midterms Tab ──────────────────────────────────────────────────── -->
     {#if activeTab === 'midterms'}
       <div class="space-y-4">
+        <CalendarImport kind="midterms" />
+
         <!-- Status filter pills -->
         <div class="flex items-center gap-2 flex-wrap">
           {#each ['Pending', 'Confirmed', 'Cancelled', 'All'] as f}
@@ -894,14 +898,13 @@
                         to
                         {new Date(mt.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                       </span>
-                      {#if mt.building}
-                        <span>{mt.building} · {mt.room_number}</span>
-                      {/if}
-                      {#if mt.submitted_by}
-                        <span>Submitted by <span class="font-medium text-foreground">{mt.submitted_by}</span></span>
-                      {/if}
-                      <span class="flex items-center gap-1">
-                        <span class="text-foreground font-medium">{mt.score > 0 ? '+' : ''}{mt.score ?? 0}</span> votes
+                      <span>{locationLabel(mt)}</span>
+                      <span>
+                        {#if mt.submitted_by}
+                          Submitted by <span class="font-medium text-foreground">{mt.submitted_by}</span>
+                        {:else}
+                          Imported
+                        {/if}
                       </span>
                     </div>
                   </div>

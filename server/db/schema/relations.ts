@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { courses, courseSections, locations, events, eventTags, tags, rsOs, users, facilityReservations, localAccounts, midterms, midtermVotes, rsoMemberships, rsvPs, pollLog, unknownBuildingCodes } from "./schema.ts";
+import { courses, courseSections, locations, events, eventTags, tags, rsOs, users, facilityReservations, localAccounts, midterms, rsoMemberships, rsvPs, pollLog, unknownBuildingCodes } from "./schema.ts";
 
 export const courseSectionsRelations = relations(courseSections, ({one}) => ({
 	course: one(courses, {
@@ -64,7 +64,6 @@ export const rsOsRelations = relations(rsOs, ({many}) => ({
 export const usersRelations = relations(users, ({many}) => ({
 	events: many(events),
 	localAccounts: many(localAccounts),
-	midtermVotes: many(midtermVotes),
 	midterms: many(midterms),
 	rsoMemberships: many(rsoMemberships),
 	rsvPs: many(rsvPs),
@@ -84,19 +83,7 @@ export const localAccountsRelations = relations(localAccounts, ({one}) => ({
 	}),
 }));
 
-export const midtermVotesRelations = relations(midtermVotes, ({one}) => ({
-	midterm: one(midterms, {
-		fields: [midtermVotes.midtermId],
-		references: [midterms.midtermId]
-	}),
-	user: one(users, {
-		fields: [midtermVotes.netId],
-		references: [users.netId]
-	}),
-}));
-
 export const midtermsRelations = relations(midterms, ({one, many}) => ({
-	midtermVotes: many(midtermVotes),
 	course: one(courses, {
 		fields: [midterms.courseCode],
 		references: [courses.courseCode]

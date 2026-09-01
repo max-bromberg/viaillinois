@@ -1,192 +1,265 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { generateNodes, generateSegments, spawnPulse, advancePulses } from './circuitGraph.js';
+  import {
+    generateNodes, generateSegments, buildAdjacency,
+    nearestNode, pointAt, probe, advanceSignals,
+  } from './circuitGraph.js';
 
-  // ── Config ────────────────────────────────────────────────────────────────
-  const NODE_COUNT      = 55;
-  const MIN_DIST        = 80;
-  const K_CONNECTIONS   = 3;
-  const BASE_SPAWN_RATE = 0.15;  // pulses per segment per second at rest
-  const HOT_SPAWN_MULT  = 4;     // multiplier when segment is near mouse
-  const HOVER_RADIUS    = 150;   // px, the distance at which nodes become "hot"
-  const HOTNESS_RISE    = 5.0;   // hotness units/second when cursor approaches
-  const HOTNESS_FALL    = 2.5;   // hotness units/second when cursor leaves
+  /**
+   * The board behind the page.
+   *
+   * At rest it does not move at all. A page that animates while you are trying
+   * to read it is competing with its own content, and the previous version
+   * spawned a pulse somewhere on screen roughly twenty five times a second.
+   *
+   * Touching it sends current out from the nearest pad, spreading through the
+   * traces and fading as it goes, so every moving thing is where the cursor
+   * already is and nowhere else.
+   */
 
-  // Colours stored as [r, g, b, a] for fast per-frame interpolation
-  const TRACE_BASE = [  0, 170, 175, 0.50];
-  const TRACE_HOT  = [125, 248, 252, 0.95];
-  const NODE_BASE  = [  0, 170, 175, 0.50];
-  const NODE_HOT   = [125, 248, 252, 1.00];
-  const PULSE_COL  = 'rgba(220,255,255,0.95)';
+  // Sparse on purpose. Fewer pads, further apart, with fewer traces each.
+  const NODE_COUNT    = 34;
+  const MIN_DIST      = 120;
+  const CONNECTIONS   = 2;
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  const PROBE_RADIUS  = 210;   // how near the cursor has to be to touch a pad
+  const REPROBE_MS    = 420;   // how often the same pad will fire again
+  const SIGNAL_SPEED  = 520;   // px per second along a trace
+  const DECAY         = 0.62;  // strength kept at each pad it reaches
+  const MIN_STRENGTH  = 0.14;  // below this the current has run out
+  const ENERGY_FALL   = 2.4;   // how quickly a lit pad goes dark again
+
+  // Graphite at rest, Illinois orange when carrying current. One accent and
+  // nothing else: the resting board is drawn from the theme's own foreground
+  // colour so it sits correctly in both light and dark.
+  const ACCENT        = [232, 74, 39];
+  const TRACE_ALPHA   = 0.10;
+  const PAD_ALPHA     = 0.15;
+
   let canvas;
   let ctx;
-  let nodes    = [];
+  let nodes = [];
   let segments = [];
-  let mouse    = { x: -9999, y: -9999 };
-  let rafId;
+  let adjacency = [];
+  let signals = [];
+  let foreground = '240 10% 3.9%';
+
+  let mouse = { x: -9999, y: -9999 };
+  let lastProbed = { id: null, at: 0 };
+  let rafId = null;
   let lastTime = null;
   let lastWidth = 0;
   let resizeTimer;
+  let themeWatcher;
+  let reduced = false;
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  function lerp(a, b, t) {
-    return a + (b - a) * t;
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  /** The resting colour, taken from the active theme so it works in both. */
+  const restRgba = alpha => `hsl(${foreground} / ${alpha})`;
+
+  /** A trace or pad carrying current, warming toward the accent. */
+  const liveRgba = (energy, alpha) =>
+    `rgba(${ACCENT[0]},${ACCENT[1]},${ACCENT[2]},${(alpha + energy * 0.75).toFixed(3)})`;
+
+  function readTheme() {
+    foreground = getComputedStyle(document.documentElement)
+      .getPropertyValue('--foreground').trim() || foreground;
   }
 
-  /** Interpolate between two [r,g,b,a] colour tuples and return an rgba() string. */
-  function lerpRgba(c0, c1, t) {
-    if (t <= 0) return `rgba(${c0[0]},${c0[1]},${c0[2]},${c0[3]})`;
-    if (t >= 1) return `rgba(${c1[0]},${c1[1]},${c1[2]},${c1[3]})`;
-    return `rgba(${Math.round(lerp(c0[0],c1[0],t))},` +
-                `${Math.round(lerp(c0[1],c1[1],t))},` +
-                `${Math.round(lerp(c0[2],c1[2],t))},` +
-                `${lerp(c0[3],c1[3],t).toFixed(2)})`;
-  }
-
-  /** A segment's hotness is the maximum hotness of its two endpoint nodes. */
-  function segHotness(seg) {
-    return Math.max(
-      nodes[seg.connectedNodes[0]]?.hotness ?? 0,
-      nodes[seg.connectedNodes[1]]?.hotness ?? 0,
-    );
-  }
-
-  // ── Initialise canvas and graph ───────────────────────────────────────────
   function init() {
     const dpr = window.devicePixelRatio || 1;
-    const w   = window.innerWidth;
-    const h   = window.innerHeight;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
 
-    canvas.width        = w * dpr;
-    canvas.height       = h * dpr;
-    canvas.style.width  = w + 'px';
-    canvas.style.height = h + 'px';
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
 
     ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // reset + scale for retina
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    nodes    = generateNodes(w, h, NODE_COUNT, MIN_DIST);
-    segments = generateSegments(nodes, K_CONNECTIONS);
-
-    // Seed one pulse on every third segment so there is motion immediately
-    segments.forEach((seg, i) => { if (i % 3 === 0) spawnPulse(seg); });
+    nodes = generateNodes(w, h, NODE_COUNT, MIN_DIST);
+    segments = generateSegments(nodes, CONNECTIONS);
+    adjacency = buildAdjacency(nodes, segments);
+    signals = [];
+    draw(0);
   }
 
-  // ── RAF draw loop ─────────────────────────────────────────────────────────
-  function draw(timestamp) {
-    const dt = lastTime !== null
-      ? Math.min((timestamp - lastTime) / 1000, 0.05) // cap at 50ms to avoid jumps after tab-switch
-      : 0.016;
-    lastTime = timestamp;
+  /** Anything still lit or moving. When nothing is, the loop stops. */
+  function isActive() {
+    return signals.length > 0 || nodes.some(node => node.energy > 0.01);
+  }
 
-    const W = window.innerWidth;
-    const H = window.innerHeight;
+  function strokePath(points) {
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+    ctx.stroke();
+  }
 
-    // 1. Update per-node hotness toward mouse proximity target
+  function render() {
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+    // Traces. A trace is as bright as the brighter of the pads it joins.
+    for (const segment of segments) {
+      const energy = Math.max(nodes[segment.a]?.energy ?? 0, nodes[segment.b]?.energy ?? 0);
+      ctx.lineWidth = lerp(1, 1.6, energy);
+      ctx.strokeStyle = energy > 0.01 ? liveRgba(energy, TRACE_ALPHA) : restRgba(TRACE_ALPHA);
+      strokePath(segment.points);
+    }
+
+    // Pads.
     for (const node of nodes) {
-      const dist   = Math.hypot(node.x - mouse.x, node.y - mouse.y);
-      const target = dist < HOVER_RADIUS ? 1 : 0;
-      const rate   = target > node.hotness ? HOTNESS_RISE : HOTNESS_FALL;
-      node.hotness = Math.max(0, Math.min(1,
-        node.hotness + (target - node.hotness) * rate * dt
-      ));
-    }
-
-    // 2. Advance pulses and maybe spawn new ones
-    advancePulses(segments, dt);
-    for (const seg of segments) {
-      const h    = segHotness(seg);
-      const rate = BASE_SPAWN_RATE * lerp(1, HOT_SPAWN_MULT, h);
-      if (Math.random() < rate * dt) spawnPulse(seg);
-    }
-
-    // 3. Render
-    ctx.clearRect(0, 0, W, H);
-
-    // Trace segments
-    for (const seg of segments) {
-      const h = segHotness(seg);
       ctx.beginPath();
-      ctx.moveTo(seg.x1, seg.y1);
-      ctx.lineTo(seg.x2, seg.y2);
-      ctx.lineWidth   = lerp(1, 2.5, h);
-      ctx.strokeStyle = lerpRgba(TRACE_BASE, TRACE_HOT, h);
-      ctx.shadowColor = 'rgba(125,248,252,0.7)';
-      ctx.shadowBlur  = lerp(0, 10, h);
-      ctx.stroke();
-    }
-    ctx.shadowBlur  = 0;
-    ctx.shadowColor = 'transparent';
-
-    // Pulses (bright glowing dots travelling along segments)
-    for (const seg of segments) {
-      for (const pulse of seg.pulses) {
-        const px = lerp(seg.x1, seg.x2, pulse.t);
-        const py = lerp(seg.y1, seg.y2, pulse.t);
-        ctx.beginPath();
-        ctx.arc(px, py, 3, 0, Math.PI * 2);
-        ctx.fillStyle   = PULSE_COL;
-        ctx.shadowColor = 'rgba(180,255,255,0.9)';
-        ctx.shadowBlur  = 12;
-        ctx.fill();
-      }
-    }
-    ctx.shadowBlur  = 0;
-    ctx.shadowColor = 'transparent';
-
-    // Nodes
-    for (const node of nodes) {
-      const h = node.hotness;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, lerp(3, 7, h), 0, Math.PI * 2);
-      ctx.fillStyle   = lerpRgba(NODE_BASE, NODE_HOT, h);
-      ctx.shadowColor = 'rgba(125,248,252,0.9)';
-      ctx.shadowBlur  = lerp(0, 16, h);
+      ctx.arc(node.x, node.y, lerp(1.6, 3.4, node.energy), 0, Math.PI * 2);
+      ctx.fillStyle = node.energy > 0.01
+        ? liveRgba(node.energy, PAD_ALPHA)
+        : restRgba(PAD_ALPHA);
       ctx.fill();
     }
-    ctx.shadowBlur  = 0;
-    ctx.shadowColor = 'transparent';
 
-    rafId = requestAnimationFrame(draw);
+    // The travelling signal. The only thing on the page that glows, and only
+    // while it is moving.
+    for (const signal of signals) {
+      const segment = segments[signal.seg];
+      if (!segment) continue;
+      const [x, y] = pointAt(segment.points, signal.t);
+      ctx.beginPath();
+      ctx.arc(x, y, 2.8, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${ACCENT[0]},${ACCENT[1]},${ACCENT[2]},${signal.strength.toFixed(2)})`;
+      ctx.shadowColor = `rgba(${ACCENT[0]},${ACCENT[1]},${ACCENT[2]},0.55)`;
+      ctx.shadowBlur = 14 * signal.strength;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+    }
   }
 
-  // ── Event handlers ────────────────────────────────────────────────────────
-  function onMouseMove(e) {
-    mouse = { x: e.clientX, y: e.clientY };
+  function draw(timestamp) {
+    const dt = lastTime !== null ? Math.min((timestamp - lastTime) / 1000, 0.05) : 0.016;
+    lastTime = timestamp;
+
+    const advanced = advanceSignals(signals, segments, adjacency, dt, {
+      speed: SIGNAL_SPEED, decay: DECAY, minStrength: MIN_STRENGTH,
+    });
+    signals = advanced.signals;
+    for (const arrival of advanced.arrivals) {
+      const node = nodes[arrival.node];
+      if (node) node.energy = Math.max(node.energy, arrival.strength);
+    }
+
+    for (const node of nodes) {
+      const next = node.energy - node.energy * ENERGY_FALL * dt;
+      // Exponential decay never quite reaches zero, so it is snapped once it
+      // is too faint to see. Otherwise the loop keeps running for seconds
+      // after the last thing worth drawing has gone.
+      node.energy = next < 0.02 ? 0 : next;
+    }
+
+    render();
+
+    if (isActive()) {
+      rafId = requestAnimationFrame(draw);
+    } else {
+      rafId = null;
+      lastTime = null;
+    }
+  }
+
+  function wake() {
+    if (rafId === null) {
+      lastTime = null;
+      rafId = requestAnimationFrame(draw);
+    }
+  }
+
+  function onMouseMove(event) {
+    mouse = { x: event.clientX, y: event.clientY };
+    const pad = nearestNode(nodes, mouse.x, mouse.y, PROBE_RADIUS);
+    if (!pad) return;
+
+    if (reduced) {
+      // No propagation, no loop: the pad under the cursor simply lights up.
+      for (const node of nodes) node.energy = 0;
+      pad.energy = 1;
+      render();
+      return;
+    }
+
+    const now = performance.now();
+    if (pad.id === lastProbed.id && now - lastProbed.at < REPROBE_MS) return;
+    lastProbed = { id: pad.id, at: now };
+    pad.energy = 1;
+    signals = signals.concat(probe(pad.id, adjacency, 1));
+    wake();
   }
 
   function onResize() {
-    // Ignore height-only changes (Safari URL bar appearing/disappearing on scroll).
-    // Only reinitialise when the width actually changes.
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (window.innerWidth !== lastWidth) {
         lastWidth = window.innerWidth;
         init();
-        lastTime = null;
       }
     }, 150);
   }
 
+  /** A hidden tab should not be painting. The kiosk runs this for weeks. */
+  function onVisibility() {
+    if (document.hidden) {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+      lastTime = null;
+    } else if (isActive()) {
+      wake();
+    }
+  }
+
   onMount(() => {
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    reduced = motionQuery.matches;
+    const onMotionChange = e => { reduced = e.matches; };
+    motionQuery.addEventListener('change', onMotionChange);
+
+    readTheme();
     lastWidth = window.innerWidth;
     init();
-    rafId = requestAnimationFrame(draw);
+
+    // The resting colour comes from the theme, so it has to be re-read when
+    // the theme is switched.
+    themeWatcher = new MutationObserver(() => { readTheme(); render(); });
+    themeWatcher.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
     window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('resize',    onResize);
+    window.addEventListener('resize', onResize);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => motionQuery.removeEventListener('change', onMotionChange);
   });
 
   onDestroy(() => {
-    cancelAnimationFrame(rafId);
+    if (rafId !== null) cancelAnimationFrame(rafId);
     clearTimeout(resizeTimer);
+    themeWatcher?.disconnect();
     window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('resize',    onResize);
+    window.removeEventListener('resize', onResize);
+    document.removeEventListener('visibilitychange', onVisibility);
   });
 </script>
 
+<!--
+  Faded out through the middle, where the content column sits, so the board is
+  something you notice at the edges of the page rather than something you read
+  through.
+-->
 <canvas
   bind:this={canvas}
-  style="position:fixed;inset:0;z-index:0;pointer-events:none;"
+  aria-hidden="true"
+  style="
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    -webkit-mask-image: radial-gradient(ellipse 62% 55% at 50% 42%, transparent 18%, black 92%);
+    mask-image: radial-gradient(ellipse 62% 55% at 50% 42%, transparent 18%, black 92%);
+  "
 />

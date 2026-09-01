@@ -74,3 +74,30 @@ describe('EventDetail', () => {
     });
   });
 });
+
+/**
+ * Event detail was missed when the location became optional, so an event held
+ * somewhere that is not a room rendered a bare pin with nothing beside it.
+ */
+describe('EventDetail location', () => {
+  const base = {
+    event_id: 1, rso_id: 2, title: 'IEEE Workshop', description: 'Something',
+    start_time: '2026-04-20T18:00:00', end_time: '2026-04-20T20:00:00',
+    is_private: false, rso_name: 'IEEE UIUC',
+    building: null, room_number: null, location_text: null,
+  };
+
+  it('shows the free text when there is no room', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: { ...base, location_text: 'Zoom' } });
+    const { findByText } = render(EventDetail, { id: '1' });
+    expect(await findByText(/Zoom/)).toBeTruthy();
+  });
+
+  it('says the location is undecided when there is neither', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: base });
+    const { findByText } = render(EventDetail, { id: '1' });
+    expect(await findByText(/Location to be announced/)).toBeTruthy();
+  });
+});

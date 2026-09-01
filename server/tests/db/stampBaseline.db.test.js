@@ -24,6 +24,18 @@ async function tables(conn) {
  * the baseline there would fail on the first CREATE TABLE and take a deploy
  * down with it. Stamping records the baseline as applied without running it.
  */
+/**
+ * How many migrations the journal declares. Reading it here keeps these
+ * assertions about stamping and privileges rather than about how many
+ * migrations happen to exist, which changes with every schema change.
+ */
+function migrationCount() {
+  const journal = JSON.parse(
+    readFileSync(new URL('../../db/migrations/meta/_journal.json', import.meta.url), 'utf8')
+  );
+  return journal.entries.length;
+}
+
 describe('baseline stamping', () => {
   beforeAll(async () => {
     await startTestDb();
@@ -45,8 +57,9 @@ describe('baseline stamping', () => {
     const stamped = await stampBaseline();
     expect(stamped).toBe(true);
 
+    // Everything except the baseline, which was stamped rather than run.
     const result = await applyMigrations();
-    expect(result.applied).toBe(1);
+    expect(result.applied).toBe(migrationCount() - 1);
 
     const [rows] = await conn.query('SELECT COUNT(*) AS n FROM Users');
     expect(Number(rows[0].n)).toBe(1);
@@ -61,7 +74,7 @@ describe('baseline stamping', () => {
   it('does nothing on an empty database, so the baseline still runs there', async () => {
     expect(await stampBaseline()).toBe(false);
     const result = await applyMigrations();
-    expect(result.applied).toBe(2);
+    expect(result.applied).toBe(migrationCount());
     const conn = await mysql.createConnection(testDbConfig);
     expect(await tables(conn)).toContain('Users');
     await conn.end();

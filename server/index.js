@@ -4,6 +4,7 @@ import pool from './db/pool.js';
 import facilitiesPoller from './services/facilitiesPoller.js';
 import coursesPoller from './services/coursesPoller.js';
 import astraPoller from './services/astraPoller.js';
+import { pollersEnabled } from './lib/pollerConfig.js';
 
 if (process.env.NODE_ENV === 'production') {
   const required = ['JWT_SECRET', 'SESSION_SECRET', 'DB_PASSWORD', 'DB_USER'];
@@ -18,9 +19,13 @@ const PORT = process.env.PORT || 3001;
 
 const server = app.listen(PORT, () => {
   console.log(`VIA server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
-  facilitiesPoller.start();
-  coursesPoller.start();
-  astraPoller.start();
+  if (pollersEnabled(process.env)) {
+    facilitiesPoller.start();
+    coursesPoller.start();
+    astraPoller.start();
+  } else {
+    console.log('pollers disabled by POLLERS_ENABLED');
+  }
 });
 
 async function shutdown() {

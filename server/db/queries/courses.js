@@ -29,6 +29,15 @@ export async function upsertSection(courseCode, locationId, dayOfWeek, startTime
  * List all courses (used to populate midterm submission form dropdown).
  * @returns {Promise<Array<{ course_code, title }>>}
  */
+/**
+ * Just the course codes, for matching a course named in imported text.
+ * @returns {Promise<string[]>}
+ */
+export async function getCourseCodes() {
+  const rows = await query('SELECT course_code FROM Courses')
+  return rows.map(r => r.course_code)
+}
+
 export async function getCourses() {
   return query('SELECT course_code, title FROM Courses ORDER BY course_code')
 }

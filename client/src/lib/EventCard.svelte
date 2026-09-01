@@ -1,4 +1,5 @@
 <script>
+  import { locationLabel } from './locationLabel.js';
   import { currentUser } from '../stores/auth.js';
   import { rsvpEvent } from '../api/events.js';
   import { showToast } from '../stores/ui.js';
@@ -60,7 +61,7 @@
     <div class="text-sm space-y-1 mb-2">
       <p>📅 {formattedDate} at {formattedTime}</p>
       {#if canSeeLocation}
-        <p>📍 {event.building} {event.room_number}</p>
+        <p>📍 {locationLabel(event)}</p>
       {/if}
     </div>
     {#if tags.length}

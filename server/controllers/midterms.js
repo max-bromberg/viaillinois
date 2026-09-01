@@ -33,19 +33,6 @@ export async function createMidterm(req, res, next) {
   } catch (err) { next(err); }
 }
 
-export async function voteMidterm(req, res, next) {
-  try {
-    const midtermId = parseInt(req.params.id);
-    if (isNaN(midtermId)) return res.status(400).json({ error: 'id must be an integer' });
-    const { value } = req.body;
-    if (value !== 1 && value !== -1) {
-      return res.status(400).json({ error: 'value must be 1 or -1' });
-    }
-    await midtermsDb.upsertVote(midtermId, req.user.net_id, value);
-    res.json({ ok: true });
-  } catch (err) { next(err); }
-}
-
 export async function getConfirmedMidtermsHandler(req, res, next) {
   try {
     const midterms = await midtermsDb.getConfirmedMidterms();

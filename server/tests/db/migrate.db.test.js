@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import mysql from 'mysql2/promise';
 import { startTestDb, resetTestDb, testDbConfig } from '../support/testDb.js';
 
@@ -34,9 +35,16 @@ describe('migration runner', () => {
    * migration is actually applied.
    */
   it('reports the migration name rather than its hash', async () => {
+    // Read the expected name from the journal rather than naming a migration
+    // here, so that adding one does not fail a test about hashes and names.
+    const journal = JSON.parse(
+      readFileSync(new URL('../../db/migrations/meta/_journal.json', import.meta.url), 'utf8')
+    );
+    const latest = journal.entries[journal.entries.length - 1].tag;
+
     const result = await applyMigrations();
-    expect(result.version).toBe('0001_advanced_objects');
-    expect(await currentVersion()).toBe('0001_advanced_objects');
+    expect(result.version).toBe(latest);
+    expect(await currentVersion()).toBe(latest);
   });
 
   it('is idempotent: a second run applies nothing and keeps the version', async () => {

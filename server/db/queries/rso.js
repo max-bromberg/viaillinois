@@ -26,6 +26,7 @@ export async function getRsoById(rsoId) {
       u.net_id,
       u.full_name,
       u.email,
+      u.invited_at,
       m.role,
       m.joined_at,
       (

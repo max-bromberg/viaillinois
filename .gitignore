@@ -152,3 +152,8 @@ assignment/
 doc/
 memory/
 docs/data-ingestion-db-changes.md
+
+# Verified database dumps written by the cutover. BACKUP_DIR defaults to this
+# directory, which sits inside the deployment checkout, and the cutover refuses
+# to run on a dirty tree.
+backups/

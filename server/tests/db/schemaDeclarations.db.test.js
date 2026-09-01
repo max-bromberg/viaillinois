@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync } from 'node:fs';
 import mysql from 'mysql2/promise';
 import { getTableColumns, getTableName, is } from 'drizzle-orm';
 import { MySqlTable } from 'drizzle-orm/mysql-core';
@@ -10,6 +9,11 @@ import { startTestDb, resetTestDb, testDbConfig } from '../support/testDb.js';
  * in the database. drizzle-kit compares these declarations against the stored
  * snapshot, so a column that is missing here is a column that a future
  * generate would emit a DROP for.
+ *
+ * The database to compare against is the one the migrations build, not the
+ * frozen production snapshot. The snapshot is the state before any migration
+ * ran, so comparing declarations to it would fail on the first migration that
+ * added or removed a column, which is what migrations are for.
  */
 describe('generated schema declarations', () => {
   let dbColumns;
@@ -19,14 +23,18 @@ describe('generated schema declarations', () => {
     await startTestDb();
     await resetTestDb();
 
-    const schemaSql = readFileSync(new URL('../fixtures/verified-production-schema.sql', import.meta.url), 'utf8')
-      .replace(/^CREATE DATABASE[^;]*;/m, '')
-      .replace(/^USE [^;]*;/m, '');
+    process.env.DB_HOST = testDbConfig.host;
+    process.env.DB_PORT = String(testDbConfig.port);
+    process.env.DB_USER = testDbConfig.user;
+    process.env.DB_PASSWORD = testDbConfig.password;
+    process.env.DB_NAME = testDbConfig.database;
+    const { applyMigrations } = await import('../../db/migrate.ts');
+    await applyMigrations();
+
     const conn = await mysql.createConnection(testDbConfig);
-    await conn.query(schemaSql);
     const [rows] = await conn.query(
       `SELECT table_name AS t, column_name AS c FROM information_schema.columns
-       WHERE table_schema = ?`,
+       WHERE table_schema = ? AND table_name <> '__drizzle_migrations'`,
       [testDbConfig.database]
     );
     await conn.end();

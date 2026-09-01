@@ -19,6 +19,7 @@ export async function getPublicEvents(filters = {}) {
       e.end_time,
       e.is_private,
       r.name AS rso_name,
+      e.location_text,
       l.building,
       l.room_number,
       l.max_capacity,
@@ -26,7 +27,7 @@ export async function getPublicEvents(filters = {}) {
   FROM Events e
   JOIN RSOs r
       ON e.rso_id = r.rso_id
-  JOIN Locations l
+  LEFT JOIN Locations l
       ON e.location_id = l.location_id
   LEFT JOIN Event_Tags et
       ON e.event_id = et.event_id
@@ -75,6 +76,7 @@ export async function getAllEvents(filters = {}) {
       e.end_time,
       e.is_private,
       r.name AS rso_name,
+      e.location_text,
       l.building,
       l.room_number,
       l.max_capacity,
@@ -82,7 +84,7 @@ export async function getAllEvents(filters = {}) {
   FROM Events e
   JOIN RSOs r
       ON e.rso_id = r.rso_id
-  JOIN Locations l
+  LEFT JOIN Locations l
       ON e.location_id = l.location_id
   LEFT JOIN Event_Tags et
       ON e.event_id = et.event_id
@@ -127,13 +129,14 @@ export async function getEventById(eventId) {
       e.is_private,
       e.rso_id,
       r.name AS rso_name,
+      e.location_text,
       l.building,
       l.room_number,
       GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
   FROM Events e
   JOIN RSOs r
       ON e.rso_id = r.rso_id
-  JOIN Locations l
+  LEFT JOIN Locations l
       ON e.location_id = l.location_id
   LEFT JOIN Event_Tags et
       ON e.event_id = et.event_id
@@ -146,6 +149,44 @@ export async function getEventById(eventId) {
   `,
         [eventId]
     ).then(results => results[0] || null)
+}
+
+/**
+ * Every public event, for the sitemap.
+ *
+ * Deliberately not the feed query: that one paginates at twenty, so using it
+ * here submitted only the first screenful of events and left the rest for a
+ * search engine to find on its own, which is exactly what it cannot do on a
+ * page built by JavaScript.
+ *
+ * @param {number} [limit] a sitemap holds at most fifty thousand addresses
+ * @returns {Promise<Array<{ event_id: number, start_time: string }>>}
+ */
+export async function getPublicEventSitemapEntries(limit = 5000) {
+    return query(
+        `SELECT event_id, start_time FROM Events
+          WHERE is_private = FALSE
+          ORDER BY start_time DESC
+          LIMIT ?`,
+        [limit]
+    )
+}
+
+/**
+ * Find events in an RSO that came from a calendar, by the identifiers that
+ * calendar gave them. Used by the importer to tell a second import of the same
+ * file from a first one.
+ *
+ * @param {number} rsoId
+ * @param {string[]} uids
+ * @returns {Promise<Array<{ event_id: number, external_uid: string }>>}
+ */
+export async function findEventsByUid(rsoId, uids) {
+    if (!uids || uids.length === 0) return []
+    return query(
+        'SELECT event_id, external_uid FROM Events WHERE rso_id = ? AND external_uid IN (?)',
+        [rsoId, uids]
+    )
 }
 
 /**
@@ -193,7 +234,7 @@ export async function upsertRsvp(netId, eventId, status) {
  * @returns {Promise<Array<{event_id, title, start_time, end_time, rso_name, building, room_number}>>}
  */
 export async function getKioskEvents(limit = 10) {
-    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > NOW() ORDER BY e.start_time ASC LIMIT ?', [limit])
+    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, e.location_text, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > NOW() ORDER BY e.start_time ASC LIMIT ?', [limit])
 }
 
 /**
@@ -223,7 +264,7 @@ export async function setEventTags(eventId, tagNames) {
  * @returns {Promise<Array<{ event_id, title, description, start_time, end_time, is_private, rso_name, building, room_number, max_capacity, tags }>>}
  */
 export async function getEventsByRso(rsoId) {
-    return query('SELECT e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, r.name AS rso_name, l.building, l.room_number, l.max_capacity, GROUP_CONCAT(t.tag_name) AS tags FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id JOIN Locations l ON e.location_id = l.location_id LEFT JOIN Event_Tags et ON e.event_id = et.event_id LEFT JOIN Tags t ON et.tag_name = t.tag_name WHERE e.rso_id = ? GROUP BY e.event_id ORDER BY e.start_time ASC', [rsoId])
+    return query('SELECT e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity, GROUP_CONCAT(t.tag_name) AS tags FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id LEFT JOIN Event_Tags et ON e.event_id = et.event_id LEFT JOIN Tags t ON et.tag_name = t.tag_name WHERE e.rso_id = ? GROUP BY e.event_id ORDER BY e.start_time ASC', [rsoId])
 }
 
 /**
@@ -239,11 +280,11 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
   return query(
     `SELECT
       e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
-      r.name AS rso_name, l.building, l.room_number, l.max_capacity,
+      r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
       GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
     FROM Events e
     JOIN RSOs r ON e.rso_id = r.rso_id
-    JOIN Locations l ON e.location_id = l.location_id
+    LEFT JOIN Locations l ON e.location_id = l.location_id
     LEFT JOIN Event_Tags et ON e.event_id = et.event_id
     LEFT JOIN Tags t ON et.tag_name = t.tag_name
     WHERE (e.is_private = FALSE OR e.rso_id IN (?))
@@ -271,7 +312,7 @@ export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
     `SELECT COUNT(DISTINCT e.event_id) AS total
     FROM Events e
     JOIN RSOs r ON e.rso_id = r.rso_id
-    JOIN Locations l ON e.location_id = l.location_id
+    LEFT JOIN Locations l ON e.location_id = l.location_id
     LEFT JOIN Event_Tags et ON e.event_id = et.event_id
     LEFT JOIN Tags t ON et.tag_name = t.tag_name
     WHERE (e.is_private = FALSE OR e.rso_id IN (?))
@@ -296,7 +337,7 @@ export async function countPublicEvents(filters = {}) {
   SELECT COUNT(DISTINCT e.event_id) AS total
   FROM Events e
   JOIN RSOs r ON e.rso_id = r.rso_id
-  JOIN Locations l ON e.location_id = l.location_id
+  LEFT JOIN Locations l ON e.location_id = l.location_id
   LEFT JOIN Event_Tags et ON e.event_id = et.event_id
   LEFT JOIN Tags t ON et.tag_name = t.tag_name
   WHERE e.is_private = FALSE
@@ -330,7 +371,7 @@ export async function countAllEvents(filters = {}) {
   SELECT COUNT(DISTINCT e.event_id) AS total
   FROM Events e
   JOIN RSOs r ON e.rso_id = r.rso_id
-  JOIN Locations l ON e.location_id = l.location_id
+  LEFT JOIN Locations l ON e.location_id = l.location_id
   LEFT JOIN Event_Tags et ON e.event_id = et.event_id
   LEFT JOIN Tags t ON et.tag_name = t.tag_name
   WHERE

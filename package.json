@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:local": "concurrently \"npm run dev:local --prefix server\" \"npm run dev --prefix client\"",
+    "dev:db": "scripts/dev-db.sh",
+    "dev:db:reset": "scripts/dev-db.sh --reset",
+    "dev:db:down": "docker compose -f docker-compose.dev.yml down",
     "build": "npm run build --prefix client",
     "test:client": "npm run test --prefix client",
     "check:language": "node scripts/check-language.js",

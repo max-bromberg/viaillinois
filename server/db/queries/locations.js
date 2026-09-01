@@ -1,4 +1,5 @@
 import { query } from '../pool.js';
+import { rankLocations } from '../../lib/locationSearch.js';
 
 /**
  * Upsert a location row and return its location_id.
@@ -19,7 +20,7 @@ export async function upsertLocation(building, roomNumber, capacity = 30) {
 
 /**
  * Get location IDs that are occupied during a time window.
- * Used by venueRecommender to filter out busy rooms.
+ * Used by intelligentScheduler to filter out busy rooms.
  * @param {string} startTime - ISO datetime
  * @param {string} endTime   - ISO datetime
  * @param {number} [excludeEventId] - Optional event ID to exclude from conflict check (for updates)
@@ -80,21 +81,43 @@ export async function getByCapacity(minCapacity, requiresAV = false) {
 }
 
 /**
- * Search locations by building name or room number (case-insensitive prefix/substring match).
- * @param {string} q - search term
+ * Every room, cached briefly.
+ *
+ * Ranking happens in JavaScript rather than SQL because the useful comparison
+ * is word by word: a code has to expand into the words of a building name, and
+ * a query word has to match the start of a stored word. SQL LIKE cannot express
+ * that without a pattern per word per row.
+ *
+ * That means reading the table, so the result is held for a minute. Rooms only
+ * change when a poller runs, which is once every few hours, and a search box
+ * queries on nearly every keystroke.
+ */
+const CACHE_TTL_MS = 60_000;
+let cache = null;
+
+/** Drop the cached room list. Tests use this after changing the table. */
+export function clearLocationCache() {
+  cache = null;
+}
+
+export async function allLocations() {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.rows;
+  const rows = await query(
+    'SELECT location_id, building, room_number, max_capacity, has_av_equipment FROM Locations'
+  );
+  cache = { at: Date.now(), rows };
+  return rows;
+}
+
+/**
+ * Search rooms by building name, building code or room number, best match first.
+ *
+ * @param {string} q search term
  * @param {number} [limit=10]
  * @returns {Promise<Array<{ location_id, building, room_number, max_capacity }>>}
  */
 export async function searchLocations(q, limit = 10) {
-  const term = `%${q}%`
-  return query(
-    `SELECT location_id, building, room_number, max_capacity
-     FROM Locations
-     WHERE building LIKE ? OR room_number LIKE ?
-     ORDER BY building ASC, room_number ASC
-     LIMIT ?`,
-    [term, term, limit]
-  )
+  return rankLocations(q, await allLocations(), limit);
 }
 
 /**

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --exec \"node --experimental-strip-types --env-file=../.env\" index.js",
+    "dev:local": "nodemon --exec \"node --experimental-strip-types --env-file=../.env.dev\" index.js",
     "start": "node --experimental-strip-types --env-file=../.env index.js",
     "test": "vitest run --project unit",
     "test:db": "vitest run --project db",

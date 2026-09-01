@@ -1,9 +1,9 @@
 import { query } from '../pool.js';
 
 /**
- * List midterms with vote scores, optionally filtered by course_code and date range.
+ * List midterms, optionally filtered by course_code and date range.
  * @param {{ courseCode?: string, startDate?: string, endDate?: string }} filters
- * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, status, building, room_number, score, submitted_by }>>}
+ * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, status, building, room_number, submitted_by }>>}
  */
 export async function getMidterms(filters = {}) {
   const { courseCode, startDate, endDate } = filters
@@ -38,17 +38,15 @@ export async function getMidterms(filters = {}) {
             WHEN NOW() BETWEEN m.start_time AND m.end_time THEN 'ongoing'
             ELSE 'past'
         END AS status,
+        m.location_text,
         l.building,
         l.room_number,
-        COALESCE(SUM(v.vote_value), 0) AS score,
         m.submitted_by
     FROM Midterms m
     JOIN Courses c ON m.course_code = c.course_code
-    JOIN Locations l ON m.location_id = l.location_id
-    LEFT JOIN Midterm_Votes v ON m.midterm_id = v.midterm_id
+    LEFT JOIN Locations l ON m.location_id = l.location_id
     ${whereClause}
-    GROUP BY m.midterm_id
-    ORDER BY score DESC, m.start_time DESC
+    ORDER BY m.start_time ASC
     `,
     params
   )
@@ -56,29 +54,33 @@ export async function getMidterms(filters = {}) {
 
 /**
  * Insert a new midterm entry.
- * @param {{ course_code: string, submitted_by: string, location_id: number, title: string, start_time: string, end_time: string }} data
+ * @param {{ course_code: string, submitted_by?: string|null, location_id?: number|null,
+ *           location_text?: string|null, external_uid?: string|null, status?: string,
+ *           title: string, start_time: string, end_time: string }} data
  * @returns {Promise<{ insertId: number }>}
  */
 export async function createMidterm(data) {
-  const { course_code, submitted_by, location_id, title, start_time, end_time } = data
-  return query(
-    'INSERT INTO Midterms (course_code, submitted_by, location_id, title, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
-    [course_code, submitted_by, location_id, title, start_time, end_time]
-  )
+  return query('INSERT INTO Midterms SET ?', [data])
 }
 
 /**
- * Upsert a vote for a midterm (one vote per user per midterm).
+ * Update mutable fields of a midterm.
  * @param {number} midtermId
- * @param {string} netId
- * @param {1|-1} voteValue
- * @returns {Promise<void>}
+ * @param {object} updates
+ * @returns {Promise<{ affectedRows: number }>}
  */
-export async function upsertVote(midtermId, netId, voteValue) {
-  return query(
-    'INSERT INTO Midterm_Votes (midterm_id, net_id, vote_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE vote_value = ?',
-    [midtermId, netId, voteValue, voteValue]
-  )
+export async function updateMidterm(midtermId, updates) {
+  return query('UPDATE Midterms SET ? WHERE midterm_id = ?', [updates, midtermId])
+}
+
+/**
+ * Find midterms that came from a calendar, by the identifiers it gave them.
+ * @param {string[]} uids
+ * @returns {Promise<Array<{ midterm_id: number, external_uid: string }>>}
+ */
+export async function findMidtermsByUid(uids) {
+  if (!uids || uids.length === 0) return []
+  return query('SELECT midterm_id, external_uid FROM Midterms WHERE external_uid IN (?)', [uids])
 }
 
 /**
@@ -86,15 +88,15 @@ export async function upsertVote(midtermId, netId, voteValue) {
  * @returns {Promise<Array<{ midterm_id, title, course_code, start_time, end_time, building, room_number }>>}
  */
 export async function getConfirmedMidterms() {
-  return query('SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, l.building, l.room_number FROM Midterms m JOIN Locations l ON m.location_id = l.location_id WHERE m.status = "Confirmed" AND m.end_time > NOW() ORDER BY m.start_time ASC')
+  return query('SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, m.location_text, l.building, l.room_number FROM Midterms m LEFT JOIN Locations l ON m.location_id = l.location_id WHERE m.status = "Confirmed" AND m.end_time > NOW() ORDER BY m.start_time ASC')
 }
 
 /**
  * All midterms for admin review, including DB confirmation status field.
- * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, confirmation_status, building, room_number, submitted_by, score }>>}
+ * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, confirmation_status, building, room_number, submitted_by }>>}
  */
 export async function getAllMidtermsAdmin() {
-  return query('SELECT m.midterm_id, m.title, m.course_code, c.title AS course_title, m.start_time, m.end_time, m.status AS confirmation_status, l.building, l.room_number, m.submitted_by, COALESCE(SUM(v.vote_value), 0) AS score FROM Midterms m JOIN Courses c ON m.course_code = c.course_code JOIN Locations l ON m.location_id = l.location_id LEFT JOIN Midterm_Votes v ON m.midterm_id = v.midterm_id GROUP BY m.midterm_id ORDER BY m.start_time DESC')
+  return query('SELECT m.midterm_id, m.title, m.course_code, c.title AS course_title, m.start_time, m.end_time, m.status AS confirmation_status, m.location_text, l.building, l.room_number, m.submitted_by FROM Midterms m JOIN Courses c ON m.course_code = c.course_code LEFT JOIN Locations l ON m.location_id = l.location_id ORDER BY m.start_time DESC')
 }
 
 /**

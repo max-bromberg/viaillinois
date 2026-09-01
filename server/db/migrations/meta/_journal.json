@@ -15,6 +15,34 @@
       "when": 1788062789249,
       "tag": "0001_advanced_objects",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1788149189249,
+      "tag": "0002_optional_event_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1788235589249,
+      "tag": "0003_remove_midterm_crowdsourcing",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1788321989249,
+      "tag": "0004_calendar_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1788408389249,
+      "tag": "0005_invited_members",
+      "breakpoints": true
     }
   ]
 }

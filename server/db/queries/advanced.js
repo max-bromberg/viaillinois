@@ -26,25 +26,28 @@ export async function createEventTransactional(eventData, tagNames = [], isGloba
     await conn.query('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
     await conn.beginTransaction()
 
-    // Advanced query 1
-    const [conflicts] = await conn.query(
-      `SELECT location_id FROM (
-         SELECT location_id FROM Events
-         WHERE location_id = ? AND start_time < ? AND end_time > ?
-         UNION ALL
-         SELECT location_id FROM Facility_Reservations
-         WHERE location_id = ? AND start_time < ? AND end_time > ?
-       ) AS occupied
-       LIMIT 1`,
-      [
-        eventData.location_id, eventData.end_time,   eventData.start_time,
-        eventData.location_id, eventData.end_time,   eventData.start_time,
-      ]
-    )
+    // Advanced query 1. Only a room can be double booked. An event with no room,
+    // or one whose location is free text, has nothing to collide with.
+    if (eventData.location_id) {
+      const [conflicts] = await conn.query(
+        `SELECT location_id FROM (
+           SELECT location_id FROM Events
+           WHERE location_id = ? AND start_time < ? AND end_time > ?
+           UNION ALL
+           SELECT location_id FROM Facility_Reservations
+           WHERE location_id = ? AND start_time < ? AND end_time > ?
+         ) AS occupied
+         LIMIT 1`,
+        [
+          eventData.location_id, eventData.end_time,   eventData.start_time,
+          eventData.location_id, eventData.end_time,   eventData.start_time,
+        ]
+      )
 
-    if (conflicts.length > 0) {
-      await conn.rollback()
-      return { conflict: true }
+      if (conflicts.length > 0) {
+        await conn.rollback()
+        return { conflict: true }
+      }
     }
 
     // Advanced query 2
