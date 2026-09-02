@@ -52,14 +52,14 @@
         <h3 class="font-medium text-sm">Midterm Tracker</h3>
         <p class="text-xs text-muted-foreground leading-relaxed">
           Community-sourced exam dates for ECE courses, all in one table. Know
-          which weeks are brutal before you RSVP.
+          which weeks are brutal before you commit to an evening.
         </p>
       </div>
       <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">RSVP & Discovery</h3>
+        <h3 class="font-medium text-sm">Discovery</h3>
         <p class="text-xs text-muted-foreground leading-relaxed">
-          RSVP to events you're interested in and surface new organizations
-          you might not have heard about yet.
+          Come for one organization's events and find the ones you had never
+          heard of, hosting something on the same evening.
         </p>
       </div>
     </div>

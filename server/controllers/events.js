@@ -1,17 +1,29 @@
 import * as eventsDb from '../db/queries/events.js';
 import * as rsoDb from '../db/queries/rso.js';
 import * as advancedDb from '../db/queries/advanced.js';
+import * as seriesDb from '../db/queries/eventSeries.js';
+import { planSeries, splitByBusyRoom } from '../services/recurringEvents.js';
+import { checkConflict } from '../services/conflictDetector.js';
+import { timeOfDay, durationMinutes, addMinutes } from '../lib/recurrence.js';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
 export async function listEvents(req, res, next) {
   try {
-    const { tags, startDate, endDate, keyword, limit = 50, offset = 0 } = req.query;
+    // The feed is a list of what is coming up, so a request that names no
+    // timeframe gets today and later. Events that have already happened are
+    // still served, under the archived timeframe, for anyone who asks for them,
+    // and a view that spans the calendar, such as the month grid, asks for all.
+    const { tags, startDate, endDate, keyword, timeframe = 'upcoming', limit = 50, offset = 0 } = req.query;
+    if (!eventsDb.TIMEFRAMES.includes(timeframe)) {
+      return res.status(400).json({ error: `timeframe must be one of: ${eventsDb.TIMEFRAMES.join(', ')}` });
+    }
     const filters = {
       tags:      tags      ? (Array.isArray(tags) ? tags : [tags]) : [],
       startDate: startDate || null,
       endDate:   endDate   || null,
       keyword:   keyword   || null,
+      timeframe,
       limit:     parseInt(limit),
       offset:    parseInt(offset),
     };
@@ -91,6 +103,97 @@ export async function createEvent(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * Create a repeating event: the rule, and one event per occurrence.
+ *
+ * A term of weekly meetings is one request. Entering it as fifteen events is
+ * what boards were doing instead, and it is why feeds went stale halfway
+ * through a term.
+ *
+ * A week whose room is already taken is left out rather than failing the whole
+ * series, and the response says which dates those were, so the board can see
+ * what happened and book those weeks somewhere else. A repeat where every week
+ * is taken is a conflict, and nothing is written.
+ */
+export async function createEventSeries(req, res, next) {
+  try {
+    const { rso_id, title, description, start_time, end_time, is_private = false, tags = [], recurrence = {} } = req.body;
+    if (!rso_id || !title || !start_time || !end_time) {
+      return res.status(400).json({ error: 'rso_id, title, start_time, end_time required' });
+    }
+
+    const rsoId = parseInt(rso_id);
+    const permitted = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, rsoId);
+    if (!permitted) return res.status(403).json({ error: 'RSO editor access required' });
+
+    const plan = planSeries({ startTime: start_time, endTime: end_time, recurrence });
+    if (plan.error) return res.status(400).json({ error: plan.error });
+
+    const { location_id, location_text } = readLocation(req.body);
+
+    let occurrences = plan.occurrences;
+    let skipped = [];
+    if (location_id) {
+      const busy = await seriesDb.busyInRoom(
+        location_id, plan.occurrences[0].start, plan.occurrences.at(-1).end
+      );
+      ({ keep: occurrences, skipped } = splitByBusyRoom(plan.occurrences, busy));
+      if (occurrences.length === 0) {
+        return res.status(409).json({ error: 'Location is already booked for every date in this repeat' });
+      }
+    }
+
+    const { seriesId, eventIds } = await seriesDb.createSeriesWithOccurrences({
+      series: { ...plan.series, ends_on: occurrences.at(-1).date, rso_id: rsoId, created_by: req.user.net_id },
+      occurrences,
+      event: {
+        rso_id: rsoId, created_by: req.user.net_id, location_id, location_text,
+        title, description, is_private,
+      },
+      tagNames: tags,
+    });
+
+    res.status(201).json({
+      series_id: seriesId,
+      event_ids: eventIds,
+      created: eventIds.length,
+      skipped,
+    });
+  } catch (err) { next(err); }
+}
+
+/**
+ * How much of a series a change is meant to reach.
+ *
+ * An event that does not repeat has only itself, so every scope means the same
+ * thing there and the request does not have to know whether it is editing one.
+ */
+const SCOPES = ['one', 'following', 'all'];
+
+function readScope(req) {
+  const scope = req.query.scope ?? 'one';
+  return SCOPES.includes(scope) ? scope : null;
+}
+
+/**
+ * The occurrences a scoped change covers, and the times they would move to.
+ *
+ * Each occurrence keeps its own date and takes the new hour and length, which
+ * is what moving a weekly meeting from six to seven means.
+ */
+function projectOccurrences(occurrences, startOfDay, minutes) {
+  return occurrences
+    .filter(occurrence => !occurrence.detached)
+    .map(occurrence => {
+      const date = String(occurrence.start_time).slice(0, 10);
+      if (!startOfDay || minutes == null) {
+        return { date, start: String(occurrence.start_time), end: String(occurrence.end_time) };
+      }
+      const start = `${date} ${startOfDay}`;
+      return { date, start, end: addMinutes(start, minutes) };
+    });
+}
+
 export async function updateEvent(req, res, next) {
   try {
     const eventId = parseInt(req.params.id);
@@ -98,18 +201,69 @@ export async function updateEvent(req, res, next) {
     if (!event) return res.status(404).json({ error: 'Event not found' });
     const isAdmin = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, event.rso_id);
     if (!isAdmin) return res.status(403).json({ error: 'RSO editor access required' });
+
+    const scope = readScope(req);
+    if (!scope) return res.status(400).json({ error: `scope must be one of: ${SCOPES.join(', ')}` });
+
     const { title, description, start_time, end_time, is_private, tags } = req.body;
     const { location_id, location_text } = readLocation(req.body);
-    // Two events with no room cannot collide, so there is nothing to check.
-    if (location_id && start_time && end_time) {
-      const conflict = await checkConflict(location_id, start_time, end_time, eventId);
-      if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
+
+    // One event, which is every event that does not repeat, and the one week an
+    // organizer moved on its own.
+    if (scope === 'one' || !event.series_id) {
+      // Two events with no room cannot collide, so there is nothing to check.
+      if (location_id && start_time && end_time) {
+        const conflict = await checkConflict(location_id, start_time, end_time, eventId);
+        if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
+      }
+      await eventsDb.updateEvent(eventId, {
+        location_id, location_text, title, description, start_time, end_time, is_private,
+      });
+      if (tags) await eventsDb.setEventTags(eventId, tags);
+      // A week that was edited on its own stays where the organizer put it when
+      // the rest of the series is edited later.
+      if (event.series_id) await seriesDb.detachEvent(eventId);
+      return res.json({ ok: true, updated: 1 });
     }
-    await eventsDb.updateEvent(eventId, {
-      location_id, location_text, title, description, start_time, end_time, is_private,
+
+    const from = scope === 'following' ? String(event.start_time) : null;
+    const startOfDay = start_time ? timeOfDay(start_time) : null;
+    const minutes = start_time && end_time ? durationMinutes(start_time, end_time) : null;
+
+    const covered = await seriesDb.occurrencesOfSeries(event.series_id, { from });
+    const projected = projectOccurrences(covered, startOfDay, minutes);
+
+    // Moving a whole series into a room somebody else has booked cannot quietly
+    // leave those weeks behind: the events already exist, so the answer is no,
+    // with the weeks that are in the way named.
+    if (location_id && projected.length > 0) {
+      const busy = await seriesDb.busyInRoom(
+        location_id, projected[0].start, projected.at(-1).end, { excludeSeriesId: event.series_id }
+      );
+      const { skipped } = splitByBusyRoom(projected, busy);
+      if (skipped.length > 0) {
+        return res.status(409).json({
+          error: 'Location is already booked on some of these dates',
+          conflicts: skipped,
+        });
+      }
+    }
+
+    const result = await seriesDb.applyToSeries(event.series_id, {
+      from,
+      fields: { title, description, location_id, location_text, is_private },
+      startOfDay,
+      durationMinutes: minutes,
     });
-    if (tags) await eventsDb.setEventTags(eventId, tags);
-    res.json({ ok: true });
+
+    if (tags) {
+      await seriesDb.setTagsForEvents(
+        covered.filter(occurrence => !occurrence.detached).map(occurrence => occurrence.event_id),
+        tags
+      );
+    }
+
+    res.json({ ok: true, updated: result.affectedRows });
   } catch (err) { next(err); }
 }
 
@@ -120,36 +274,24 @@ export async function deleteEvent(req, res, next) {
     if (!event) return res.status(404).json({ error: 'Event not found' });
     const isAdmin = await checkRsoEditor(req.user.net_id, event.rso_id);
     if (!isAdmin && !req.user.is_global_admin) return res.status(403).json({ error: 'RSO editor access required' });
+
+    const scope = readScope(req);
+    if (!scope) return res.status(400).json({ error: `scope must be one of: ${SCOPES.join(', ')}` });
+
+    if (scope === 'all' && event.series_id) {
+      await seriesDb.deleteSeries(event.series_id);
+      return res.json({ ok: true, deleted: 'series' });
+    }
+
+    if (scope === 'following' && event.series_id) {
+      const result = await seriesDb.deleteOccurrencesFrom(event.series_id, String(event.start_time));
+      return res.json({ ok: true, deleted: result.affectedRows });
+    }
+
     await eventsDb.deleteEvent(eventId);
-    res.json({ ok: true });
-  } catch (err) { next(err); }
-}
-
-export async function rsvpEvent(req, res, next) {
-  try {
-    const eventId = parseInt(req.params.id);
-    const { status = 'Going' } = req.body;
-    if (!['Going', 'Maybe', 'Not Going'].includes(status)) {
-      return res.status(400).json({ error: 'status must be Going, Maybe, or Not Going' });
-    }
-    await eventsDb.upsertRsvp(req.user.net_id, eventId, status);
-    res.json({ ok: true });
-  } catch (err) { next(err); }
-}
-
-export async function getEventRsvps(req, res, next) {
-  try {
-    const eventId = parseInt(req.params.id);
-    const event = await eventsDb.getEventById(eventId);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.is_private && !req.user.is_global_admin) {
-      const memberships = await rsoDb.getUserMemberships(req.user.net_id);
-      const canSee = memberships.some(m => m.rso_id === event.rso_id);
-      if (!canSee) return res.status(404).json({ error: 'Event not found' });
-    }
-    const rows = await eventsDb.getEventRsvpCounts(eventId);
-    const counts = { Going: 0, Maybe: 0, 'Not Going': 0 };
-    rows.forEach(r => { counts[r.status] = r.count; });
-    res.json({ counts });
+    // The rule still says which dates the series covers, and one of them has
+    // just gone.
+    if (event.series_id) await seriesDb.syncSeriesEnd(event.series_id);
+    res.json({ ok: true, deleted: 1 });
   } catch (err) { next(err); }
 }

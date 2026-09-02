@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
@@ -7,6 +8,7 @@ import session from 'express-session';
 import { passport, attachUser } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { campusTimeJson } from './middleware/campusTime.js';
+import { privateByDefault, publicFor, cacheControlForStaticFile } from './middleware/caching.js';
 import authRouter     from './routes/auth.js';
 import eventsRouter   from './routes/events.js';
 import rsosRouter     from './routes/rsos.js';
@@ -18,6 +20,7 @@ import midtermsRouter from './routes/midterms.js';
 import kioskRouter    from './routes/kiosk.js';
 import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
+import semesterRouter  from './routes/semester.js';
 import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, readFileSync } from 'fs';
@@ -40,8 +43,21 @@ if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(securityHeaders);
 
+// The CDN fetches from here compressed when the origin offers it, so every
+// cache miss travels a fraction of the bytes, and so does every response the
+// CDN does not cache at all. JSON full of repeated field names and the HTML
+// document are both mostly air.
+app.use(compression());
+
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
-app.use(morgan('dev'));
+// The coloured development format is for a terminal somebody is watching. In
+// production the log is read by a machine, and a request for a hashed asset,
+// which the CDN answers without asking us anyway, is not worth a line.
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
+  skip: (req, res) => process.env.NODE_ENV === 'production'
+    && res.statusCode < 400
+    && req.path.startsWith('/assets/'),
+}));
 // A calendar file arrives as text in the request body, and a year of events
 // for an active RSO exports well past the 100kb that body-parser allows by
 // default. These two routes get room to work and everything else keeps the
@@ -88,6 +104,12 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// Nothing the API answers is kept by a shared cache unless the route says
+// otherwise. Most of it depends on who is asking, and the cost of getting that
+// wrong is one person's answer handed to somebody else.
+app.use('/api/v1', privateByDefault);
+app.use('/auth', privateByDefault);
+
 app.use('/auth',              authRouter);
 app.use('/api/v1/events',     eventsRouter);
 app.use('/api/v1/rsos',       rsosRouter);
@@ -98,9 +120,12 @@ app.use('/api/v1/venues',     venuesRouter);
 // the bundle, where they were stale and used relative addresses.
 app.use(seoRouter);
 app.use('/api/v1/midterms',   midtermsRouter);
-app.use('/api/v1/kiosk',      kioskRouter);
+// The same answer for everybody, and a lobby screen asks for it over and over.
+app.use('/api/v1/kiosk',      publicFor({ edgeSeconds: 30 }), kioskRouter);
 app.use('/api/v1/admin',      adminRouter);
 app.use('/api/v1/scheduler',  schedulerRouter);
+// A term calendar changes once a year, and every form and search reads it.
+app.use('/api/v1/semester',   publicFor({ browserSeconds: 300, edgeSeconds: 3600 }), semesterRouter);
 
 app.use(errorHandler);
 
@@ -112,15 +137,7 @@ if (process.env.NODE_ENV === 'production' && existsSync(distPath)) {
     // below, which fills in this page's title, description and structured data.
     index: false,
     setHeaders(res, filePath) {
-      // Vite puts a content hash in the name of everything under assets, so
-      // those can be cached forever. Anything else is served by a stable name
-      // and has to be revalidated or a logo change would never reach anyone.
-      res.setHeader(
-        'Cache-Control',
-        filePath.includes(`${sep}assets${sep}`)
-          ? 'public, max-age=31536000, immutable'
-          : 'public, max-age=3600'
-      );
+      res.setHeader('Cache-Control', cacheControlForStaticFile(filePath));
     },
   }));
   app.get('/{*path}', createHtmlShellHandler(distPath));

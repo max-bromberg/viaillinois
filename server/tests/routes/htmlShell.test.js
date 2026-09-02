@@ -12,8 +12,7 @@ vi.mock('../../db/queries/events.js', () => ({
   getEventById: (...a) => getEventById(...a),
   countPublicEvents: vi.fn().mockResolvedValue([{ total: 0 }]),
   countAllEvents: vi.fn().mockResolvedValue([{ total: 0 }]), updateEvent: vi.fn(),
-  deleteEvent: vi.fn(), upsertRsvp: vi.fn(), getEventRsvpCounts: vi.fn().mockResolvedValue([]),
-  findEventsByUid: vi.fn(), createEvent: vi.fn(),
+  deleteEvent: vi.fn(), findEventsByUid: vi.fn(), createEvent: vi.fn(),
 }));
 vi.mock('../../db/queries/midterms.js', () => ({ getConfirmedMidterms: vi.fn().mockResolvedValue([]) }));
 
@@ -39,6 +38,20 @@ const EVENT = {
   rso_name: 'HKN', building: 'Electrical & Computer Eng Bldg', room_number: '1002',
   location_text: null, is_private: 0,
 };
+
+/**
+ * The document is the same for every reader, and it is also the one thing that
+ * must not be held onto: it names the hashed files this build produced, and a
+ * copy kept from before a deploy asks for files that are no longer there.
+ */
+describe('how long the HTML may be kept', () => {
+  it('is revalidated every time, while its assets are not', async () => {
+    getPublicEvents.mockResolvedValue([EVENT]);
+    getEventById.mockResolvedValue(EVENT);
+    const res = await request(app).get('/');
+    expect(res.headers['cache-control']).toBe('no-cache');
+  });
+});
 
 describe('the served HTML', () => {
   beforeEach(() => {

@@ -1,0 +1,14 @@
+-- The feed reads events by whether they are public and by when they start, and orders them
+-- the same way: the upcoming feed is `is_private = FALSE AND start_time >= <today>` in
+-- ascending order, the archive the same bound the other way round, and the kiosk and the
+-- sitemap are the same shape again. None of that had an index to work from, so every one
+-- of those queries read the whole table and sorted it.
+--
+-- It did not show while an RSO entered its events one at a time. Recurring events turn a
+-- term of weekly meetings into about sixteen rows per series, so the table now grows by
+-- the term rather than by the evening, and this is the read it grows underneath.
+--
+-- is_private first, because every one of those queries fixes it and then ranges over
+-- start_time, which is the order a composite index has to be in to serve both the filter
+-- and the sort.
+CREATE INDEX `idx_events_public_start` ON `Events` (`is_private`,`start_time`);

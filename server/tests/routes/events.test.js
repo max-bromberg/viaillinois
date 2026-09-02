@@ -6,13 +6,19 @@ vi.mock('../../db/queries/events.js', () => ({
   getPublicEvents:    vi.fn().mockResolvedValue([
     { event_id: 1, title: 'Test Event', start_time: '2026-04-01 18:00:00', tags: 'Free Food' }
   ]),
+  getAllEvents:       vi.fn().mockResolvedValue([
+    { event_id: 2, title: 'Internal Event', start_time: '2026-04-02 18:00:00', tags: null }
+  ]),
+  getVisibleEvents:   vi.fn().mockResolvedValue([
+    { event_id: 3, title: 'Member Event', start_time: '2026-04-03 18:00:00', tags: null }
+  ]),
   getEventById:       vi.fn().mockResolvedValue({ event_id: 1, title: 'Test Event' }),
   updateEvent:        vi.fn().mockResolvedValue({ affectedRows: 1 }),
   deleteEvent:        vi.fn().mockResolvedValue({ affectedRows: 1 }),
-  upsertRsvp:         vi.fn().mockResolvedValue(undefined),
   countPublicEvents:  vi.fn().mockResolvedValue([{ total: 1 }]),
   countAllEvents:     vi.fn().mockResolvedValue([{ total: 1 }]),
-  getEventRsvpCounts: vi.fn().mockResolvedValue([]),
+  countVisibleEvents: vi.fn().mockResolvedValue([{ total: 1 }]),
+  TIMEFRAMES:         ['upcoming', 'archived', 'all'],
 }));
 vi.mock('../../db/queries/advanced.js', () => ({
   createEventTransactional: vi.fn().mockResolvedValue({ eventId: 42 }),
@@ -34,6 +40,88 @@ describe('GET /api/v1/events', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.events)).toBe(true);
     expect(res.body.events[0].title).toBe('Test Event');
+  });
+});
+
+/**
+ * The feed is a list of what is coming up, so a reader who asks for nothing in
+ * particular gets today and later. Events that have already happened are still
+ * there, in the archive, for anyone who goes looking for them.
+ */
+describe('GET /api/v1/events timeframes', () => {
+  const memberCookie = `via_token=${signToken({ net_id: 'member' })}`;
+  const adminCookie  = `via_token=${signToken({ net_id: 'boss', is_global_admin: 1 })}`;
+
+  let queries;
+
+  beforeEach(async () => {
+    queries = await import('../../db/queries/events.js');
+    const { getUserMemberships } = await import('../../db/queries/rso.js');
+    getUserMemberships.mockResolvedValue([]);
+    Object.values(queries).forEach(fn => { if (vi.isMockFunction(fn)) fn.mockClear(); });
+  });
+
+  const filtersOf = fn => fn.mock.calls[0][0];
+
+  it('asks for upcoming events when the reader names no timeframe', async () => {
+    await request(app).get('/api/v1/events');
+    expect(filtersOf(queries.getPublicEvents).timeframe).toBe('upcoming');
+    expect(filtersOf(queries.countPublicEvents).timeframe).toBe('upcoming');
+  });
+
+  it('asks for the archive when the reader asks for it', async () => {
+    const res = await request(app).get('/api/v1/events?timeframe=archived');
+    expect(res.status).toBe(200);
+    expect(filtersOf(queries.getPublicEvents).timeframe).toBe('archived');
+    expect(filtersOf(queries.countPublicEvents).timeframe).toBe('archived');
+  });
+
+  it('asks for every event when the reader asks for all of them', async () => {
+    await request(app).get('/api/v1/events?timeframe=all');
+    expect(filtersOf(queries.getPublicEvents).timeframe).toBe('all');
+    expect(filtersOf(queries.countPublicEvents).timeframe).toBe('all');
+  });
+
+  it('rejects a timeframe it does not recognise', async () => {
+    const res = await request(app).get('/api/v1/events?timeframe=yesteryear');
+    expect(res.status).toBe(400);
+    expect(queries.getPublicEvents).not.toHaveBeenCalled();
+  });
+
+  it('carries the timeframe into the admin feed', async () => {
+    await request(app).get('/api/v1/events?timeframe=archived').set('Cookie', adminCookie);
+    expect(filtersOf(queries.getAllEvents).timeframe).toBe('archived');
+    expect(filtersOf(queries.countAllEvents).timeframe).toBe('archived');
+  });
+
+  it('carries the timeframe into the member feed', async () => {
+    const { getUserMemberships } = await import('../../db/queries/rso.js');
+    getUserMemberships.mockResolvedValue([{ rso_id: 4 }]);
+    await request(app).get('/api/v1/events?timeframe=archived').set('Cookie', memberCookie);
+    expect(filtersOf(queries.getVisibleEvents).timeframe).toBe('archived');
+    expect(filtersOf(queries.countVisibleEvents).timeframe).toBe('archived');
+  });
+});
+
+/**
+ * RSVPs are gone. The endpoints are not deprecated and they do not answer with
+ * an empty result, they are simply not there, so anything still calling them
+ * is told so rather than being led to believe it recorded something.
+ */
+describe('the RSVP endpoints, which were removed', () => {
+  const cookie = `via_token=${signToken({ net_id: 'tester' })}`;
+
+  it('offers nowhere to record an RSVP', async () => {
+    const res = await request(app)
+      .post('/api/v1/events/1/rsvp')
+      .set('Cookie', cookie)
+      .send({ status: 'Going' });
+    expect(res.status).toBe(404);
+  });
+
+  it('offers nowhere to read who is going', async () => {
+    const res = await request(app).get('/api/v1/events/1/rsvps').set('Cookie', cookie);
+    expect(res.status).toBe(404);
   });
 });
 

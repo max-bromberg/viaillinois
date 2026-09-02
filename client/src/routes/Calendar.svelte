@@ -173,7 +173,10 @@
         endDate = `${y}-${String(m + 1).padStart(2, '0')}-${String(dm).padStart(2, '0')}`;
       }
 
-      const evRes = await getEvents({ startDate, endDate, keyword: kw || null, tags, limit: 300 });
+      // A calendar can be paged back into the term that has already happened,
+      // so it asks for the whole calendar. The date range it sends is what
+      // decides which events it draws, not how far the feed reaches.
+      const evRes = await getEvents({ startDate, endDate, keyword: kw || null, tags, timeframe: 'all', limit: 300 });
       allEvents = evRes.events || [];
 
       // Fetch confirmed midterms globally (not date-filtered, small dataset)

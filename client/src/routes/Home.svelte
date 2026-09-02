@@ -12,7 +12,7 @@
 
   let loading = false;
   let error = null;
-  let filters = { keyword: '', tags: [], startDate: '', endDate: '' };
+  let filters = { keyword: '', tags: [], startDate: '', endDate: '', timeframe: 'upcoming' };
   let selectedRsoIds = [];
   let showInternal = true;
   let page = 1;
@@ -22,6 +22,9 @@
   // When client filters are active we fetch the full set; otherwise just one page.
   let rawEvents = [];
   let serverTotal = 0; // only meaningful when no client filters active
+
+  $: archived = filters.timeframe === 'archived';
+  $: heading = archived ? 'Archived Events' : 'Upcoming Events';
 
   $: hasClientFilters = selectedRsoIds.length > 0 || !showInternal;
   $: rsoColorByName = Object.fromEntries(rsos.map(r => [r.name, r.logo_color || null]));
@@ -123,7 +126,7 @@
 
 <svelte:head>
   <title>Events: VIA</title>
-  <meta name="description" content="Browse and filter upcoming ECE RSO events at UIUC. RSVP to events from your favourite student organizations." />
+  <meta name="description" content="Browse and filter upcoming ECE RSO events at UIUC, from every student organization in the department, in one feed." />
 </svelte:head>
 
 <div class="flex flex-col gap-4 md:flex-row md:gap-6">
@@ -133,7 +136,11 @@
   </div>
 
   <div class="flex-1 space-y-4">
-    <h1 class="text-2xl font-bold">Upcoming Events</h1>
+    <h1 class="text-2xl font-bold">{heading}</h1>
+
+    {#if archived}
+      <p class="text-sm text-muted-foreground">These events have already happened. Switch back to upcoming to see what is on next.</p>
+    {/if}
 
     <Pagination currentPage={page} {totalPages} on:change={handlePageChange} />
 
@@ -146,7 +153,9 @@
         {/each}
       </div>
     {:else if displayedEvents.length === 0}
-      <p class="text-muted-foreground text-sm">No events found. Try adjusting your filters.</p>
+      <p class="text-muted-foreground text-sm">
+        {archived ? 'No archived events found. Try adjusting your filters.' : 'No events found. Try adjusting your filters.'}
+      </p>
     {:else}
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {#each displayedEvents as event (event.event_id)}

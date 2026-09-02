@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getPublicEventSitemapEntries } from '../db/queries/events.js';
 import { escapeHtml } from '../lib/seo/render.js';
 import { toIsoWithOffset } from '../lib/timezone.js';
+import { publicFor } from '../middleware/caching.js';
 
 /**
  * The files search engines and assistants fetch before anything else.
@@ -15,6 +16,14 @@ import { toIsoWithOffset } from '../lib/timezone.js';
  */
 
 const router = Router();
+
+/**
+ * What crawlers read is the same for every one of them and they come back
+ * often, so the edge can answer without asking Champaign. On the routes rather
+ * than on the mount, because this router is mounted for every path and the
+ * pages it does not answer are not this cacheable.
+ */
+const crawlerCache = publicFor({ browserSeconds: 300, edgeSeconds: 900 });
 
 /** Pages that always exist, with how often they are worth revisiting. */
 const FIXED_PAGES = [
@@ -33,7 +42,7 @@ export function originOf(req) {
   return `${req.protocol}://${req.get('host')}`;
 }
 
-router.get('/sitemap.xml', async (req, res, next) => {
+router.get('/sitemap.xml', crawlerCache, async (req, res, next) => {
   try {
     const site = originOf(req);
 
@@ -68,7 +77,7 @@ router.get('/sitemap.xml', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/robots.txt', (req, res) => {
+router.get('/robots.txt', crawlerCache, (req, res) => {
   const site = originOf(req);
   res.type('text/plain').send(
 `User-agent: *
@@ -119,7 +128,7 @@ Sitemap: ${site}/sitemap.xml
  * convention: what this is, who it serves, and where the machine readable
  * parts live.
  */
-router.get('/llms.txt', (req, res) => {
+router.get('/llms.txt', crawlerCache, (req, res) => {
   const site = originOf(req);
   res.type('text/plain').send(
 `# VIA (Virtually Integrated Agenda)

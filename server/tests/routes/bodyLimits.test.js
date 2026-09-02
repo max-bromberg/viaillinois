@@ -8,8 +8,7 @@ vi.mock('../../services/calendarImport.js', () => ({
 vi.mock('../../db/queries/events.js', () => ({
   getPublicEvents: vi.fn().mockResolvedValue([]), countPublicEvents: vi.fn().mockResolvedValue([{ total: 0 }]),
   countAllEvents: vi.fn().mockResolvedValue([{ total: 0 }]), getEventById: vi.fn(), updateEvent: vi.fn(),
-  deleteEvent: vi.fn(), upsertRsvp: vi.fn(), getEventRsvpCounts: vi.fn().mockResolvedValue([]),
-  findEventsByUid: vi.fn(), createEvent: vi.fn(),
+  deleteEvent: vi.fn(), findEventsByUid: vi.fn(), createEvent: vi.fn(),
 }));
 vi.mock('../../db/queries/advanced.js', () => ({ createEventTransactional: vi.fn(), callGetRSOStats: vi.fn() }));
 vi.mock('../../db/queries/rso.js', () => ({

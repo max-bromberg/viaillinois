@@ -11,8 +11,12 @@ import { apiFetch } from './base.js';
  *   venueConstraints: { buildings: Array<{ building: string, tier: string }>, specificRoom: object|null },
  *   excludedRooms: Array<{ location_id: number, building: string, room_number: string }>,
  *   targetCourses: string[],
- *   midtermSensitivity: 'low'|'medium'|'high'
+ *   midtermSensitivity: 'low'|'medium'|'high',
+ *   recurrence: { intervalWeeks: number, daysOfWeek: string[], until: string } | null
  * }} params
+ *   With a recurrence, a candidate is a weekday and an hour scored across every
+ *   week it would run, and each recommendation says how many of those weeks are
+ *   clear.
  * @returns {Promise<{ curatedPicks: object[], allOptions: object[] }>}
  */
 export function recommend(params) {

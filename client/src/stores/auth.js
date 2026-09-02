@@ -3,6 +3,16 @@ import { writable, derived } from 'svelte/store';
 // { net_id, full_name, email, is_global_admin, memberships: [{rso_id, name, role}] } | null
 export const currentUser = writable(null);
 
+/**
+ * Whether the answer to who is looking has come back yet.
+ *
+ * currentUser is null both before the question is answered and when the answer
+ * is nobody, and those two mean different things on screen: the first is not
+ * knowing, and drawing the signed out account menu during it makes the bar
+ * flicker for everybody who is signed in.
+ */
+export const authResolved = writable(false);
+
 // true if the user has any RSO Board role (can manage members + details)
 export const isRsoAdmin = derived(currentUser, ($user) =>
   $user?.memberships?.some(m => m.role === 'Board') ?? false

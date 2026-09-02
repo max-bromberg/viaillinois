@@ -48,6 +48,15 @@ describe('describePage', () => {
       expect(page.content).toContain('PCB Design Workshop');
     });
 
+    /**
+     * The page calls its list upcoming events, and a crawler reads the list it
+     * is given, so the list has to hold what the heading says it holds.
+     */
+    it('lists the events that are still to come, not the ones already held', async () => {
+      await describePage('/', SITE);
+      expect(getPublicEvents.mock.calls[0][0]).toMatchObject({ timeframe: 'upcoming' });
+    });
+
     it('carries the list, the site and the organisation as structured data', async () => {
       const types = (await describePage('/', SITE)).jsonLd.map(item => item['@type']);
       expect(types).toContain('ItemList');

@@ -5,7 +5,9 @@
   import { currentUser, adminRsoIds, boardRsoIds } from '../stores/auth.js';
   import { getMe } from '../api/users.js';
   import { getRso, updateRso, addMember, removeMember, getRsoStats } from '../api/rsos.js';
-  import { createEvent, updateEvent, deleteEvent } from '../api/events.js';
+  import { createEvent, createEventSeries, updateEvent, deleteEvent } from '../api/events.js';
+  import { getCurrentSemester } from '../api/semester.js';
+  import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import EventForm from '../lib/EventForm.svelte';
   import CalendarImport from '../lib/CalendarImport.svelte';
   import { navigate } from '../lib/router.js';
@@ -31,6 +33,12 @@
   let events = [];
   let showCreateForm = false;
   let editingEvent = null;
+  let semester = null;
+  /**
+   * A change to one week of a series and a change to the series are different
+   * things, so one is held here until the board says which it meant.
+   */
+  let pendingScope = null;
 
   // ── Members tab state ─────────────────────────────────────────────────────
   let memberForm = { netId: '', role: 'Member' };
@@ -93,6 +101,13 @@
       const { user } = await getMe();
       currentUser.set(user);
     } catch { /* session expired */ }
+    try {
+      // The repeat controls default to the end of instruction, and the date
+      // they arrive at is shown so it can be corrected.
+      ({ semester } = await getCurrentSemester());
+    } catch {
+      semester = null;
+    }
     if ($adminRsoIds.length) loadRso($adminRsoIds[0]);
   });
 
@@ -100,8 +115,18 @@
   async function handleCreate(e) {
     loading = true;
     try {
-      await createEvent(e.detail);
-      showToast('Event created');
+      if (e.detail.recurrence) {
+        const { created, skipped } = await createEventSeries(e.detail);
+        showToast(
+          skipped?.length
+            ? `Created ${created} events. These weeks were left out because the room was taken: ${skipped.join(', ')}.`
+            : `Created ${created} events`,
+          skipped?.length ? 'error' : undefined
+        );
+      } else {
+        await createEvent(e.detail);
+        showToast('Event created');
+      }
       showCreateForm = false;
       await loadRso(selectedRso.rso_id);
     } catch (err) {
@@ -111,11 +136,21 @@
     }
   }
 
-  async function handleUpdate(e) {
+  function handleUpdate(e) {
+    // An occurrence of a series could mean this week, this week onwards, or
+    // every week, and only the board knows which.
+    if (editingEvent?.series_id) {
+      pendingScope = { kind: 'update', event: editingEvent, payload: e.detail };
+      return;
+    }
+    applyUpdate(editingEvent.event_id, e.detail, 'one');
+  }
+
+  async function applyUpdate(eventId, payload, scope) {
     loading = true;
     try {
-      await updateEvent(editingEvent.event_id, e.detail);
-      showToast('Event updated');
+      await updateEvent(eventId, payload, scope);
+      showToast(scope === 'one' ? 'Event updated' : 'Events updated');
       editingEvent = null;
       await loadRso(selectedRso.rso_id);
     } catch (err) {
@@ -125,17 +160,33 @@
     }
   }
 
-  async function handleDelete(eventId) {
+  function handleDelete(event) {
+    if (event.series_id) {
+      pendingScope = { kind: 'delete', event };
+      return;
+    }
+    applyDelete(event.event_id, 'one');
+  }
+
+  async function applyDelete(eventId, scope) {
     loading = true;
     try {
-      await deleteEvent(eventId);
-      showToast('Event deleted');
+      await deleteEvent(eventId, scope);
+      showToast(scope === 'one' ? 'Event deleted' : 'Events deleted');
       await loadRso(selectedRso.rso_id);
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
       loading = false;
     }
+  }
+
+  async function chooseScope(scope) {
+    const asked = pendingScope;
+    pendingScope = null;
+    if (!asked) return;
+    if (asked.kind === 'delete') return applyDelete(asked.event.event_id, scope);
+    return applyUpdate(asked.event.event_id, asked.payload, scope);
   }
 
   // ── Member handlers ───────────────────────────────────────────────────────
@@ -294,7 +345,7 @@
               <h2 class="text-base font-semibold">New Event</h2>
               <button class="text-sm text-muted-foreground hover:text-foreground" on:click={() => showCreateForm = false}>✕ Close</button>
             </div>
-            <EventForm rsoId={selectedRso.rso_id} {loading} on:submit={handleCreate} on:cancel={() => showCreateForm = false} />
+            <EventForm rsoId={selectedRso.rso_id} {semester} {loading} on:submit={handleCreate} on:cancel={() => showCreateForm = false} />
           </section>
         {/if}
 
@@ -312,7 +363,7 @@
               <h2 class="text-base font-semibold">Edit Event</h2>
               <button class="text-sm text-muted-foreground hover:text-foreground" on:click={() => editingEvent = null}>✕ Close</button>
             </div>
-            <EventForm rsoId={selectedRso.rso_id} initial={editingEvent} {loading} on:submit={handleUpdate} on:cancel={() => editingEvent = null} />
+            <EventForm rsoId={selectedRso.rso_id} initial={editingEvent} {semester} {loading} on:submit={handleUpdate} on:cancel={() => editingEvent = null} />
           </section>
         {/if}
 
@@ -348,7 +399,15 @@
               <tbody>
                 {#each events as event (event.event_id)}
                   <tr class="border-t hover:bg-muted/40 transition-colors {editingEvent?.event_id === event.event_id ? 'bg-primary/5' : ''}">
-                    <td class="px-4 py-2.5 font-medium max-w-[12rem] truncate">{event.title}</td>
+                    <td class="px-4 py-2.5 font-medium max-w-[12rem] truncate">
+                      {event.title}
+                      {#if event.series_id}
+                        <span
+                          class="ml-1 align-middle text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary"
+                          title={recurrenceLabel(event)}
+                        >Repeats</span>
+                      {/if}
+                    </td>
                     <td class="px-4 py-2.5 hidden sm:table-cell">
                       <span class="text-xs px-1.5 py-0.5 rounded {event.is_private ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400' : 'bg-sky-500/15 text-sky-700 dark:text-sky-400'}">
                         {event.is_private ? 'Internal' : 'Public'}
@@ -382,7 +441,7 @@
                         </button>
                         <button
                           class="text-xs px-2.5 py-1 rounded border border-destructive/50 text-destructive hover:bg-destructive/10 transition-colors"
-                          on:click={() => handleDelete(event.event_id)}
+                          on:click={() => handleDelete(event)}
                         >Delete</button>
                       </div>
                     </td>
@@ -392,6 +451,30 @@
             </table>
           </div>
         {/if}
+      </div>
+    {/if}
+
+    {#if pendingScope}
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
+        <div class="w-full max-w-md rounded-xl border bg-card p-6 space-y-4 shadow-lg">
+          <div class="space-y-1">
+            <h2 class="text-base font-semibold">
+              {pendingScope.kind === 'delete' ? 'Delete a repeating event' : 'Change a repeating event'}
+            </h2>
+            <p class="text-sm text-muted-foreground">{recurrenceLabel(pendingScope.event)}.</p>
+          </div>
+          <div class="flex flex-col gap-2">
+            <button class="text-sm px-3 py-2 rounded border hover:bg-accent transition-colors text-left"
+              on:click={() => chooseScope('one')}>This event only</button>
+            <button class="text-sm px-3 py-2 rounded border hover:bg-accent transition-colors text-left"
+              on:click={() => chooseScope('following')}>This and all later events</button>
+            <button class="text-sm px-3 py-2 rounded border hover:bg-accent transition-colors text-left"
+              on:click={() => chooseScope('all')}>All events in the series</button>
+          </div>
+          <button class="text-xs text-muted-foreground hover:text-foreground" on:click={() => pendingScope = null}>
+            Cancel
+          </button>
+        </div>
       </div>
     {/if}
 

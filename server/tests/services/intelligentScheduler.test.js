@@ -334,3 +334,101 @@ describe('scheduler times are campus wall clock', () => {
     expect(endDate).toBe(`${ymd(expected)} 23:59:59`);
   });
 });
+
+/**
+ * The question a board actually asks is not when is one good evening, it is
+ * which evening is good for the rest of the term. A recurring search scores a
+ * weekday and an hour across every week it would run, so one bad week lowers a
+ * slot rather than hiding it, and the answer says which weeks are clear.
+ */
+describe('recommend, for an event that repeats', () => {
+  // A Tuesday, and the fortnight after it.
+  const RANGE = { start: '2026-09-01', end: '2026-09-29' };
+
+  const recurringParams = (overrides = {}) => ({
+    ...BASE_PARAMS,
+    dateRange: RANGE,
+    timeConstraint: { startHour: 18, endHour: 20, tier: 'strongly_preferred' },
+    recurrence: { intervalWeeks: 1, daysOfWeek: ['Tue'], until: '2026-09-29' },
+    ...overrides,
+  });
+
+  it('recommends a weekly slot, and says which weeks it would run', async () => {
+    const result = await recommend(recurringParams());
+    const [pick] = result.curatedPicks;
+    expect(pick.recurrence.occurrences).toEqual([
+      '2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22', '2026-09-29',
+    ]);
+    expect(pick.recurrence.weeks_total).toBe(5);
+    expect(pick.recurrence.weeks_clear).toBe(5);
+    expect(pick.start.slice(0, 10)).toBe('2026-09-01');
+  });
+
+  it('recommends the same room every week, which is the point of a weekly meeting', async () => {
+    const [pick] = (await recommend(recurringParams())).curatedPicks;
+    expect(pick.location.location_id).toBeDefined();
+    expect(pick.recurrence.conflicts).toEqual([]);
+  });
+
+  it('only offers the days the repeat runs on', async () => {
+    const result = await recommend(recurringParams({
+      recurrence: { intervalWeeks: 1, daysOfWeek: ['Thu'], until: '2026-09-29' },
+    }));
+    for (const option of result.allOptions) {
+      expect(new Date(`${option.start.slice(0, 10)}T12:00:00`).getDay()).toBe(4);
+    }
+  });
+
+  it('counts the weeks the room is taken against the slot, and names them', async () => {
+    getPublicEvents.mockResolvedValue([
+      {
+        event_id: 1, title: 'Someone else', start_time: '2026-09-08 18:00:00',
+        end_time: '2026-09-08 20:00:00',
+        building: 'Electrical & Computer Eng Bldg', room_number: '2013',
+      },
+    ]);
+    const result = await recommend(recurringParams());
+    const taken = result.allOptions.find(o =>
+      o.location.location_id === 1 && o.start === '2026-09-01 18:00:00');
+    const free = result.allOptions.find(o =>
+      o.location.location_id === 2 && o.start === '2026-09-01 18:00:00');
+
+    expect(taken.recurrence.conflicts).toEqual(['2026-09-08']);
+    expect(taken.recurrence.weeks_clear).toBe(4);
+    expect(taken.score).toBeLessThan(free.score);
+  });
+
+  it('leaves out a room that is taken every single week', async () => {
+    getPublicEvents.mockResolvedValue(
+      ['2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22', '2026-09-29'].map((date, i) => ({
+        event_id: i + 1, title: 'Booked solid',
+        start_time: `${date} 18:00:00`, end_time: `${date} 20:00:00`,
+        building: 'Electrical & Computer Eng Bldg', room_number: '2013',
+      }))
+    );
+    const result = await recommend(recurringParams());
+    const stillOffered = result.allOptions.filter(o =>
+      o.location.location_id === 1 && o.start === '2026-09-01 18:00:00');
+    expect(stillOffered).toEqual([]);
+  });
+
+  it('runs every other week when the repeat does', async () => {
+    const result = await recommend(recurringParams({
+      recurrence: { intervalWeeks: 2, daysOfWeek: ['Tue'], until: '2026-09-29' },
+    }));
+    expect(result.curatedPicks[0].recurrence.occurrences).toEqual([
+      '2026-09-01', '2026-09-15', '2026-09-29',
+    ]);
+  });
+
+  it('offers one slot per day and hour rather than the same evening many times over', async () => {
+    const { curatedPicks } = await recommend(recurringParams());
+    const keys = curatedPicks.map(pick => `${pick.start.slice(11, 16)}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('says in its insights how much of the term is clear', async () => {
+    const [pick] = (await recommend(recurringParams())).curatedPicks;
+    expect(pick.insights.some(i => /5 of 5 weeks/.test(i.text))).toBe(true);
+  });
+});

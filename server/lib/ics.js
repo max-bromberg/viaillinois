@@ -10,9 +10,11 @@ import { createHash } from 'node:crypto';
  * cannot be scheduled is skipped rather than imported at a wrong time), and a
  * calendar file is untrusted input that arrives from outside the university.
  *
- * Deliberately not handled: RRULE. A repeating entry is imported as its first
- * occurrence only. Expanding recurrences correctly needs the whole timezone
- * and exception machinery, and no calendar we import from uses it today.
+ * Repeating entries are read but not expanded here. The rule is carried out as
+ * it was written, along with the dates it excludes and, for an entry that
+ * stands in for one week of a series, the date it replaces. Turning a rule into
+ * dates is lib/recurrence.js, which the importer uses, so that this file stays
+ * a reader of files.
  */
 
 /** Events are in Champaign, and VIA stores wall clock time with no zone. */
@@ -142,7 +144,11 @@ export function parseCalendar(text) {
     const { name, params, value } = parsed;
 
     if (name === 'BEGIN' && value === 'VEVENT') {
-      current = { uid: null, title: null, description: null, location: null, start: null, end: null, allDay: false };
+      current = {
+        uid: null, title: null, description: null, location: null,
+        start: null, end: null, allDay: false,
+        rrule: null, exdates: [], recurrenceId: null,
+      };
       depth = 0;
       continue;
     }
@@ -183,6 +189,21 @@ export function parseCalendar(text) {
           current.start = parsedDate.at;
           current.allDay = parsedDate.dateOnly;
         }
+        break;
+      }
+      case 'RRULE': current.rrule = value.trim() || null; break;
+      // A repeating entry can carry several of these, and each can list several
+      // dates, so they accumulate rather than replace.
+      case 'EXDATE': {
+        for (const one of value.split(',')) {
+          const parsed = parseDate(one.trim(), params);
+          if (parsed) current.exdates.push(parsed.at);
+        }
+        break;
+      }
+      case 'RECURRENCE-ID': {
+        const parsed = parseDate(value.trim(), params);
+        if (parsed) current.recurrenceId = parsed.at;
         break;
       }
       case 'DTEND': {

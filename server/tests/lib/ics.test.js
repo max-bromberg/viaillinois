@@ -25,6 +25,53 @@ describe('parseCalendar', () => {
       start: '2026-10-01 19:00:00',
       end: '2026-10-01 21:00:00',
       allDay: false,
+      rrule: null,
+      exdates: [],
+      recurrenceId: null,
+    });
+  });
+
+  /**
+   * A repeating entry used to be imported as its first occurrence and nothing
+   * else. The reader now carries the rule out, and the importer expands it.
+   */
+  describe('a repeating entry', () => {
+    const repeating = lines => parseCalendar(wrap([
+      'BEGIN:VEVENT',
+      'UID:weekly@ieee',
+      'SUMMARY:Weekly meeting',
+      'DTSTART:20260901T180000',
+      'DTEND:20260901T190000',
+      ...lines,
+      'END:VEVENT',
+    ].join('\r\n')))[0];
+
+    it('carries the rule out as it was written', () => {
+      expect(repeating(['RRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=8']).rrule).toBe('FREQ=WEEKLY;BYDAY=TU;COUNT=8');
+    });
+
+    it('reads the dates the rule leaves out, however they are written', () => {
+      const entry = repeating([
+        'RRULE:FREQ=WEEKLY;BYDAY=TU',
+        'EXDATE;TZID=America/Chicago:20260908T180000,20260915T180000',
+        'EXDATE;VALUE=DATE:20260922',
+      ]);
+      expect(entry.exdates).toEqual(['2026-09-08 18:00:00', '2026-09-15 18:00:00', '2026-09-22 00:00:00']);
+    });
+
+    /**
+     * One week of a series moved or renamed is exported as its own entry,
+     * carrying the parent identifier and the date it stands in for.
+     */
+    it('reads the date an overriding entry stands in for', () => {
+      expect(repeating(['RECURRENCE-ID:20260915T180000']).recurrenceId).toBe('2026-09-15 18:00:00');
+    });
+
+    it('says nothing about a rule when the entry has none', () => {
+      const entry = repeating([]);
+      expect(entry.rrule).toBeNull();
+      expect(entry.exdates).toEqual([]);
+      expect(entry.recurrenceId).toBeNull();
     });
   });
 
