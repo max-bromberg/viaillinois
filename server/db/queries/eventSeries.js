@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lt, sql, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, isNull, lt, ne, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../client.ts';
 import { eventSeries, events, eventTags, tags, facilityReservations } from '../schema/schema.ts';
 
@@ -14,22 +14,30 @@ import { eventSeries, events, eventTags, tags, facilityReservations } from '../s
  * What already occupies a room in a range of time: other events, and bookings
  * the facilities pollers recorded.
  *
+ * A series moving within its own room does not clash with itself, so its own
+ * occurrences can be left out.
+ *
  * @param {number} locationId
  * @param {string} from wall clock
  * @param {string} to wall clock
+ * @param {{ excludeSeriesId?: number }} [options]
  * @returns {Promise<Array<{ start_time: string, end_time: string }>>}
  */
-export async function busyInRoom(locationId, from, to) {
+export async function busyInRoom(locationId, from, to, { excludeSeriesId = null } = {}) {
+  const ownRows = excludeSeriesId === null
+    ? undefined
+    : or(isNull(events.seriesId), ne(events.seriesId, excludeSeriesId));
+
   const [bookedEvents, bookedRooms] = await Promise.all([
     db.select({ start_time: events.startTime, end_time: events.endTime })
       .from(events)
-      .where(and(eq(events.locationId, locationId), lt(events.startTime, to), gte(events.endTime, from))),
+      .where(and(eq(events.locationId, locationId), lt(events.startTime, to), gt(events.endTime, from), ownRows)),
     db.select({ start_time: facilityReservations.startTime, end_time: facilityReservations.endTime })
       .from(facilityReservations)
       .where(and(
         eq(facilityReservations.locationId, locationId),
         lt(facilityReservations.startTime, to),
-        gte(facilityReservations.endTime, from),
+        gt(facilityReservations.endTime, from),
       )),
   ]);
   return [...bookedEvents, ...bookedRooms];
@@ -206,14 +214,28 @@ export async function deleteOccurrencesFrom(seriesId, from) {
     .where(and(eq(events.seriesId, seriesId), gte(events.startTime, from)));
 
   const remaining = await occurrencesOfSeries(seriesId);
-  if (remaining.length === 0) {
-    await deleteSeries(seriesId);
-  } else {
-    await db.update(eventSeries)
-      .set({ endsOn: remaining.at(-1).start_time.slice(0, 10) })
-      .where(eq(eventSeries.seriesId, seriesId));
-  }
+  await syncSeriesEnd(seriesId);
   return { affectedRows: result.affectedRows, remaining: remaining.length };
+}
+
+/**
+ * Make the rule agree with the occurrences that are left.
+ *
+ * Deleting one week of a series can leave the stored end date naming a week
+ * that no longer exists, and a series with nothing left is a rule for nothing.
+ *
+ * @param {number} seriesId
+ */
+export async function syncSeriesEnd(seriesId) {
+  const remaining = await occurrencesOfSeries(seriesId);
+  if (remaining.length === 0) return deleteSeries(seriesId);
+  const [result] = await db.update(eventSeries)
+    .set({
+      startsOn: String(remaining[0].start_time).slice(0, 10),
+      endsOn: String(remaining.at(-1).start_time).slice(0, 10),
+    })
+    .where(eq(eventSeries.seriesId, seriesId));
+  return { affectedRows: result.affectedRows };
 }
 
 /**

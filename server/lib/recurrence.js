@@ -41,6 +41,16 @@ function asWallClock(instant) {
     + ` ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
+/**
+ * A wall clock reading a number of minutes later, still wall clock.
+ *
+ * @param {string} wallClock YYYY-MM-DD HH:MM:SS
+ * @param {number} minutes
+ */
+export function addMinutes(wallClock, minutes) {
+  return asWallClock(asUtc(wallClock) + minutes * MS_PER_MINUTE);
+}
+
 /** The hour of the day an event starts, as MySQL stores a TIME. */
 export function timeOfDay(wallClock) {
   return wallClock.split(' ')[1] ?? '00:00:00';

@@ -166,6 +166,31 @@ describe('event series', () => {
     expect(busy).toHaveLength(4);
   });
 
+  it('carries the series onto the event, so a page can say how it repeats', async () => {
+    const { eventIds } = await create();
+    const event = await events.getEventById(eventIds[0]);
+    expect(event).toMatchObject({
+      series_frequency: 'weekly',
+      series_interval_weeks: 1,
+      series_days_of_week: 'Tue',
+      series_ends_on: '2027-09-21',
+      detached: 0,
+    });
+    expect(event.series_id).not.toBeNull();
+  });
+
+  it('says nothing about a series for an event that does not repeat', async () => {
+    const conn = await mysql.createConnection(testDbConfig);
+    await conn.query(
+      `INSERT INTO Events (event_id, rso_id, created_by, title, start_time, end_time, is_private)
+       VALUES (900, 1, 'tester', 'Career fair', '2027-10-01 10:00:00', '2027-10-01 14:00:00', 0)`
+    );
+    await conn.end();
+    const event = await events.getEventById(900);
+    expect(event.series_id).toBeNull();
+    expect(event.series_days_of_week).toBeNull();
+  });
+
   it('finds a series again by the identifier the calendar gave it', async () => {
     const { seriesId } = await create({
       series: { ...SERIES, external_uid: 'weekly-meeting@ieee' },

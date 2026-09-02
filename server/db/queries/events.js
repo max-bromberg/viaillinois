@@ -166,16 +166,24 @@ export async function getEventById(eventId) {
       e.end_time,
       e.is_private,
       e.rso_id,
+      e.series_id,
+      e.detached,
       r.name AS rso_name,
       e.location_text,
       l.building,
       l.room_number,
+      s.frequency AS series_frequency,
+      s.interval_weeks AS series_interval_weeks,
+      s.days_of_week AS series_days_of_week,
+      s.ends_on AS series_ends_on,
       GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
   FROM Events e
   JOIN RSOs r
       ON e.rso_id = r.rso_id
   LEFT JOIN Locations l
       ON e.location_id = l.location_id
+  LEFT JOIN Event_Series s
+      ON e.series_id = s.series_id
   LEFT JOIN Event_Tags et
       ON e.event_id = et.event_id
   LEFT JOIN Tags t
@@ -291,7 +299,27 @@ export async function setEventTags(eventId, tagNames) {
  * @returns {Promise<Array<{ event_id, title, description, start_time, end_time, is_private, rso_name, building, room_number, max_capacity, tags }>>}
  */
 export async function getEventsByRso(rsoId) {
-    return query('SELECT e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity, GROUP_CONCAT(t.tag_name) AS tags FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id LEFT JOIN Event_Tags et ON e.event_id = et.event_id LEFT JOIN Tags t ON et.tag_name = t.tag_name WHERE e.rso_id = ? GROUP BY e.event_id ORDER BY e.start_time ASC', [rsoId])
+    return query(
+        `SELECT
+            e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
+            e.series_id, e.detached, e.location_id,
+            r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
+            s.frequency AS series_frequency,
+            s.interval_weeks AS series_interval_weeks,
+            s.days_of_week AS series_days_of_week,
+            s.ends_on AS series_ends_on,
+            GROUP_CONCAT(t.tag_name) AS tags
+        FROM Events e
+        JOIN RSOs r ON e.rso_id = r.rso_id
+        LEFT JOIN Locations l ON e.location_id = l.location_id
+        LEFT JOIN Event_Series s ON e.series_id = s.series_id
+        LEFT JOIN Event_Tags et ON e.event_id = et.event_id
+        LEFT JOIN Tags t ON et.tag_name = t.tag_name
+        WHERE e.rso_id = ?
+        GROUP BY e.event_id
+        ORDER BY e.start_time ASC`,
+        [rsoId]
+    )
 }
 
 /**
