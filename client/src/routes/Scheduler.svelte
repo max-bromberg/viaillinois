@@ -1,11 +1,13 @@
 <script>
   import { onMount } from 'svelte';
-  import { campusDateTime, campusTime } from '../lib/campusTime.js';
+  import { campusDateTime, campusTime, campusToday } from '../lib/campusTime.js';
   import { currentUser, adminRsoIds } from '../stores/auth.js';
   import { navigate } from '../lib/router.js';
   import { recommend } from '../api/scheduler.js';
   import { getCourses } from '../api/midterms.js';
-  import { createEvent } from '../api/events.js';
+  import { createEvent, createEventSeries } from '../api/events.js';
+  import { getCurrentSemester } from '../api/semester.js';
+  import { repeatSummary } from '../lib/recurrenceLabel.js';
   import { showToast } from '../stores/ui.js';
   import EventForm from '../lib/EventForm.svelte';
   import DayTierPicker from '../lib/DayTierPicker.svelte';
@@ -28,6 +30,42 @@
   let durationMinutes = 60;
   let startDate = '';
   let endDate = '';
+
+  // ── Repeat ───────────────────────────────────────────────────────────────
+  // The question a board usually has is which evening works for the term, not
+  // which evening works next week.
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const REPEATS = [
+    { value: 'none',     label: 'Does not repeat' },
+    { value: 'weekly',   label: 'Every week' },
+    { value: 'biweekly', label: 'Every other week' },
+  ];
+  let repeat = 'none';
+  let repeatDays = [];
+  let repeatUntil = '';
+  let semester = null;
+
+  $: recurrence = repeat === 'none' ? null : {
+    intervalWeeks: repeat === 'biweekly' ? 2 : 1,
+    daysOfWeek: repeatDays,
+    until: repeatUntil || semester?.instruction_end || endDate,
+  };
+  $: repeatSentence = repeatSummary(recurrence && {
+    interval_weeks: recurrence.intervalWeeks,
+    days_of_week: recurrence.daysOfWeek,
+    ends_on: recurrence.until,
+  });
+
+  function chooseRepeat(value) {
+    repeat = value;
+    if (value !== 'none' && !repeatUntil) repeatUntil = semester?.instruction_end ?? '';
+  }
+
+  function toggleRepeatDay(day) {
+    repeatDays = repeatDays.includes(day)
+      ? repeatDays.filter(d => d !== day)
+      : WEEKDAYS.filter(d => d === day || repeatDays.includes(d));
+  }
 
   // Time constraint
   let timeStartHour = 16;
@@ -66,6 +104,17 @@
 
   onMount(async () => {
     try {
+      // A repeat searched for here runs to the end of instruction unless the
+      // board says otherwise, and the date is shown so it can be corrected.
+      ({ semester } = await getCurrentSemester());
+      // The question is almost always about the rest of the term, so that is
+      // the range the search starts with. Both dates are shown and editable.
+      if (!startDate) startDate = campusToday();
+      if (!endDate) endDate = semester.instruction_end;
+    } catch {
+      semester = null;
+    }
+    try {
       const data = await getCourses();
       if (data?.courses) coursesList = data.courses;
     } catch (e) { console.error('Failed to load courses:', e); }
@@ -98,6 +147,7 @@
         excludedRooms,
         targetCourses,
         midtermSensitivity,
+        recurrence,
       });
       if (!recommendations.curatedPicks.length && !recommendations.allOptions.length) {
         showToast('No slots found for those constraints. Try relaxing the Required constraints.', 'error');
@@ -117,8 +167,18 @@
   async function handleCreateEvent(e) {
     loading = true;
     try {
-      await createEvent(e.detail);
-      showToast('Event scheduled successfully!');
+      if (e.detail.recurrence) {
+        const { created, skipped } = await createEventSeries(e.detail);
+        showToast(
+          skipped?.length
+            ? `Scheduled ${created} events. These weeks were left out because the room was taken: ${skipped.join(', ')}.`
+            : `Scheduled ${created} events`,
+          skipped?.length ? 'error' : undefined
+        );
+      } else {
+        await createEvent(e.detail);
+        showToast('Event scheduled successfully!');
+      }
       navigate('/dashboard');
     } catch (err) {
       showToast(err.message, 'error');
@@ -222,6 +282,12 @@
             building: selectedRec.location?.building,
             room_number: selectedRec.location?.room_number,
           }}
+          initialRecurrence={selectedRec.recurrence ? {
+            interval_weeks: selectedRec.recurrence.interval_weeks,
+            days_of_week: selectedRec.recurrence.days_of_week,
+            ends_on: selectedRec.recurrence.until,
+          } : null}
+          {semester}
           {loading}
           on:submit={handleCreateEvent}
           on:cancel={() => showEventForm = false}
@@ -294,6 +360,51 @@
                   <DatePicker bind:value={startDate} placeholder="Start date" />
                   <DatePicker bind:value={endDate} placeholder="End date" min={startDate} />
                 </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-medium">Repeat</label>
+                <div class="flex flex-wrap gap-2">
+                  {#each REPEATS as option}
+                    <button
+                      type="button"
+                      aria-pressed={repeat === option.value}
+                      class="text-xs px-3 py-1 rounded-full border transition-colors
+                        {repeat === option.value ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
+                      on:click={() => chooseRepeat(option.value)}
+                    >{option.label}</button>
+                  {/each}
+                </div>
+                {#if repeat !== 'none'}
+                  <div class="rounded-md border p-3 space-y-3 bg-muted/30">
+                    <div class="space-y-1">
+                      <label class="text-xs font-medium">On these days, or any day if none are chosen</label>
+                      <div class="flex flex-wrap gap-1.5">
+                        {#each WEEKDAYS as day}
+                          <button
+                            type="button"
+                            aria-pressed={repeatDays.includes(day)}
+                            class="text-xs w-11 py-1 rounded border transition-colors
+                              {repeatDays.includes(day) ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
+                            on:click={() => toggleRepeatDay(day)}
+                          >{day}</button>
+                        {/each}
+                      </div>
+                    </div>
+                    <div class="space-y-1">
+                      <label class="text-xs font-medium">Until</label>
+                      <DatePicker bind:value={repeatUntil} placeholder="Last date" min={startDate} />
+                      {#if semester}
+                        <p class="text-xs text-muted-foreground">
+                          {semester.label} instruction ends on {semester.instruction_end}.
+                        </p>
+                      {/if}
+                    </div>
+                    {#if repeatSentence}
+                      <p class="text-xs font-medium">{repeatSentence}</p>
+                    {/if}
+                  </div>
+                {/if}
               </div>
 
               <div class="space-y-2">

@@ -26,12 +26,33 @@ export function createEvent(data) {
   return apiFetch('/api/v1/events', { method: 'POST', body: data });
 }
 
-export function updateEvent(id, data) {
-  return apiFetch(`/api/v1/events/${id}`, { method: 'PUT', body: data });
+/**
+ * Create a repeating event: the rule and every occurrence, in one request.
+ *
+ * @param {object} data the event, with a recurrence of
+ *   { interval_weeks, days_of_week, starts_on, ends_on }
+ */
+export function createEventSeries(data) {
+  return apiFetch('/api/v1/events/series', { method: 'POST', body: data });
 }
 
-export function deleteEvent(id) {
-  return apiFetch(`/api/v1/events/${id}`, { method: 'DELETE' });
+/**
+ * How much of a series a change is for: this occurrence, this one and every
+ * later one, or all of them. Left out for an event that does not repeat, where
+ * there is only one thing it could mean.
+ */
+function scoped(id, scope) {
+  return scope && scope !== 'one'
+    ? `/api/v1/events/${id}?scope=${scope}`
+    : `/api/v1/events/${id}`;
+}
+
+export function updateEvent(id, data, scope = 'one') {
+  return apiFetch(scoped(id, scope), { method: 'PUT', body: data });
+}
+
+export function deleteEvent(id, scope = 'one') {
+  return apiFetch(scoped(id, scope), { method: 'DELETE' });
 }
 
 export function getKioskEvents(limit = 10) {

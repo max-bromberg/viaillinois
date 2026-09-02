@@ -185,3 +185,59 @@ describe('CalendarImport announces a finished import', () => {
     expect(imported).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * A file with a weekly meeting in it creates a term of events, and the preview
+ * is where that has to be visible, before anything is written.
+ */
+describe('CalendarImport, previewing a repeating entry', () => {
+  const REPEATING_PLAN = {
+    entries: [
+      {
+        action: 'create', kind: 'series', title: 'Weekly meeting',
+        start: '2026-09-01 18:00:00', location_text: null, location_match: null,
+        recurrence: { interval_weeks: 1, days_of_week: 'Tue', ends_on: '2026-12-08' },
+        occurrences: 15, creating: 15, updating: 0, removing: 0,
+      },
+      {
+        action: 'create', kind: 'event', title: 'Monthly social',
+        start: '2026-09-04 18:00:00', location_text: null, location_match: null,
+        repeats: 'not expanded',
+      },
+    ],
+    skipped: 0,
+    notExpanded: 1,
+  };
+
+  it('says how many events a repeating entry would create', async () => {
+    importCalendar.mockResolvedValue(REPEATING_PLAN);
+    const { getByLabelText, getByRole, findByText } = render(CalendarImport, { kind: 'events', rsoId: 1 });
+    await pasteCalendar(getByLabelText);
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    expect(await findByText('Repeats every Tuesday until December 8, 15 events')).toBeTruthy();
+  });
+
+  it('says which rules it will not expand, rather than leaving it to be found later', async () => {
+    importCalendar.mockResolvedValue(REPEATING_PLAN);
+    const { getByLabelText, getByRole, findByText } = render(CalendarImport, { kind: 'events', rsoId: 1 });
+    await pasteCalendar(getByLabelText);
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    expect(await findByText(/1 repeating entry uses a rule VIA does not expand/)).toBeTruthy();
+  });
+
+  it('says what a second import of the same file would change', async () => {
+    importCalendar.mockResolvedValue({
+      entries: [{
+        action: 'update', kind: 'series', title: 'Weekly meeting',
+        start: '2026-09-01 18:00:00', location_text: null, location_match: null,
+        recurrence: { interval_weeks: 1, days_of_week: 'Tue', ends_on: '2026-12-08' },
+        occurrences: 15, creating: 2, updating: 13, removing: 1,
+      }],
+      skipped: 0,
+    });
+    const { getByLabelText, getByRole, findByText } = render(CalendarImport, { kind: 'events', rsoId: 1 });
+    await pasteCalendar(getByLabelText);
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    expect(await findByText(/2 added, 13 updated, 1 removed/)).toBeTruthy();
+  });
+});

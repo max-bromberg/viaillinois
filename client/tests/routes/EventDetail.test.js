@@ -103,3 +103,29 @@ describe('EventDetail location', () => {
     expect(await findByText(/Location to be announced/)).toBeTruthy();
   });
 });
+
+/**
+ * Somebody who lands on one week of a weekly meeting should be able to tell
+ * that it is a weekly meeting.
+ */
+describe('EventDetail, for an event that repeats', () => {
+  it('says how it repeats and when it stops', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({
+      event: {
+        event_id: 1, rso_id: 2, title: 'IEEE Weekly Meeting',
+        start_time: '2026-09-15T18:00:00', end_time: '2026-09-15T19:30:00',
+        is_private: false, rso_name: 'IEEE UIUC',
+        series_id: 3, series_interval_weeks: 1, series_days_of_week: 'Tue', series_ends_on: '2026-12-08',
+      },
+    });
+    const { findByText } = render(EventDetail, { id: '1' });
+    expect(await findByText('Repeats every Tuesday until December 8')).toBeTruthy();
+  });
+
+  it('says nothing of the sort for an event that does not repeat', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.textContent).not.toMatch(/Repeats/);
+  });
+});

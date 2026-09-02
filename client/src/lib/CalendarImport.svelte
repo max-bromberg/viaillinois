@@ -4,6 +4,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
   import { campusDateTime } from './campusTime.js';
+  import { repeatSummary } from './recurrenceLabel.js';
 
   /** Which listing to import into. */
   export let kind = 'events';
@@ -106,6 +107,24 @@
               </span>
             </div>
             <p class="text-xs text-muted-foreground">{formatted(entry.start)}</p>
+            {#if entry.kind === 'series'}
+              <p class="text-xs text-primary">
+                {repeatSummary({
+                  interval_weeks: entry.recurrence.interval_weeks,
+                  days_of_week: String(entry.recurrence.days_of_week).split(','),
+                  ends_on: entry.recurrence.ends_on,
+                })}, {entry.occurrences} events
+              </p>
+              {#if entry.action === 'update'}
+                <p class="text-xs text-muted-foreground">
+                  {entry.creating} added, {entry.updating} updated{entry.removing ? `, ${entry.removing} removed` : ''}
+                </p>
+              {/if}
+            {:else if entry.repeats === 'not expanded'}
+              <p class="text-xs text-muted-foreground">
+                Repeats on a rule VIA does not expand, so only this one is imported.
+              </p>
+            {/if}
             {#if entry.location_match}
               <p class="text-xs text-muted-foreground">📍 {entry.location_match}</p>
             {:else if entry.location_text}
@@ -122,6 +141,14 @@
       <p class="text-xs text-muted-foreground">
         {plan.skipped} {plan.skipped === 1 ? 'entry could not be read' : 'entries could not be read'},
         because they have no title or no start time.
+      </p>
+    {/if}
+
+    {#if plan.notExpanded}
+      <p class="text-xs text-muted-foreground">
+        {plan.notExpanded}
+        {plan.notExpanded === 1 ? 'repeating entry uses a rule VIA does not expand' : 'repeating entries use rules VIA does not expand'},
+        such as a monthly one. The first occurrence of each is imported.
       </p>
     {/if}
 

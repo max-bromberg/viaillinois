@@ -6,6 +6,7 @@
   import DOMPurify from 'dompurify';
   import QRCode from 'qrcode';
   import { getEvent } from '../api/events.js';
+  import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import { getRso } from '../api/rsos.js';
   import { navigate } from '../lib/router.js';
   import { showToast } from '../stores/ui.js';
@@ -23,6 +24,7 @@
     ? `${window.location.origin}/events/${id}`
     : `/events/${id}`;
   $: tags = event?.tags ? event.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+  $: repeats = recurrenceLabel(event);
   $: formattedDate      = campusDate(event?.start_time, { weekday: 'long', month: 'long', day: 'numeric' });
   $: formattedStartTime = campusTime(event?.start_time);
   $: formattedEndTime   = campusTime(event?.end_time);
@@ -143,6 +145,12 @@
         <span>📍</span>
         <span>{locationLabel(event)}</span>
       </div>
+      {#if repeats}
+        <div class="flex items-center gap-2 text-sm">
+          <span>🔁</span>
+          <span>{repeats}</span>
+        </div>
+      {/if}
       {#if event.max_capacity}
         <div class="flex items-center gap-2 text-sm text-muted-foreground">
           <span>👥</span>

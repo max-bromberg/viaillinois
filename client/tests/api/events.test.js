@@ -41,3 +41,37 @@ describe('the RSVP calls, which were removed', () => {
     expect(eventsApi.getEventRsvps).toBeUndefined();
   });
 });
+
+/**
+ * A repeat is created in one request, and an edit or a deletion has to say how
+ * much of a series it means.
+ */
+describe('the calls a repeating event needs', () => {
+  it('creates a series in one request', async () => {
+    await eventsApi.createEventSeries({
+      rso_id: 1, title: 'Weekly meeting',
+      recurrence: { interval_weeks: 1, days_of_week: ['Tue'], ends_on: '2026-12-08' },
+    });
+    const [path, options] = apiFetch.mock.calls.at(-1);
+    expect(path).toBe('/api/v1/events/series');
+    expect(options.method).toBe('POST');
+    expect(options.body.recurrence.days_of_week).toEqual(['Tue']);
+  });
+
+  it('says which weeks an edit is for', async () => {
+    await eventsApi.updateEvent(5, { title: 'Moved' }, 'following');
+    expect(apiFetch.mock.calls.at(-1)[0]).toBe('/api/v1/events/5?scope=following');
+  });
+
+  it('says which weeks a deletion is for', async () => {
+    await eventsApi.deleteEvent(5, 'all');
+    expect(apiFetch.mock.calls.at(-1)[0]).toBe('/api/v1/events/5?scope=all');
+  });
+
+  it('leaves the scope out when it means this event alone', async () => {
+    await eventsApi.updateEvent(5, { title: 'Moved' });
+    expect(apiFetch.mock.calls.at(-1)[0]).toBe('/api/v1/events/5');
+    await eventsApi.deleteEvent(5);
+    expect(apiFetch.mock.calls.at(-1)[0]).toBe('/api/v1/events/5');
+  });
+});
