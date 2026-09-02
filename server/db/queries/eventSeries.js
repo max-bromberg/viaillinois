@@ -1,0 +1,245 @@
+import { and, asc, eq, gte, isNull, lt, sql, inArray } from 'drizzle-orm';
+import { db } from '../client.ts';
+import { eventSeries, events, eventTags, tags, facilityReservations } from '../schema/schema.ts';
+
+/**
+ * The data layer for repeating events.
+ *
+ * Written with Drizzle, which is the direction the data layer is moving in.
+ * A series is a rule row plus one ordinary event row per occurrence, so most of
+ * what is here reads or writes the occurrences through their series_id.
+ */
+
+/**
+ * What already occupies a room in a range of time: other events, and bookings
+ * the facilities pollers recorded.
+ *
+ * @param {number} locationId
+ * @param {string} from wall clock
+ * @param {string} to wall clock
+ * @returns {Promise<Array<{ start_time: string, end_time: string }>>}
+ */
+export async function busyInRoom(locationId, from, to) {
+  const [bookedEvents, bookedRooms] = await Promise.all([
+    db.select({ start_time: events.startTime, end_time: events.endTime })
+      .from(events)
+      .where(and(eq(events.locationId, locationId), lt(events.startTime, to), gte(events.endTime, from))),
+    db.select({ start_time: facilityReservations.startTime, end_time: facilityReservations.endTime })
+      .from(facilityReservations)
+      .where(and(
+        eq(facilityReservations.locationId, locationId),
+        lt(facilityReservations.startTime, to),
+        gte(facilityReservations.endTime, from),
+      )),
+  ]);
+  return [...bookedEvents, ...bookedRooms];
+}
+
+/**
+ * Write a series and every occurrence of it, or none of them.
+ *
+ * Occurrences are inserted one at a time rather than in one statement, because
+ * their identifiers are needed to tag them and a bulk insert reports only the
+ * first. Sixteen inserts inside one transaction is a term of weekly meetings.
+ *
+ * @param {{ series: object, occurrences: Array<{start: string, end: string, external_uid?: string}>,
+ *           event: object, tagNames?: string[] }} params
+ * @returns {Promise<{ seriesId: number, eventIds: number[] }>}
+ */
+export async function createSeriesWithOccurrences({ series, occurrences, event, tagNames = [] }) {
+  return db.transaction(async tx => {
+    const [inserted] = await tx.insert(eventSeries).values({
+      rsoId: series.rso_id,
+      createdBy: series.created_by,
+      frequency: series.frequency,
+      intervalWeeks: series.interval_weeks,
+      daysOfWeek: series.days_of_week,
+      startsOn: series.starts_on,
+      endsOn: series.ends_on,
+      startOfDay: series.start_of_day,
+      durationMinutes: series.duration_minutes,
+      externalUid: series.external_uid ?? null,
+    });
+    const seriesId = inserted.insertId;
+
+    const eventIds = [];
+    for (const occurrence of occurrences) {
+      const [row] = await tx.insert(events).values({
+        rsoId: event.rso_id,
+        createdBy: event.created_by,
+        locationId: event.location_id ?? null,
+        locationText: event.location_text ?? null,
+        title: event.title,
+        description: event.description ?? null,
+        startTime: occurrence.start,
+        endTime: occurrence.end,
+        isPrivate: event.is_private ? 1 : 0,
+        externalUid: occurrence.external_uid ?? null,
+        seriesId,
+      });
+      eventIds.push(row.insertId);
+    }
+
+    const unique = [...new Set(tagNames)];
+    if (unique.length > 0) {
+      await tx.insert(tags).values(unique.map(tagName => ({ tagName })))
+        .onDuplicateKeyUpdate({ set: { tagName: sql`tag_name` } });
+      await tx.insert(eventTags).values(
+        eventIds.flatMap(eventId => unique.map(tagName => ({ eventId, tagName })))
+      );
+    }
+
+    return { seriesId, eventIds };
+  }, { isolationLevel: 'serializable' });
+}
+
+/**
+ * One series, or null.
+ * @param {number} seriesId
+ */
+export async function getSeriesById(seriesId) {
+  const rows = await db.select().from(eventSeries).where(eq(eventSeries.seriesId, seriesId));
+  return rows[0] ?? null;
+}
+
+/**
+ * The series a set of calendar identifiers already created for an RSO.
+ * @param {number} rsoId
+ * @param {string[]} uids
+ */
+export async function findSeriesByUid(rsoId, uids) {
+  if (!uids || uids.length === 0) return [];
+  return db.select().from(eventSeries)
+    .where(and(eq(eventSeries.rsoId, rsoId), inArray(eventSeries.externalUid, uids)));
+}
+
+/**
+ * The occurrences of a series, in the order they run.
+ * @param {number} seriesId
+ * @param {{ from?: string }} [scope] only occurrences starting at or after this wall clock
+ */
+export async function occurrencesOfSeries(seriesId, { from = null } = {}) {
+  const where = from
+    ? and(eq(events.seriesId, seriesId), gte(events.startTime, from))
+    : eq(events.seriesId, seriesId);
+  return db.select({
+    event_id: events.eventId,
+    start_time: events.startTime,
+    end_time: events.endTime,
+    detached: events.detached,
+  }).from(events).where(where).orderBy(asc(events.startTime));
+}
+
+/**
+ * Mark one occurrence as edited on its own, so a later edit to the whole series
+ * leaves it where the organizer put it.
+ * @param {number} eventId
+ */
+export async function detachEvent(eventId) {
+  const [result] = await db.update(events).set({ detached: 1 }).where(eq(events.eventId, eventId));
+  return { affectedRows: result.affectedRows };
+}
+
+/**
+ * Apply an edit to the occurrences of a series.
+ *
+ * Each occurrence keeps its own date and takes the new hour and length, so
+ * moving a weekly meeting from six to seven moves every week without moving any
+ * of them onto another day. Occurrences that were detached are left alone.
+ *
+ * @param {number} seriesId
+ * @param {{ from?: string, fields?: object, startOfDay?: string, durationMinutes?: number }} params
+ * @returns {Promise<{ affectedRows: number }>}
+ */
+export async function applyToSeries(seriesId, { from = null, fields = {}, startOfDay = null, durationMinutes = null }) {
+  const updates = {};
+  if (fields.title !== undefined)         updates.title = fields.title;
+  if (fields.description !== undefined)   updates.description = fields.description;
+  if (fields.location_id !== undefined)   updates.locationId = fields.location_id;
+  if (fields.location_text !== undefined) updates.locationText = fields.location_text;
+  if (fields.is_private !== undefined)    updates.isPrivate = fields.is_private ? 1 : 0;
+
+  if (startOfDay && durationMinutes != null) {
+    // DATE(start_time) is the occurrence's own day, and it is the same before
+    // and after this statement, so the end is derived from it rather than from
+    // a start_time that MySQL may already have replaced.
+    updates.startTime = sql`TIMESTAMP(DATE(${events.startTime}), ${startOfDay})`;
+    updates.endTime   = sql`TIMESTAMP(DATE(${events.startTime}), ${startOfDay}) + INTERVAL ${durationMinutes} MINUTE`;
+  }
+
+  if (Object.keys(updates).length === 0) return { affectedRows: 0 };
+
+  const conditions = [eq(events.seriesId, seriesId), eq(events.detached, 0)];
+  if (from) conditions.push(gte(events.startTime, from));
+
+  const [result] = await db.update(events).set(updates).where(and(...conditions));
+  return { affectedRows: result.affectedRows };
+}
+
+/**
+ * Replace the tags on the occurrences an edit covers.
+ * @param {number[]} eventIds
+ * @param {string[]} tagNames
+ */
+export async function setTagsForEvents(eventIds, tagNames) {
+  if (eventIds.length === 0) return;
+  await db.delete(eventTags).where(inArray(eventTags.eventId, eventIds));
+  const unique = [...new Set(tagNames)];
+  if (unique.length === 0) return;
+  await db.insert(tags).values(unique.map(tagName => ({ tagName })))
+    .onDuplicateKeyUpdate({ set: { tagName: sql`tag_name` } });
+  await db.insert(eventTags).values(
+    eventIds.flatMap(eventId => unique.map(tagName => ({ eventId, tagName })))
+  );
+}
+
+/**
+ * Remove the occurrences of a series from a date onwards, and end the series
+ * before them, so what the rule says and what exists agree.
+ *
+ * @param {number} seriesId
+ * @param {string} from wall clock
+ * @returns {Promise<{ affectedRows: number, remaining: number }>}
+ */
+export async function deleteOccurrencesFrom(seriesId, from) {
+  const [result] = await db.delete(events)
+    .where(and(eq(events.seriesId, seriesId), gte(events.startTime, from)));
+
+  const remaining = await occurrencesOfSeries(seriesId);
+  if (remaining.length === 0) {
+    await deleteSeries(seriesId);
+  } else {
+    await db.update(eventSeries)
+      .set({ endsOn: remaining.at(-1).start_time.slice(0, 10) })
+      .where(eq(eventSeries.seriesId, seriesId));
+  }
+  return { affectedRows: result.affectedRows, remaining: remaining.length };
+}
+
+/**
+ * Delete a series and, by the foreign key, every occurrence of it.
+ * @param {number} seriesId
+ */
+export async function deleteSeries(seriesId) {
+  const [result] = await db.delete(eventSeries).where(eq(eventSeries.seriesId, seriesId));
+  return { affectedRows: result.affectedRows };
+}
+
+/**
+ * Change the rule itself. Used by the importer, which rewrites a series when
+ * the calendar it came from changed the rule.
+ * @param {number} seriesId
+ * @param {object} updates
+ */
+export async function updateSeriesRule(seriesId, updates) {
+  const row = {};
+  if (updates.interval_weeks !== undefined)   row.intervalWeeks = updates.interval_weeks;
+  if (updates.days_of_week !== undefined)     row.daysOfWeek = updates.days_of_week;
+  if (updates.starts_on !== undefined)        row.startsOn = updates.starts_on;
+  if (updates.ends_on !== undefined)          row.endsOn = updates.ends_on;
+  if (updates.start_of_day !== undefined)     row.startOfDay = updates.start_of_day;
+  if (updates.duration_minutes !== undefined) row.durationMinutes = updates.duration_minutes;
+  if (Object.keys(row).length === 0) return { affectedRows: 0 };
+  const [result] = await db.update(eventSeries).set(row).where(eq(eventSeries.seriesId, seriesId));
+  return { affectedRows: result.affectedRows };
+}

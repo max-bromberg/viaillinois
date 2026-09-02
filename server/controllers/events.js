@@ -1,6 +1,8 @@
 import * as eventsDb from '../db/queries/events.js';
 import * as rsoDb from '../db/queries/rso.js';
 import * as advancedDb from '../db/queries/advanced.js';
+import * as seriesDb from '../db/queries/eventSeries.js';
+import { planSeries, splitByBusyRoom } from '../services/recurringEvents.js';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
@@ -96,6 +98,65 @@ export async function createEvent(req, res, next) {
     if (result.conflict)     return res.status(409).json({ error: 'Location is already booked for this time' });
     if (result.unauthorized) return res.status(403).json({ error: 'RSO editor access required' });
     res.status(201).json({ event_id: result.eventId });
+  } catch (err) { next(err); }
+}
+
+/**
+ * Create a repeating event: the rule, and one event per occurrence.
+ *
+ * A term of weekly meetings is one request. Entering it as fifteen events is
+ * what boards were doing instead, and it is why feeds went stale halfway
+ * through a term.
+ *
+ * A week whose room is already taken is left out rather than failing the whole
+ * series, and the response says which dates those were, so the board can see
+ * what happened and book those weeks somewhere else. A repeat where every week
+ * is taken is a conflict, and nothing is written.
+ */
+export async function createEventSeries(req, res, next) {
+  try {
+    const { rso_id, title, description, start_time, end_time, is_private = false, tags = [], recurrence = {} } = req.body;
+    if (!rso_id || !title || !start_time || !end_time) {
+      return res.status(400).json({ error: 'rso_id, title, start_time, end_time required' });
+    }
+
+    const rsoId = parseInt(rso_id);
+    const permitted = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, rsoId);
+    if (!permitted) return res.status(403).json({ error: 'RSO editor access required' });
+
+    const plan = planSeries({ startTime: start_time, endTime: end_time, recurrence });
+    if (plan.error) return res.status(400).json({ error: plan.error });
+
+    const { location_id, location_text } = readLocation(req.body);
+
+    let occurrences = plan.occurrences;
+    let skipped = [];
+    if (location_id) {
+      const busy = await seriesDb.busyInRoom(
+        location_id, plan.occurrences[0].start, plan.occurrences.at(-1).end
+      );
+      ({ keep: occurrences, skipped } = splitByBusyRoom(plan.occurrences, busy));
+      if (occurrences.length === 0) {
+        return res.status(409).json({ error: 'Location is already booked for every date in this repeat' });
+      }
+    }
+
+    const { seriesId, eventIds } = await seriesDb.createSeriesWithOccurrences({
+      series: { ...plan.series, ends_on: occurrences.at(-1).date, rso_id: rsoId, created_by: req.user.net_id },
+      occurrences,
+      event: {
+        rso_id: rsoId, created_by: req.user.net_id, location_id, location_text,
+        title, description, is_private,
+      },
+      tagNames: tags,
+    });
+
+    res.status(201).json({
+      series_id: seriesId,
+      event_ids: eventIds,
+      created: eventIds.length,
+      skipped,
+    });
   } catch (err) { next(err); }
 }
 

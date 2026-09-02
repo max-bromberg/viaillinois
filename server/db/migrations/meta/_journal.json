@@ -43,6 +43,13 @@
       "when": 1788408389249,
       "tag": "0005_invited_members",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1788494789249,
+      "tag": "0006_recurring_events",
+      "breakpoints": true
     }
   ]
 }

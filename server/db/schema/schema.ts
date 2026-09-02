@@ -1,4 +1,4 @@
-import { mysqlTable, index, foreignKey, primaryKey, unique, int, varchar, time, check, text, datetime, mysqlEnum, json, tinyint, customType } from "drizzle-orm/mysql-core"
+import { mysqlTable, index, foreignKey, primaryKey, unique, int, varchar, time, date, check, text, datetime, mysqlEnum, json, tinyint, customType } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 /**
@@ -38,6 +38,32 @@ export const courses = mysqlTable("Courses", {
 	primaryKey({ columns: [table.courseCode], name: "Courses_course_code"}),
 ]);
 
+/**
+ * The rule behind a repeating event. Its occurrences are ordinary Events rows
+ * carrying series_id, so everything that reads events keeps working without
+ * knowing that recurrence exists.
+ */
+export const eventSeries = mysqlTable("Event_Series", {
+	seriesId: int("series_id").autoincrement().notNull(),
+	rsoId: int("rso_id").notNull().references(() => rsOs.rsoId, { onDelete: "cascade" } ),
+	createdBy: varchar("created_by", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
+	frequency: varchar({ length: 20 }).default('weekly').notNull(),
+	intervalWeeks: int("interval_weeks").default(1).notNull(),
+	daysOfWeek: varchar("days_of_week", { length: 27 }).notNull(),
+	startsOn: date("starts_on", { mode: 'string' }).notNull(),
+	endsOn: date("ends_on", { mode: 'string' }).notNull(),
+	startOfDay: time("start_of_day").notNull(),
+	durationMinutes: int("duration_minutes").notNull(),
+	externalUid: varchar("external_uid", { length: 255 }),
+},
+(table) => [
+	index("created_by").on(table.createdBy),
+	primaryKey({ columns: [table.seriesId], name: "Event_Series_series_id"}),
+	unique("uq_series_external_uid").on(table.rsoId, table.externalUid),
+	check("chk_series_dates", sql`(\`ends_on\` >= \`starts_on\`)`),
+	check("chk_series_interval", sql`(\`interval_weeks\` >= 1)`),
+]);
+
 export const eventTags = mysqlTable("Event_Tags", {
 	eventId: int("event_id").notNull().references(() => events.eventId, { onDelete: "cascade" } ),
 	tagName: varchar("tag_name", { length: 50 }).notNull().references(() => tags.tagName, { onDelete: "cascade" } ),
@@ -59,11 +85,15 @@ export const events = mysqlTable("Events", {
 	startTime: datetime("start_time", { mode: 'string'}).notNull(),
 	endTime: datetime("end_time", { mode: 'string'}).notNull(),
 	isPrivate: tinyint("is_private").default(0).notNull(),
+	seriesId: int("series_id").references(() => eventSeries.seriesId, { onDelete: "cascade" } ),
+	// An occurrence edited on its own. A later edit to the whole series skips it.
+	detached: tinyint().default(0).notNull(),
 },
 (table) => [
 	index("rso_id").on(table.rsoId),
 	index("created_by").on(table.createdBy),
 	index("location_id").on(table.locationId),
+	index("series_id").on(table.seriesId),
 	primaryKey({ columns: [table.eventId], name: "Events_event_id"}),
 	unique("uq_event_external_uid").on(table.rsoId, table.externalUid),
 	check("chk_event_times", sql`(\`end_time\` > \`start_time\`)`),

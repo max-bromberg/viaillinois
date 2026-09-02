@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { courses, courseSections, locations, events, eventTags, tags, rsOs, users, facilityReservations, localAccounts, midterms, rsoMemberships, rsvPs, pollLog, unknownBuildingCodes } from "./schema.ts";
+import { courses, courseSections, locations, events, eventSeries, eventTags, tags, rsOs, users, facilityReservations, localAccounts, midterms, rsoMemberships, rsvPs, pollLog, unknownBuildingCodes } from "./schema.ts";
 
 export const courseSectionsRelations = relations(courseSections, ({one}) => ({
 	course: one(courses, {
@@ -35,8 +35,24 @@ export const eventTagsRelations = relations(eventTags, ({one}) => ({
 	}),
 }));
 
+export const eventSeriesRelations = relations(eventSeries, ({one, many}) => ({
+	events: many(events),
+	rsO: one(rsOs, {
+		fields: [eventSeries.rsoId],
+		references: [rsOs.rsoId]
+	}),
+	user: one(users, {
+		fields: [eventSeries.createdBy],
+		references: [users.netId]
+	}),
+}));
+
 export const eventsRelations = relations(events, ({one, many}) => ({
 	eventTags: many(eventTags),
+	series: one(eventSeries, {
+		fields: [events.seriesId],
+		references: [eventSeries.seriesId]
+	}),
 	rsO: one(rsOs, {
 		fields: [events.rsoId],
 		references: [rsOs.rsoId]

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
-import { listEvents, getEvent, createEvent, updateEvent, deleteEvent } from '../controllers/events.js';
+import { listEvents, getEvent, createEvent, createEventSeries, updateEvent, deleteEvent } from '../controllers/events.js';
 import { importEvents } from '../controllers/calendarImport.js';
 
 const router = Router();
@@ -14,6 +14,9 @@ const importLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 router.get('/',              listEvents);
 router.get('/:id',          getEvent);
 router.post('/',             requireAuth, createEvent);
+// Ahead of nothing that could shadow it: the only other POST paths are the
+// collection itself and the importer.
+router.post('/series',       requireAuth, createEventSeries);
 router.post('/import',       importLimiter, requireAuth, importEvents);
 router.put('/:id',          requireAuth, updateEvent);
 router.delete('/:id',       requireAuth, deleteEvent);
