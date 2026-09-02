@@ -8,12 +8,24 @@ const allLocations = vi.fn();
 const findEventsByUid = vi.fn();
 const createEvent = vi.fn();
 const updateEvent = vi.fn();
+const deleteEvent = vi.fn();
+const findSeriesByUid = vi.fn();
+const createSeriesWithOccurrences = vi.fn();
+const updateSeriesRule = vi.fn();
+const occurrencesOfSeries = vi.fn();
 
 vi.mock('../../db/queries/locations.js', () => ({ allLocations: (...a) => allLocations(...a) }));
 vi.mock('../../db/queries/events.js', () => ({
   findEventsByUid: (...a) => findEventsByUid(...a),
   createEvent: (...a) => createEvent(...a),
   updateEvent: (...a) => updateEvent(...a),
+  deleteEvent: (...a) => deleteEvent(...a),
+}));
+vi.mock('../../db/queries/eventSeries.js', () => ({
+  findSeriesByUid: (...a) => findSeriesByUid(...a),
+  createSeriesWithOccurrences: (...a) => createSeriesWithOccurrences(...a),
+  updateSeriesRule: (...a) => updateSeriesRule(...a),
+  occurrencesOfSeries: (...a) => occurrencesOfSeries(...a),
 }));
 
 const { planEventImport, applyEventImport } = await import('../../services/calendarImport.js');
@@ -36,8 +48,16 @@ describe('calendar import', () => {
     findEventsByUid.mockResolvedValue([]);
     createEvent.mockResolvedValue({ insertId: 10 });
     updateEvent.mockResolvedValue({ affectedRows: 1 });
+    deleteEvent.mockResolvedValue({ affectedRows: 1 });
+    findSeriesByUid.mockResolvedValue([]);
+    occurrencesOfSeries.mockResolvedValue([]);
+    createSeriesWithOccurrences.mockResolvedValue({ seriesId: 5, eventIds: [1, 2, 3] });
+    updateSeriesRule.mockResolvedValue({ affectedRows: 1 });
     createEvent.mockClear();
     updateEvent.mockClear();
+    deleteEvent.mockClear();
+    createSeriesWithOccurrences.mockClear();
+    updateSeriesRule.mockClear();
   });
 
   it('plans a new event for an entry that is not there yet', async () => {
@@ -159,6 +179,180 @@ describe('calendar import', () => {
 
   it('refuses a file that is not a calendar', async () => {
     await expect(planEventImport({ ics: 'this is not a calendar', rsoId: 1 }))
+      .rejects.toThrow(/calendar/i);
+  });
+});
+
+/**
+ * A repeating entry used to be imported as its first occurrence and nothing
+ * else, which is how a calendar with one weekly meeting in it became one event
+ * in the feed and a board that thought it had imported a term.
+ */
+describe('importing a repeating entry', () => {
+  const TERM_END = '2026-12-09';
+
+  const repeating = (rule, extra = []) => calendar([
+    'BEGIN:VEVENT',
+    'UID:weekly@ieee',
+    'SUMMARY:Weekly meeting',
+    'DTSTART:20260901T180000',
+    'DTEND:20260901T193000',
+    `RRULE:${rule}`,
+    ...extra,
+    'END:VEVENT',
+  ]);
+
+  beforeEach(() => {
+    allLocations.mockResolvedValue(rooms);
+    findEventsByUid.mockResolvedValue([]);
+    findSeriesByUid.mockResolvedValue([]);
+    occurrencesOfSeries.mockResolvedValue([]);
+    createEvent.mockResolvedValue({ insertId: 10 });
+    createSeriesWithOccurrences.mockResolvedValue({ seriesId: 5, eventIds: [1, 2, 3] });
+    createEvent.mockClear();
+    updateEvent.mockClear();
+    deleteEvent.mockClear();
+    createSeriesWithOccurrences.mockClear();
+  });
+
+  it('plans a series, not one event', async () => {
+    const plan = await planEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=4'), rsoId: 1 });
+    expect(plan.entries).toHaveLength(1);
+    expect(plan.entries[0]).toMatchObject({
+      action: 'create',
+      kind: 'series',
+      external_uid: 'weekly@ieee',
+      occurrences: 4,
+      recurrence: { interval_weeks: 1, days_of_week: 'Tue' },
+    });
+  });
+
+  it('runs to the end of the term when the rule never ends', async () => {
+    const plan = await planEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU'), rsoId: 1 });
+    expect(plan.entries[0].recurrence.ends_on <= TERM_END).toBe(true);
+    expect(plan.entries[0].occurrences).toBeGreaterThan(10);
+  });
+
+  it('stops where the rule says to stop', async () => {
+    const plan = await planEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;UNTIL=20260922T235959Z'), rsoId: 1 });
+    expect(plan.entries[0].occurrences).toBe(4);
+    expect(plan.entries[0].recurrence.ends_on).toBe('2026-09-22');
+  });
+
+  it('leaves out the dates the file excludes', async () => {
+    const plan = await planEventImport({
+      ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=4', ['EXDATE:20260908T180000']),
+      rsoId: 1,
+    });
+    expect(plan.entries[0].occurrences).toBe(3);
+    expect(plan.entries[0].occurrence_rows.map(o => o.date)).not.toContain('2026-09-08');
+  });
+
+  it('gives every occurrence an identifier of its own, built from the entry and its date', async () => {
+    const plan = await planEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=2'), rsoId: 1 });
+    expect(plan.entries[0].occurrence_rows.map(o => o.external_uid)).toEqual([
+      'weekly@ieee::20260901', 'weekly@ieee::20260908',
+    ]);
+  });
+
+  /**
+   * Monthly and yearly rules are out of scope, and saying so is the point: the
+   * preview reports them rather than quietly importing one week of a series.
+   */
+  it('reports a rule it does not expand, and imports the first occurrence', async () => {
+    const plan = await planEventImport({ ics: repeating('FREQ=MONTHLY;BYMONTHDAY=1'), rsoId: 1 });
+    expect(plan.entries[0]).toMatchObject({ kind: 'event', repeats: 'not expanded' });
+    expect(plan.notExpanded).toBe(1);
+  });
+
+  it('creates the series and its occurrences when it is applied', async () => {
+    const result = await applyEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=3'), rsoId: 1, createdBy: 'tester' });
+    expect(createSeriesWithOccurrences).toHaveBeenCalledTimes(1);
+    const [{ series, occurrences, event }] = createSeriesWithOccurrences.mock.calls[0];
+    expect(series).toMatchObject({ rso_id: 1, created_by: 'tester', external_uid: 'weekly@ieee', days_of_week: 'Tue' });
+    expect(occurrences).toHaveLength(3);
+    expect(event.title).toBe('Weekly meeting');
+    expect(result.created).toBe(3);
+    expect(result.series_created).toBe(1);
+  });
+
+  /**
+   * The second import of a file is the one that matters. It has to land on the
+   * weeks the first one created rather than making a second copy of the term.
+   */
+  it('updates the weeks it already created rather than duplicating them', async () => {
+    findSeriesByUid.mockResolvedValue([{ seriesId: 5, externalUid: 'weekly@ieee' }]);
+    occurrencesOfSeries.mockResolvedValue([
+      { event_id: 21, external_uid: 'weekly@ieee::20260901' },
+      { event_id: 22, external_uid: 'weekly@ieee::20260908' },
+    ]);
+
+    const plan = await planEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=3'), rsoId: 1 });
+    expect(plan.entries[0]).toMatchObject({ action: 'update', series_id: 5, updating: 2, creating: 1, removing: 0 });
+
+    await applyEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=3'), rsoId: 1, createdBy: 'tester' });
+    expect(createSeriesWithOccurrences).not.toHaveBeenCalled();
+    expect(updateEvent).toHaveBeenCalledTimes(2);
+    expect(createEvent).toHaveBeenCalledTimes(1);
+    expect(createEvent.mock.calls[0][0]).toMatchObject({
+      series_id: 5, external_uid: 'weekly@ieee::20260915',
+    });
+  });
+
+  it('removes a week the rule no longer holds', async () => {
+    findSeriesByUid.mockResolvedValue([{ seriesId: 5, externalUid: 'weekly@ieee' }]);
+    occurrencesOfSeries.mockResolvedValue([
+      { event_id: 21, external_uid: 'weekly@ieee::20260901' },
+      { event_id: 99, external_uid: 'weekly@ieee::20261201' },
+    ]);
+    const plan = await planEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=1'), rsoId: 1 });
+    expect(plan.entries[0]).toMatchObject({ removing: 1 });
+
+    await applyEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=1'), rsoId: 1, createdBy: 'tester' });
+    expect(deleteEvent).toHaveBeenCalledWith(99);
+  });
+
+  /**
+   * Before rules were expanded, this entry was imported as a single event
+   * carrying the entry's own identifier. Leaving that row where it is would
+   * show the first week twice.
+   */
+  it('replaces the single event an earlier import made for the same entry', async () => {
+    findEventsByUid.mockResolvedValue([{ event_id: 30, external_uid: 'weekly@ieee' }]);
+    const plan = await planEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=2'), rsoId: 1 });
+    expect(plan.entries[0].replaces).toEqual([30]);
+
+    await applyEventImport({ ics: repeating('FREQ=WEEKLY;BYDAY=TU;COUNT=2'), rsoId: 1, createdBy: 'tester' });
+    expect(deleteEvent).toHaveBeenCalledWith(30);
+    expect(createSeriesWithOccurrences).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * One week of a series moved or renamed is exported as its own entry
+   * carrying the parent identifier. It used to be dropped as a duplicate.
+   */
+  it('lands an overriding entry on the week it stands in for', async () => {
+    const ics = calendar([
+      'BEGIN:VEVENT', 'UID:weekly@ieee', 'SUMMARY:Weekly meeting',
+      'DTSTART:20260901T180000', 'DTEND:20260901T193000',
+      'RRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=3', 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:weekly@ieee', 'RECURRENCE-ID:20260908T180000',
+      'SUMMARY:Weekly meeting, guest speaker',
+      'DTSTART:20260908T190000', 'DTEND:20260908T203000', 'END:VEVENT',
+    ]);
+    const plan = await planEventImport({ ics, rsoId: 1 });
+    const override = plan.entries.find(e => e.external_uid === 'weekly@ieee::20260908');
+    expect(override).toMatchObject({ kind: 'event', title: 'Weekly meeting, guest speaker' });
+    expect(plan.duplicates).toBe(0);
+  });
+
+  it('refuses a file whose rules would expand past what one request should write', async () => {
+    const many = Array.from({ length: 40 }, (_, i) => [
+      'BEGIN:VEVENT', `UID:many-${i}@ieee`, 'SUMMARY:Daily standup',
+      'DTSTART:20260901T090000', 'DTEND:20260901T091500',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=60', 'END:VEVENT',
+    ]).flat();
+    await expect(planEventImport({ ics: calendar(many), rsoId: 1 }))
       .rejects.toThrow(/calendar/i);
   });
 });

@@ -105,15 +105,22 @@ export function expandOccurrences(rule) {
 
   const limit = count === null ? MAX_OCCURRENCES : Math.min(count, MAX_OCCURRENCES);
   const occurrences = [];
+  // A count is how many dates the rule produces, and the dates left out are
+  // taken off that set afterwards, which is what RFC 5545 says and what a
+  // calendar program does. So a rule for four weeks with one week excluded is
+  // three events, not four.
+  let produced = 0;
 
   for (let date = startsOn; date <= endsOn; date = addDays(date, 1)) {
-    if (occurrences.length >= limit) break;
+    if (produced >= limit || occurrences.length >= MAX_OCCURRENCES) break;
     if (!wanted.has(WEEKDAYS[weekdayOf(date)])) continue;
-    if (excluded.has(date)) continue;
-    if (inAnyRange(date, skip)) continue;
 
     const weeksIn = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${weekOrigin}T00:00:00Z`)) / 604_800_000);
     if (weeksIn % interval !== 0) continue;
+
+    produced += 1;
+    if (excluded.has(date)) continue;
+    if (inAnyRange(date, skip)) continue;
 
     const start = `${date} ${time}`;
     occurrences.push({ date, start, end: asWallClock(asUtc(start) + length * MS_PER_MINUTE) });

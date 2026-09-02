@@ -1,7 +1,13 @@
+import { createHash } from 'node:crypto';
 import { parseCalendar } from '../lib/ics.js';
 import { resolveRoom } from '../lib/locationSearch.js';
+import { parseRecurrenceRule, expandOccurrences, timeOfDay, durationMinutes } from '../lib/recurrence.js';
+import { termForDate, addDays } from '../lib/academicCalendar.js';
 import { allLocations } from '../db/queries/locations.js';
-import { findEventsByUid, createEvent, updateEvent } from '../db/queries/events.js';
+import { findEventsByUid, createEvent, updateEvent, deleteEvent } from '../db/queries/events.js';
+import {
+  findSeriesByUid, createSeriesWithOccurrences, updateSeriesRule, occurrencesOfSeries,
+} from '../db/queries/eventSeries.js';
 import { findMidtermsByUid, createMidterm, updateMidterm } from '../db/queries/midterms.js';
 import { getCourseCodes } from '../db/queries/courses.js';
 
@@ -47,6 +53,81 @@ function dropDuplicateUids(entries) {
   return { unique, duplicates: entries.length - unique.length };
 }
 
+/**
+ * The identifier one week of a series carries.
+ *
+ * A re-import has to land on the week it made last time, and the entry's own
+ * identifier belongs to the series, so each occurrence gets the entry's
+ * identifier and its date. An entry with a RECURRENCE-ID, which is one week
+ * moved or renamed, names the same thing, which is how it lands on the week it
+ * stands in for instead of being dropped as a duplicate of the series.
+ */
+export function occurrenceUid(uid, date) {
+  const day = date.slice(0, 10).replace(/-/g, '');
+  const joined = `${uid}::${day}`;
+  if (joined.length <= 255) return joined;
+  // The column holds 255 characters. A calendar with identifiers longer than
+  // that still has to produce one stable key per week.
+  return `${createHash('sha256').update(uid).digest('hex').slice(0, 32)}::${day}`;
+}
+
+/**
+ * How a repeating entry expands.
+ *
+ * A rule that names its own end is taken at its word, up to a year. A rule that
+ * never ends stops at the end of the term the entry starts in, because the
+ * alternative is an unbounded number of rows.
+ *
+ * Break weeks are not skipped here, unlike a repeat set up on the form. The
+ * file is the organizer's own calendar and it says which dates exist; if their
+ * meeting does not run over Thanksgiving, their calendar carries an EXDATE for
+ * it, and that is honoured.
+ */
+function expandEntry(entry) {
+  const rule = parseRecurrenceRule(entry.rrule, { startDate: entry.start.slice(0, 10) });
+  if (!rule || rule.daysOfWeek.length === 0) return null;
+
+  const startsOn = entry.start.slice(0, 10);
+  const term = termForDate(startsOn);
+  const endsOn = rule.until ?? (rule.count ? addDays(startsOn, 366) : term.instructionEnd);
+
+  const occurrences = expandOccurrences({
+    startTime: entry.start,
+    endTime: entry.end,
+    daysOfWeek: rule.daysOfWeek,
+    intervalWeeks: rule.intervalWeeks,
+    startsOn,
+    endsOn,
+    exclude: entry.exdates,
+    count: rule.count,
+  });
+
+  if (occurrences.length === 0) return null;
+
+  return {
+    rule,
+    occurrences,
+    recurrence: {
+      frequency: 'weekly',
+      interval_weeks: rule.intervalWeeks,
+      days_of_week: rule.daysOfWeek.join(','),
+      starts_on: occurrences[0].date,
+      ends_on: occurrences.at(-1).date,
+      start_of_day: timeOfDay(entry.start),
+      duration_minutes: durationMinutes(entry.start, entry.end),
+    },
+  };
+}
+
+function refuseIfExpandedTooFar(count) {
+  if (count > MAX_ENTRIES) {
+    throw new Error(
+      `That calendar expands to ${count} events, and at most ${MAX_ENTRIES} can be imported at once. ` +
+      'Export a narrower date range and import it in parts.'
+    );
+  }
+}
+
 function refuseIfOversized(count) {
   if (count > MAX_ENTRIES) {
     throw new Error(
@@ -71,20 +152,41 @@ export async function planEventImport({ ics, rsoId }) {
   }
   const all = parseCalendar(ics);
   refuseIfOversized(all.length);
-  const { unique: parsed, duplicates } = dropDuplicateUids(all);
 
-  const [rooms, existing] = await Promise.all([
+  // An entry standing in for one week of a series is identified by the week it
+  // replaces, so it lands on that week rather than looking like a second copy
+  // of the series.
+  const identified = all.map(entry => (
+    entry.recurrenceId ? { ...entry, uid: occurrenceUid(entry.uid, entry.recurrenceId) } : entry
+  ));
+  const { unique: parsed, duplicates } = dropDuplicateUids(identified);
+
+  const expansions = new Map();
+  let totalOccurrences = 0;
+  for (const entry of parsed) {
+    const expanded = entry.rrule ? expandEntry(entry) : null;
+    if (expanded) expansions.set(entry.uid, expanded);
+    totalOccurrences += expanded ? expanded.occurrences.length : 1;
+  }
+  refuseIfExpandedTooFar(totalOccurrences);
+
+  const occurrenceUids = [...expansions.entries()]
+    .flatMap(([uid, expanded]) => expanded.occurrences.map(o => occurrenceUid(uid, o.date)));
+
+  const [rooms, existing, existingSeries] = await Promise.all([
     allLocations(),
-    findEventsByUid(rsoId, parsed.map(entry => entry.uid)),
+    findEventsByUid(rsoId, [...parsed.map(entry => entry.uid), ...occurrenceUids]),
+    findSeriesByUid(rsoId, [...expansions.keys()]),
   ]);
   const byUid = new Map(existing.map(row => [row.external_uid, row]));
+  const seriesByUid = new Map(existingSeries.map(row => [row.externalUid, row]));
 
-  const entries = parsed.map(entry => {
+  const entries = [];
+  let notExpanded = 0;
+
+  for (const entry of parsed) {
     const room = entry.location ? resolveRoom(entry.location, rooms) : null;
-    const already = byUid.get(entry.uid);
-    return {
-      action: already ? 'update' : 'create',
-      event_id: already?.event_id ?? null,
+    const common = {
       external_uid: entry.uid,
       title: entry.title,
       description: entry.description,
@@ -96,9 +198,65 @@ export async function planEventImport({ ics, rsoId }) {
       location_text: entry.location,
       location_match: room ? `${room.building} ${room.room_number}` : null,
     };
-  });
 
-  return { entries, skipped: countSkipped(ics, all.length), duplicates };
+    const expanded = expansions.get(entry.uid);
+    if (!expanded) {
+      const already = byUid.get(entry.uid);
+      if (entry.rrule) notExpanded += 1;
+      entries.push({
+        ...common,
+        action: already ? 'update' : 'create',
+        kind: 'event',
+        event_id: already?.event_id ?? null,
+        // A rule this importer does not expand, such as a monthly one, is
+        // reported rather than quietly imported as one week of a series.
+        repeats: entry.rrule ? 'not expanded' : null,
+      });
+      continue;
+    }
+
+    const series = seriesByUid.get(entry.uid) ?? null;
+    const held = series ? await occurrencesOfSeries(series.seriesId) : [];
+    const heldByUid = new Map(held.map(row => [row.external_uid, row]));
+
+    const rows = expanded.occurrences.map(occurrence => {
+      const uid = occurrenceUid(entry.uid, occurrence.date);
+      const already = heldByUid.get(uid) ?? byUid.get(uid) ?? null;
+      return {
+        date: occurrence.date,
+        start: occurrence.start,
+        end: occurrence.end,
+        external_uid: uid,
+        action: already ? 'update' : 'create',
+        event_id: already?.event_id ?? null,
+      };
+    });
+
+    const wanted = new Set(rows.map(row => row.external_uid));
+    const removes = held.filter(row => !wanted.has(row.external_uid)).map(row => row.event_id);
+
+    // Before rules were expanded, this entry was imported as a single event
+    // under the entry's own identifier. Leaving that row where it is would show
+    // the first week twice.
+    const replaced = byUid.get(entry.uid);
+
+    entries.push({
+      ...common,
+      action: series ? 'update' : 'create',
+      kind: 'series',
+      series_id: series?.seriesId ?? null,
+      recurrence: expanded.recurrence,
+      occurrences: rows.length,
+      occurrence_rows: rows,
+      creating: rows.filter(row => row.action === 'create').length,
+      updating: rows.filter(row => row.action === 'update').length,
+      removing: removes.length,
+      remove_ids: removes,
+      replaces: replaced ? [replaced.event_id] : [],
+    });
+  }
+
+  return { entries, skipped: countSkipped(ics, all.length), duplicates, notExpanded };
 }
 
 /**
@@ -121,6 +279,9 @@ export async function applyEventImport({ ics, rsoId, createdBy }) {
   const plan = await planEventImport({ ics, rsoId });
   let created = 0;
   let updated = 0;
+  let removed = 0;
+  let seriesCreated = 0;
+  let seriesUpdated = 0;
 
   for (const entry of plan.entries) {
     const row = {
@@ -132,22 +293,81 @@ export async function applyEventImport({ ics, rsoId, createdBy }) {
       location_text: entry.location_text,
     };
 
-    if (entry.action === 'update') {
-      await updateEvent(entry.event_id, row);
-      updated += 1;
-    } else {
-      await createEvent({
-        ...row,
-        rso_id: rsoId,
-        created_by: createdBy,
-        external_uid: entry.external_uid,
-        is_private: false,
-      });
-      created += 1;
+    if (entry.kind !== 'series') {
+      if (entry.action === 'update') {
+        await updateEvent(entry.event_id, row);
+        updated += 1;
+      } else {
+        await createEvent({
+          ...row,
+          rso_id: rsoId,
+          created_by: createdBy,
+          external_uid: entry.external_uid,
+          is_private: false,
+        });
+        created += 1;
+      }
+      continue;
     }
+
+    // The single event an earlier import made for this entry goes, so that the
+    // week it stood for is not shown twice.
+    for (const eventId of entry.replaces) {
+      await deleteEvent(eventId);
+      removed += 1;
+    }
+
+    if (entry.action === 'create') {
+      await createSeriesWithOccurrences({
+        series: { ...entry.recurrence, rso_id: rsoId, created_by: createdBy, external_uid: entry.external_uid },
+        occurrences: entry.occurrence_rows,
+        event: {
+          rso_id: rsoId, created_by: createdBy,
+          location_id: entry.location_id, location_text: entry.location_text,
+          title: entry.title, description: entry.description, is_private: false,
+        },
+      });
+      created += entry.occurrence_rows.length;
+      seriesCreated += 1;
+      continue;
+    }
+
+    for (const occurrence of entry.occurrence_rows) {
+      const times = { ...row, start_time: occurrence.start, end_time: occurrence.end };
+      if (occurrence.action === 'update') {
+        await updateEvent(occurrence.event_id, times);
+        updated += 1;
+      } else {
+        await createEvent({
+          ...times,
+          rso_id: rsoId,
+          created_by: createdBy,
+          external_uid: occurrence.external_uid,
+          series_id: entry.series_id,
+          is_private: false,
+        });
+        created += 1;
+      }
+    }
+
+    // A week the rule no longer holds is a week the organizer removed.
+    for (const eventId of entry.remove_ids) {
+      await deleteEvent(eventId);
+      removed += 1;
+    }
+
+    await updateSeriesRule(entry.series_id, entry.recurrence);
+    seriesUpdated += 1;
   }
 
-  return { created, updated, skipped: plan.skipped, duplicates: plan.duplicates };
+  return {
+    created, updated, removed,
+    series_created: seriesCreated,
+    series_updated: seriesUpdated,
+    skipped: plan.skipped,
+    duplicates: plan.duplicates,
+    notExpanded: plan.notExpanded,
+  };
 }
 
 // ── Midterms ────────────────────────────────────────────────────────────────

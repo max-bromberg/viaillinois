@@ -132,6 +132,7 @@ export async function occurrencesOfSeries(seriesId, { from = null } = {}) {
     : eq(events.seriesId, seriesId);
   return db.select({
     event_id: events.eventId,
+    external_uid: events.externalUid,
     start_time: events.startTime,
     end_time: events.endTime,
     detached: events.detached,

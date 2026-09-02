@@ -83,6 +83,17 @@ describe('expandOccurrences', () => {
   });
 
   /**
+   * A count is how many dates the rule produces. The dates left out come off
+   * that set afterwards, so four weeks with one excluded is three events.
+   */
+  it('counts the dates the rule produces, not the ones that survive exclusion', () => {
+    const occurrences = expandOccurrences({
+      ...WEEKLY_MEETING, endsOn: '2026-12-31', count: 4, exclude: ['2026-09-08'],
+    });
+    expect(occurrences.map(o => o.date)).toEqual(['2026-09-01', '2026-09-15', '2026-09-22']);
+  });
+
+  /**
    * Six in the evening is six in the evening on both sides of the day the
    * clocks change. Stored times are campus wall clock, so this holds by
    * construction, and it is one of the reasons they are stored that way.
