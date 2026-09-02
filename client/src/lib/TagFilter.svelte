@@ -8,16 +8,30 @@
 
   const ALL_TAGS = ['Free Food', 'Workshop', 'Social', 'Corporate', 'Competition', 'Weekly Meeting', 'Speaker', 'Networking'];
 
+  // The feed is a list of what is on, so it opens on what is still to come.
+  // Everything before today is in the archive, which is one click away.
+  const TIMEFRAMES = [
+    { value: 'upcoming', label: 'Upcoming' },
+    { value: 'archived', label: 'Archived' },
+  ];
+
   let keyword = '';
   let selectedTags = [];
   let startDate = '';
   let endDate = '';
   let selectedRsoIds = [];
   let showInternal = true;
+  let timeframe = 'upcoming';
   let panelOpen = false;
 
   function notifyChange() {
-    dispatch('change', { keyword, tags: selectedTags, startDate, endDate, selectedRsoIds, showInternal });
+    dispatch('change', { keyword, tags: selectedTags, startDate, endDate, timeframe, selectedRsoIds, showInternal });
+  }
+
+  function selectTimeframe(value) {
+    if (timeframe === value) return;
+    timeframe = value;
+    notifyChange();
   }
 
   function toggleTag(tag) {
@@ -41,10 +55,12 @@
     endDate = '';
     selectedRsoIds = [];
     showInternal = true;
+    timeframe = 'upcoming';
     notifyChange();
   }
 
-  $: isFilterActive = keyword || selectedTags.length || startDate || endDate || selectedRsoIds.length || !showInternal;
+  $: isFilterActive = keyword || selectedTags.length || startDate || endDate || selectedRsoIds.length
+    || !showInternal || timeframe !== 'upcoming';
 </script>
 
 <aside class="w-full md:w-56 md:shrink-0 bg-card rounded-lg border">
@@ -63,6 +79,22 @@
 
   <!-- Panel: always visible on md+, toggled on mobile -->
   <div class="{panelOpen ? 'block' : 'hidden'} md:block p-3 space-y-4">
+    <div class="space-y-1">
+      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">When</p>
+      <div class="flex rounded-md border overflow-hidden">
+        {#each TIMEFRAMES as option}
+          <button
+            on:click={() => selectTimeframe(option.value)}
+            aria-pressed={timeframe === option.value}
+            class="flex-1 text-xs py-1 cursor-pointer transition-colors
+              {timeframe === option.value ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}"
+          >
+            {option.label}
+          </button>
+        {/each}
+      </div>
+    </div>
+
     <div class="space-y-1">
       <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</p>
       <input

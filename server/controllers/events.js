@@ -6,12 +6,20 @@ import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
 export async function listEvents(req, res, next) {
   try {
-    const { tags, startDate, endDate, keyword, limit = 50, offset = 0 } = req.query;
+    // The feed is a list of what is coming up, so a request that names no
+    // timeframe gets today and later. Events that have already happened are
+    // still served, under the archived timeframe, for anyone who asks for them,
+    // and a view that spans the calendar, such as the month grid, asks for all.
+    const { tags, startDate, endDate, keyword, timeframe = 'upcoming', limit = 50, offset = 0 } = req.query;
+    if (!eventsDb.TIMEFRAMES.includes(timeframe)) {
+      return res.status(400).json({ error: `timeframe must be one of: ${eventsDb.TIMEFRAMES.join(', ')}` });
+    }
     const filters = {
       tags:      tags      ? (Array.isArray(tags) ? tags : [tags]) : [],
       startDate: startDate || null,
       endDate:   endDate   || null,
       keyword:   keyword   || null,
+      timeframe,
       limit:     parseInt(limit),
       offset:    parseInt(offset),
     };

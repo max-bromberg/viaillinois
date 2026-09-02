@@ -52,7 +52,10 @@ function eventListItem(event) {
 async function homePage(site) {
   let events = [];
   try {
-    events = await getPublicEvents({});
+    // The heading says upcoming, so the list has to be upcoming. Asking for
+    // every event listed the oldest ones first, which described the site by
+    // what it did last year.
+    events = await getPublicEvents({ timeframe: 'upcoming' });
   } catch {
     // A page with no summary still beats a page that fails to load.
     return {

@@ -1,11 +1,17 @@
 import { apiFetch } from './base.js';
 
-/** @param {{ tags?: string[], startDate?: string, endDate?: string, keyword?: string, limit?: number, offset?: number }} filters */
+/**
+ * @param {{ tags?: string[], startDate?: string, endDate?: string, keyword?: string,
+ *           timeframe?: 'upcoming'|'archived'|'all', limit?: number, offset?: number }} filters
+ *   The timeframe divides events at the start of the campus day. Naming none
+ *   leaves the choice to the server, which serves upcoming events.
+ */
 export function getEvents(filters = {}) {
   const params = new URLSearchParams();
   if (filters.keyword)   params.set('keyword', filters.keyword);
   if (filters.startDate) params.set('startDate', filters.startDate);
   if (filters.endDate)   params.set('endDate', filters.endDate);
+  if (filters.timeframe) params.set('timeframe', filters.timeframe);
   if (filters.limit)     params.set('limit', String(filters.limit));
   if (filters.offset)    params.set('offset', String(filters.offset));
   (filters.tags || []).forEach(t => params.append('tags', t));
