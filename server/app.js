@@ -18,6 +18,7 @@ import midtermsRouter from './routes/midterms.js';
 import kioskRouter    from './routes/kiosk.js';
 import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
+import semesterRouter  from './routes/semester.js';
 import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, readFileSync } from 'fs';
@@ -101,6 +102,7 @@ app.use('/api/v1/midterms',   midtermsRouter);
 app.use('/api/v1/kiosk',      kioskRouter);
 app.use('/api/v1/admin',      adminRouter);
 app.use('/api/v1/scheduler',  schedulerRouter);
+app.use('/api/v1/semester',   semesterRouter);
 
 app.use(errorHandler);
 
