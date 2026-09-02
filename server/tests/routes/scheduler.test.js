@@ -56,3 +56,57 @@ describe('POST /api/v1/scheduler/recommend', () => {
     expect(res.body.curatedPicks).toHaveLength(1);
   });
 });
+
+/**
+ * Searching for a slot that works every week is the same request with a repeat
+ * attached, so what the endpoint has to do is carry it through and refuse a
+ * repeat it cannot make sense of.
+ */
+const { recommend } = await import('../../services/intelligentScheduler.js');
+
+describe('POST /api/v1/scheduler/recommend, for a repeat', () => {
+  const send = body => request(app)
+    .post('/api/v1/scheduler/recommend')
+    .set('Cookie', `via_token=${userToken}`)
+    .send({ durationMinutes: 60, dateRange: { start: '2026-09-01', end: '2026-09-29' }, ...body });
+
+  it('carries the repeat through to the search', async () => {
+    recommend.mockClear();
+    const res = await send({ recurrence: { intervalWeeks: 2, daysOfWeek: ['Tue'], until: '2026-12-08' } });
+    expect(res.status).toBe(200);
+    expect(recommend.mock.calls[0][0].recurrence).toEqual({
+      intervalWeeks: 2, daysOfWeek: ['Tue'], until: '2026-12-08',
+    });
+  });
+
+  it('searches to the end of the term when the repeat names no end', async () => {
+    recommend.mockClear();
+    await send({ recurrence: { daysOfWeek: ['Tue'] } });
+    const { recurrence } = recommend.mock.calls[0][0];
+    expect(recurrence.intervalWeeks).toBe(1);
+    expect(recurrence.until).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('refuses a day of the week it does not recognise', async () => {
+    const res = await send({ recurrence: { daysOfWeek: ['Someday'] } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/day of the week/i);
+  });
+
+  it('refuses an interval that is not a whole number of weeks it can hold', async () => {
+    expect((await send({ recurrence: { intervalWeeks: 0, daysOfWeek: ['Tue'] } })).status).toBe(400);
+    expect((await send({ recurrence: { intervalWeeks: 99, daysOfWeek: ['Tue'] } })).status).toBe(400);
+  });
+
+  it('refuses a repeat that ends before the search begins', async () => {
+    const res = await send({ recurrence: { daysOfWeek: ['Tue'], until: '2026-08-01' } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/before/i);
+  });
+
+  it('searches for one event when no repeat is asked for', async () => {
+    recommend.mockClear();
+    await send({});
+    expect(recommend.mock.calls[0][0].recurrence).toBeNull();
+  });
+});

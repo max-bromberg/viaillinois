@@ -3,6 +3,8 @@ import { getPublicEvents } from '../db/queries/events.js';
 import { getConfirmedMidtermsForScheduler } from '../db/queries/midterms.js';
 import { getSectionsForCourses } from '../db/queries/courses.js';
 import { getReservationsInRange } from '../db/queries/facilityReservations.js';
+import { expandOccurrences, addMinutes } from '../lib/recurrence.js';
+import { termForDate } from '../lib/academicCalendar.js';
 
 const SENSITIVITY = {
   low:    { windowHours: 36,  scalar: 0.5 },
@@ -52,28 +54,55 @@ export async function recommend(params) {
     excludedRooms = [],
     targetCourses = [],
     midtermSensitivity = 'medium',
+    recurrence = null,
   } = params;
 
   const { windowHours, scalar } = SENSITIVITY[midtermSensitivity] ?? SENSITIVITY.medium;
 
-  const [ey, em, ed] = dateRange.end.split('-').map(Number);
+  // A repeating event is searched to the end of the repeat, which is usually
+  // the end of the term, so everything already in the calendar until then has
+  // to be looked at rather than only the week the form was filled in.
+  const searchEnd = recurrence?.until && recurrence.until > dateRange.end
+    ? recurrence.until
+    : dateRange.end;
+
+  const [ey, em, ed] = searchEnd.split('-').map(Number);
   const midtermEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
   midtermEnd.setTime(midtermEnd.getTime() + windowHours * 3_600_000);
   const midtermEndStr = wallClock(midtermEnd);
 
   const [allEvents, targetMidterms, allReservations, allLocations, allSections] = await Promise.all([
-    getPublicEvents({ startDate: dateRange.start, endDate: dateRange.end, limit: 1000 }),
+    getPublicEvents({ startDate: dateRange.start, endDate: searchEnd, limit: 1000 }),
     getConfirmedMidtermsForScheduler({
       startDate: dateRange.start,
       endDate: midtermEndStr,
       courseCodes: targetCourses,
     }),
-    getReservationsInRange(dateRange.start, dateRange.end),
+    getReservationsInRange(dateRange.start, searchEnd),
     getByCapacity(0),
     targetCourses.length > 0 ? getSectionsForCourses(targetCourses) : Promise.resolve([]),
   ]);
 
   const excludedSet = new Set(excludedRooms.map(r => r.location_id ?? r));
+  const scoringData = {
+    allEvents, targetMidterms, allReservations, allSections,
+    timeConstraint, scalar, windowHours,
+  };
+  const roomFilter = { excludedSet, venueConstraints };
+
+  if (recurrence) {
+    const results = recurringOptions({
+      recurrence, dateRange, searchEnd, durationMinutes, timeConstraint, dayConstraints,
+      allLocations, roomFilter, data: scoringData,
+    });
+    results.sort((a, b) => b.score - a.score);
+    return {
+      // One slot per hour of the day rather than the same evening many times
+      // over: a repeat is chosen by its hour, not by its first date.
+      curatedPicks: pickCurated(results, rec => rec.start.slice(11, 16)),
+      allOptions: results.slice(0, 20),
+    };
+  }
 
   const slots = generateSlots(dateRange.start, dateRange.end, durationMinutes, timeConstraint, dayConstraints);
   const results = [];
@@ -118,6 +147,142 @@ export async function recommend(params) {
     curatedPicks: pickCurated(results),
     allOptions: results.slice(0, 20),
   };
+}
+
+/**
+ * The hours of the day a slot of this length can start at, on the half hour,
+ * inside whatever window the organizer asked for.
+ */
+function startTimesOfDay(durationMins, timeConstraint) {
+  const startH = timeConstraint?.startHour ?? 8;
+  const endH = timeConstraint?.endHour ?? 22;
+  const times = [];
+  for (let h = startH; h < endH; h++) {
+    for (const mins of [0, 30]) {
+      const start = `${String(h).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
+      const end = addMinutes(`2000-01-01 ${start}`, durationMins);
+      // An hour that would run past the end of the window, or past midnight,
+      // is not a slot.
+      if (end.slice(0, 10) !== '2000-01-01') continue;
+      if (end.slice(11) > `${String(endH).padStart(2, '0')}:00:00`) continue;
+      times.push(start);
+    }
+  }
+  return times;
+}
+
+/**
+ * Score a weekday and an hour across every week a repeat would run.
+ *
+ * A room is judged on the whole term rather than on one evening: a week where
+ * it is taken scores nothing and is named in the result, and the slot's score
+ * is the mean over its weeks, so one bad week lowers a slot without hiding it.
+ * A room that is taken every single week is not offered at all.
+ */
+function recurringOptions({
+  recurrence, dateRange, searchEnd, durationMinutes, timeConstraint, dayConstraints,
+  allLocations, roomFilter, data,
+}) {
+  const requiredDays = new Set(dayConstraints.filter(d => d.tier === 'required').map(d => d.day));
+  const excludedDays = new Set(dayConstraints.filter(d => d.tier === 'excluded').map(d => d.day));
+  const dayTierMap = Object.fromEntries(dayConstraints.map(d => [d.day, d.tier]));
+
+  const asked = recurrence.daysOfWeek?.length ? recurrence.daysOfWeek : DAY_NAMES;
+  const daysOfWeek = asked.filter(day =>
+    !excludedDays.has(day) && (requiredDays.size === 0 || requiredDays.has(day)));
+  if (daysOfWeek.length === 0) return [];
+
+  // The dates a repeat set up from this recommendation would actually run on,
+  // read from the same expansion the create endpoint uses, so a forecast and
+  // the series it produces cover the same weeks.
+  const term = termForDate(dateRange.start);
+  const dates = expandOccurrences({
+    startTime: `${dateRange.start} 00:00:00`,
+    endTime: `${dateRange.start} 00:30:00`,
+    daysOfWeek,
+    intervalWeeks: recurrence.intervalWeeks ?? 1,
+    startsOn: dateRange.start,
+    endsOn: recurrence.until ?? searchEnd,
+    skip: term.breaks ?? [],
+  }).map(occurrence => occurrence.date);
+
+  if (dates.length === 0) return [];
+
+  const results = [];
+
+  for (const time of startTimesOfDay(durationMinutes, timeConstraint)) {
+    // Everything that does not depend on which room it is, worked out once per
+    // week rather than once per week per room.
+    const weeks = dates.map(date => {
+      const start = `${date} ${time}`;
+      const slot = {
+        start,
+        end: addMinutes(start, durationMinutes),
+        dayName: DAY_NAMES[new Date(`${date}T12:00:00`).getDay()],
+        dayTier: dayTierMap[DAY_NAMES[new Date(`${date}T12:00:00`).getDay()]] ?? null,
+      };
+      return {
+        date,
+        slot,
+        occupied: buildOccupiedSet(slot, data.allEvents, data.allReservations, allLocations),
+        base: scoreSlotBase(slot, data),
+      };
+    });
+
+    for (const loc of allLocations) {
+      if (!ECE_BUILDINGS.has(loc.building)) continue;
+      if (roomFilter.excludedSet.has(loc.location_id)) continue;
+
+      const venueResult = applyVenueConstraints(loc, roomFilter.venueConstraints);
+      if (venueResult.disqualified) continue;
+
+      const conflicts = weeks.filter(week => week.occupied.has(loc.location_id)).map(week => week.date);
+      if (conflicts.length === weeks.length) continue;
+
+      const total = weeks.reduce((sum, week) => {
+        if (week.occupied.has(loc.location_id)) return sum;
+        const room = scoreRoomAt(week.slot, loc, data);
+        return sum + Math.max(0, Math.min(100, week.base.score + room.score + venueResult.scoreDelta));
+      }, 0);
+
+      const score = Math.round(total / weeks.length);
+      if (score <= 0) continue;
+
+      const clear = weeks.length - conflicts.length;
+      const first = weeks[0];
+      results.push({
+        start: first.slot.start,
+        end: first.slot.end,
+        location: {
+          location_id: loc.location_id,
+          building: loc.building,
+          room_number: loc.room_number,
+          max_capacity: loc.max_capacity,
+        },
+        score,
+        insights: [
+          {
+            type: conflicts.length === 0 ? 'positive' : 'warning',
+            text: `This room is free for ${clear} of ${weeks.length} weeks`,
+          },
+          ...first.base.insights,
+          ...scoreRoomAt(first.slot, loc, data).insights,
+          ...venueResult.insights,
+        ],
+        recurrence: {
+          interval_weeks: recurrence.intervalWeeks ?? 1,
+          days_of_week: daysOfWeek,
+          occurrences: dates,
+          weeks_total: weeks.length,
+          weeks_clear: clear,
+          conflicts,
+          until: dates.at(-1),
+        },
+      });
+    }
+  }
+
+  return results;
 }
 
 function generateSlots(startStr, endStr, durationMins, timeConstraint, dayConstraints) {
@@ -220,10 +385,17 @@ function applyVenueConstraints(loc, venueConstraints) {
   return { disqualified: false, scoreDelta, insights };
 }
 
-function scoreSlot(slot, loc, data) {
+/**
+ * The score a slot earns wherever it is held.
+ *
+ * Split from the room specific part so that a recurring search can work this
+ * out once per week rather than once per week per room, which is the
+ * difference between a search that answers and one that times out.
+ */
+function scoreSlotBase(slot, data) {
   let score = 100;
   const insights = [];
-  const { allEvents, targetMidterms, allReservations, allSections,
+  const { allEvents, targetMidterms, allSections,
           timeConstraint, scalar, windowHours } = data;
 
   const slotStart = new Date(slot.start);
@@ -305,22 +477,36 @@ function scoreSlot(slot, loc, data) {
     insights.push({ type: 'positive', text: `No competing RSO events` });
   }
 
-  const buildingReservations = allReservations.filter(r =>
-    r.building === loc.building && overlaps(r.start_time, r.end_time, slot.start, slot.end)
-  );
-  if (buildingReservations.length > 0) {
-    score -= Math.min(15, buildingReservations.length * 5);
-    insights.push({ type: 'neutral', text: `${buildingReservations.length} external event${buildingReservations.length > 1 ? 's' : ''} in ${loc.building} at this time` });
-  }
-
   return { score, insights };
 }
 
-function pickCurated(sortedResults) {
+/** What the room itself changes about a slot's score. */
+function scoreRoomAt(slot, loc, data) {
+  const buildingReservations = data.allReservations.filter(r =>
+    r.building === loc.building && overlaps(r.start_time, r.end_time, slot.start, slot.end)
+  );
+  if (buildingReservations.length === 0) return { score: 0, insights: [] };
+
+  return {
+    score: -Math.min(15, buildingReservations.length * 5),
+    insights: [{
+      type: 'neutral',
+      text: `${buildingReservations.length} external event${buildingReservations.length > 1 ? 's' : ''} in ${loc.building} at this time`,
+    }],
+  };
+}
+
+function scoreSlot(slot, loc, data) {
+  const base = scoreSlotBase(slot, data);
+  const room = scoreRoomAt(slot, loc, data);
+  return { score: base.score + room.score, insights: [...base.insights, ...room.insights] };
+}
+
+function pickCurated(sortedResults, keyOf = rec => rec.start.slice(0, 10)) {
   const seenDays = new Set();
   const picks = [];
   for (const rec of sortedResults) {
-    const day = rec.start.slice(0, 10);
+    const day = keyOf(rec);
     if (!seenDays.has(day)) {
       seenDays.add(day);
       picks.push(rec);
