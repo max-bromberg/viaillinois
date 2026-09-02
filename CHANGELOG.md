@@ -4,6 +4,8 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+## 0.5.0 (2026-09-02)
+
 - The first download is a third of what it was. Every page of the site was in it, so a student opening the feed fetched the logistics dashboard, the intelligent scheduler, the poster designer and the markdown and QR code libraries before seeing a single event. Each page is now its own file, fetched when somebody opens it, which takes the first download from 404 kB to 106 kB, or 122 kB to 38 kB over the wire. A page that cannot be fetched, which happens to a tab left open across a deploy, now says so and offers to reload instead of leaving a blank space.
 - A visit no longer waits on the answer to who is looking before drawing anything. The whole screen, and the feed's own request, used to sit behind that round trip. Pages that exist only for somebody signed in still wait, because drawing one before the answer arrives sends a board member to a login page they are already past. The account area of the navigation bar stays empty until the answer comes, rather than showing Sign in and correcting itself a moment later.
 - Responses are compressed, and the ones that can be cached say so. The CDN now fetches from Champaign compressed, so every cache miss travels a fraction of the bytes. Nothing the API answers is stored by a shared cache unless the route says otherwise, because most of it depends on who is asking, and the two that do not, the kiosk listing and the term calendar, can now be answered at the edge, as can the sitemap and the files crawlers read. The document itself is checked every time, because it names the files this build produced.
