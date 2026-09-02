@@ -17,6 +17,14 @@ import { originOf } from '../routes/seo.js';
  *
  * @param {string} distPath directory holding the built client
  */
+/**
+ * The document names the hashed files this build produced, so a copy kept from
+ * before a deploy asks for files that are no longer there. It may be stored and
+ * has to be checked every time, which costs a request that answers 304 and not
+ * much else, while the files it names are kept forever.
+ */
+const CACHE_CONTROL = 'no-cache';
+
 export function createHtmlShellHandler(distPath) {
   const shellPath = join(distPath, 'index.html');
   // Read once. The file only changes when a new build is deployed, and a
@@ -27,6 +35,7 @@ export function createHtmlShellHandler(distPath) {
     try {
       const site = originOf(req);
       const page = await describePage(req.path, site);
+      res.set('Cache-Control', CACHE_CONTROL);
       res.type('html').send(renderShell(shell, {
         ...page,
         // A PNG, because no social platform renders the SVG logo.
@@ -36,6 +45,7 @@ export function createHtmlShellHandler(distPath) {
       // Metadata is worth having and never worth failing a page load for.
       console.error('could not describe page for SEO:', err.message);
       try {
+        res.set('Cache-Control', CACHE_CONTROL);
         res.type('html').send(shell);
       } catch { next(err); }
     }

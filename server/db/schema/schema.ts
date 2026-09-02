@@ -94,6 +94,9 @@ export const events = mysqlTable("Events", {
 	index("created_by").on(table.createdBy),
 	index("location_id").on(table.locationId),
 	index("series_id").on(table.seriesId),
+	// The feed reads public events by when they start, and orders them the same
+	// way, so the filter and the sort come off one index.
+	index("idx_events_public_start").on(table.isPrivate, table.startTime),
 	primaryKey({ columns: [table.eventId], name: "Events_event_id"}),
 	unique("uq_event_external_uid").on(table.rsoId, table.externalUid),
 	check("chk_event_times", sql`(\`end_time\` > \`start_time\`)`),

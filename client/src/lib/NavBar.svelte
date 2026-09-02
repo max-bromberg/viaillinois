@@ -1,6 +1,6 @@
 <script>
   import { navigate } from './router.js';
-  import { currentUser, isGlobalAdmin, adminRsoIds } from '../stores/auth.js';
+  import { currentUser, authResolved, isGlobalAdmin, adminRsoIds } from '../stores/auth.js';
   import { themeMode } from '../stores/theme.js';
   import { apiFetch } from '../api/base.js';
 
@@ -86,7 +86,14 @@
         </button>
       </div>
 
-      {#if $currentUser}
+      <!--
+        Nothing until the answer to who is looking arrives. Showing Sign in
+        first and correcting it a moment later is a flicker on every page a
+        signed in board member opens.
+      -->
+      {#if !$authResolved}
+        <span class="w-20"></span>
+      {:else if $currentUser}
         <span class="text-sm text-muted-foreground">{$currentUser.net_id}</span>
         <button on:click={logout} class="px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors">Sign out</button>
       {:else}

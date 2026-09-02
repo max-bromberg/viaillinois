@@ -2,25 +2,16 @@
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { currentPath, matchRoute } from './lib/router.js';
-  import EventDetail from './routes/EventDetail.svelte';
-  import { currentUser } from './stores/auth.js';
+  import { currentUser, authResolved } from './stores/auth.js';
   import { themeMode } from './stores/theme.js';
   import { getMe } from './api/users.js';
   import NavBar      from './lib/NavBar.svelte';
+  // The feed is what most visits are for, so it travels with the first
+  // download. Every other page is its own file, fetched when somebody opens it,
+  // which keeps the logistics dashboard, the scheduler and the poster designer
+  // out of the download a student makes to read what is on this week.
   import Home        from './routes/Home.svelte';
-  import Dashboard   from './routes/Dashboard.svelte';
-  import Midterms    from './routes/Midterms.svelte';
-  import Kiosk       from './routes/Kiosk.svelte';
-  import Login       from './routes/Login.svelte';
-  import Admin       from './routes/Admin.svelte';
-  import Calendar    from './routes/Calendar.svelte';
-  import About        from './routes/About.svelte';
-  import Scheduler    from './routes/Scheduler.svelte';
-  import Poster       from './routes/Poster.svelte';
-  import Updates      from './routes/Updates.svelte';
-  import UpdateDetail from './routes/UpdateDetail.svelte';
-  import Terms        from './routes/Terms.svelte';
-  import Privacy      from './routes/Privacy.svelte';
+  import LazyRoute   from './lib/LazyRoute.svelte';
   import AppSkeleton from './lib/AppSkeleton.svelte';
   import Footer      from './lib/Footer.svelte';
   import { toast } from './stores/ui.js';
@@ -29,17 +20,40 @@
   let authLoading = true;
   $: dynamicRoute = matchRoute($currentPath);
 
+  /**
+   * Pages that exist only for somebody signed in, and send anyone else to the
+   * login page. Those wait until the answer to who is looking comes back,
+   * because drawing one before it arrives sends a board member to a login page
+   * they are already past.
+   *
+   * Every other page draws straight away. A visit to the feed used to hold the
+   * whole screen, and the feed's own request, behind a round trip the reader
+   * has no interest in.
+   */
+  const NEEDS_ACCOUNT = ['/dashboard', '/admin', '/scheduler', '/poster'];
+  $: waitingForAccount = authLoading && NEEDS_ACCOUNT.includes($currentPath);
+
   function applyTheme(mode, prefersDark) {
     const isDark = mode === 'dark' || (mode === 'auto' && prefersDark);
     document.documentElement.classList.toggle('dark', isDark);
   }
 
   onMount(async () => {
-    // Theme: subscribe to store and system preference
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const unsubTheme = themeMode.subscribe(mode => applyTheme(mode, mq.matches));
-    const onSystemChange = () => { if (get(themeMode) === 'auto') applyTheme('auto', mq.matches); };
-    mq.addEventListener('change', onSystemChange);
+    // Theme: subscribe to store and system preference. Guarded, because
+    // whether the reader prefers a dark page is not worth holding the page
+    // itself for: a browser without media query support used to leave the
+    // account check below unreached and the screen on its skeleton forever.
+    let unsubTheme = () => {};
+    let mq = null;
+    let onSystemChange = () => {};
+    try {
+      mq = window.matchMedia('(prefers-color-scheme: dark)');
+      unsubTheme = themeMode.subscribe(mode => applyTheme(mode, mq.matches));
+      onSystemChange = () => { if (get(themeMode) === 'auto') applyTheme('auto', mq.matches); };
+      mq.addEventListener('change', onSystemChange);
+    } catch {
+      unsubTheme = themeMode.subscribe(mode => applyTheme(mode, false));
+    }
 
     // Auth
     try {
@@ -49,19 +63,20 @@
       // Not logged in, which is fine for public routes
     } finally {
       authLoading = false;
+      authResolved.set(true);
     }
 
     return () => {
       unsubTheme();
-      mq.removeEventListener('change', onSystemChange);
+      mq?.removeEventListener('change', onSystemChange);
     };
   });
 </script>
 
-{#if authLoading}
+{#if waitingForAccount}
   <AppSkeleton />
 {:else if $currentPath.startsWith('/kiosk')}
-  <Kiosk />
+  <LazyRoute load={() => import('./routes/Kiosk.svelte')} />
 {:else}
   <CircuitBackground />
 
@@ -78,31 +93,37 @@
       {#if $currentPath === '/'}
         <Home />
       {:else if $currentPath === '/dashboard'}
-        <Dashboard />
+        <LazyRoute load={() => import('./routes/Dashboard.svelte')} />
       {:else if $currentPath === '/midterms'}
-        <Midterms />
+        <LazyRoute load={() => import('./routes/Midterms.svelte')} />
       {:else if $currentPath === '/login'}
-        <Login />
+        <LazyRoute load={() => import('./routes/Login.svelte')} />
       {:else if $currentPath === '/admin'}
-        <Admin />
+        <LazyRoute load={() => import('./routes/Admin.svelte')} />
       {:else if $currentPath === '/calendar'}
-        <Calendar />
+        <LazyRoute load={() => import('./routes/Calendar.svelte')} />
       {:else if $currentPath === '/about'}
-        <About />
+        <LazyRoute load={() => import('./routes/About.svelte')} />
       {:else if $currentPath === '/scheduler'}
-        <Scheduler />
+        <LazyRoute load={() => import('./routes/Scheduler.svelte')} />
       {:else if $currentPath === '/poster'}
-        <Poster />
+        <LazyRoute load={() => import('./routes/Poster.svelte')} />
       {:else if $currentPath === '/updates'}
-        <Updates />
+        <LazyRoute load={() => import('./routes/Updates.svelte')} />
       {:else if dynamicRoute?.name === 'update-detail'}
-        <UpdateDetail slug={dynamicRoute.params.slug} />
+        <LazyRoute
+          load={() => import('./routes/UpdateDetail.svelte')}
+          props={{ slug: dynamicRoute.params.slug }}
+        />
       {:else if dynamicRoute?.name === 'event-detail'}
-        <EventDetail id={parseInt(dynamicRoute.params.id)} />
+        <LazyRoute
+          load={() => import('./routes/EventDetail.svelte')}
+          props={{ id: parseInt(dynamicRoute.params.id) }}
+        />
       {:else if $currentPath === '/terms'}
-        <Terms />
+        <LazyRoute load={() => import('./routes/Terms.svelte')} />
       {:else if $currentPath === '/privacy'}
-        <Privacy />
+        <LazyRoute load={() => import('./routes/Privacy.svelte')} />
       {/if}
     </main>
     <Footer />

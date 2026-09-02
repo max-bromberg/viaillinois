@@ -39,6 +39,20 @@ const EVENT = {
   location_text: null, is_private: 0,
 };
 
+/**
+ * The document is the same for every reader, and it is also the one thing that
+ * must not be held onto: it names the hashed files this build produced, and a
+ * copy kept from before a deploy asks for files that are no longer there.
+ */
+describe('how long the HTML may be kept', () => {
+  it('is revalidated every time, while its assets are not', async () => {
+    getPublicEvents.mockResolvedValue([EVENT]);
+    getEventById.mockResolvedValue(EVENT);
+    const res = await request(app).get('/');
+    expect(res.headers['cache-control']).toBe('no-cache');
+  });
+});
+
 describe('the served HTML', () => {
   beforeEach(() => {
     getPublicEvents.mockResolvedValue([EVENT]);
