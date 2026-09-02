@@ -111,6 +111,39 @@ recreated by the next import of that calendar, because the import matches on
 `external_uid` and finds nothing. Cancelling is how to keep one of those off the page for
 good, and the admin page says so at the point of deleting.
 
+## Repeating events
+
+Most of what an RSO holds repeats, so an event can be created as a series. The rule lives
+in `Event_Series` and every occurrence is an ordinary `Events` row carrying `series_id`.
+Nothing that reads events has to know about recurrence: the feed, the calendar, the kiosk,
+room conflict detection, the sitemap and the structured data all keep working, because
+what they see is still events. The spec is
+`docs/superpowers/specs/recurring-events.md`.
+
+Three things create a series. `POST /api/v1/events/series` takes an event and a
+recurrence, which is what the event form sends. A calendar file with an `RRULE` on an
+entry is expanded by the importer. And a scheduler search carrying a `recurrence` looks
+for a slot that works every week, with the accepted recommendation creating the series.
+
+The term comes from `server/lib/academicCalendar.js`. It derives each term from the shape
+the university calendar has every year and lets a maintainer pin a term to its published
+dates in `TERM_DATES`, which is one entry a year. The derived dates are close and are not
+authoritative, so every screen that uses one shows it and lets the organizer change it.
+`GET /api/v1/semester/current` serves the same answer to the form, the scheduler and the
+importer, so all three agree.
+
+Turning a rule into dates is `server/lib/recurrence.js`. It works in campus wall clock
+throughout, which is why six in the evening stays six in the evening across the day the
+clocks change, and it stops at two hundred occurrences, which is the backstop for a
+calendar rule with no end. A repeat set up on the form skips the break weeks; one imported
+from a file does not, because the file is the organizer's own calendar and it says which
+dates exist.
+
+`PUT` and `DELETE` on an event take `?scope=one|following|all`. An occurrence edited on
+its own is marked `detached`, and a later edit to the whole series leaves it alone, so the
+week that moved to another room stays moved. An event with no series has only itself, so
+every scope means the same thing there.
+
 ## Time
 
 VIA serves one campus, so every time it shows is that campus's time,
