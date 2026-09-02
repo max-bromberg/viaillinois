@@ -44,6 +44,24 @@ describe('EventCard', () => {
 });
 
 /**
+ * RSVPs are gone, so the card is a card. It carries what the event is, when it
+ * is and where, and the reader follows the title to read the rest.
+ */
+describe('EventCard without RSVPs', () => {
+  it('offers no way to say you are going', () => {
+    const { queryByRole } = render(EventCard, { event: mockEvent });
+    expect(queryByRole('button', { name: /RSVP/i })).toBeNull();
+    expect(queryByRole('button', { name: /Going/i })).toBeNull();
+    expect(queryByRole('button', { name: /Maybe/i })).toBeNull();
+  });
+
+  it('says nothing about RSVPs at all', () => {
+    const { container } = render(EventCard, { event: mockEvent });
+    expect(container.textContent).not.toMatch(/RSVP/i);
+  });
+});
+
+/**
  * A location is optional and can be either a room or free text, so the card has
  * three cases to render rather than one.
  */

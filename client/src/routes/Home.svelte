@@ -126,7 +126,7 @@
 
 <svelte:head>
   <title>Events: VIA</title>
-  <meta name="description" content="Browse and filter upcoming ECE RSO events at UIUC. RSVP to events from your favourite student organizations." />
+  <meta name="description" content="Browse and filter upcoming ECE RSO events at UIUC, from every student organization in the department, in one feed." />
 </svelte:head>
 
 <div class="flex flex-col gap-4 md:flex-row md:gap-6">

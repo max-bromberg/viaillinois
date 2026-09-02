@@ -14,9 +14,8 @@ vi.mock('../../services/calendarImport.js', () => ({
 }));
 vi.mock('../../db/queries/events.js', () => ({
   getPublicEvents: vi.fn().mockResolvedValue([]), getEventById: vi.fn(), updateEvent: vi.fn(),
-  deleteEvent: vi.fn(), upsertRsvp: vi.fn(), countPublicEvents: vi.fn().mockResolvedValue([{ total: 0 }]),
-  countAllEvents: vi.fn().mockResolvedValue([{ total: 0 }]), getEventRsvpCounts: vi.fn().mockResolvedValue([]),
-  findEventsByUid: vi.fn(), createEvent: vi.fn(),
+  deleteEvent: vi.fn(), countPublicEvents: vi.fn().mockResolvedValue([{ total: 0 }]),
+  countAllEvents: vi.fn().mockResolvedValue([{ total: 0 }]), findEventsByUid: vi.fn(), createEvent: vi.fn(),
 }));
 vi.mock('../../db/queries/advanced.js', () => ({ createEventTransactional: vi.fn(), callGetRSOStats: vi.fn() }));
 const memberships = vi.hoisted(() => ({ value: [] }));

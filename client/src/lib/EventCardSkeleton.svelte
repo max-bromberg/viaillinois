@@ -21,15 +21,9 @@
   </div>
 
   <!-- Tag pills -->
-  <div class="flex flex-wrap gap-1 mb-3">
+  <div class="flex flex-wrap gap-1">
     <div class="shimmer h-5 w-12 rounded-full"></div>
     <div class="shimmer h-5 w-14 rounded-full"></div>
     <div class="shimmer h-5 w-10 rounded-full"></div>
-  </div>
-
-  <!-- RSVP buttons -->
-  <div class="flex gap-2">
-    <div class="shimmer h-7 w-16 rounded-md"></div>
-    <div class="shimmer h-7 w-14 rounded-md"></div>
   </div>
 </div>

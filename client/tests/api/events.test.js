@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const apiFetch = vi.hoisted(() => vi.fn().mockResolvedValue({ events: [], total: 0 }));
 vi.mock('../../src/api/base.js', () => ({ apiFetch }));
 
-const { getEvents } = await import('../../src/api/events.js');
+const eventsApi = await import('../../src/api/events.js');
+const { getEvents } = eventsApi;
 
 /** The query string the last request carried. */
 function lastQuery() {
@@ -31,5 +32,12 @@ describe('getEvents', () => {
     expect(params.getAll('tags')).toEqual(['Free Food']);
     expect(params.get('limit')).toBe('18');
     expect(params.get('offset')).toBe('18');
+  });
+});
+
+describe('the RSVP calls, which were removed', () => {
+  it('are not offered, so nothing can reach an endpoint that is gone', () => {
+    expect(eventsApi.rsvpEvent).toBeUndefined();
+    expect(eventsApi.getEventRsvps).toBeUndefined();
   });
 });

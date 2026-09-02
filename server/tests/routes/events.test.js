@@ -15,11 +15,9 @@ vi.mock('../../db/queries/events.js', () => ({
   getEventById:       vi.fn().mockResolvedValue({ event_id: 1, title: 'Test Event' }),
   updateEvent:        vi.fn().mockResolvedValue({ affectedRows: 1 }),
   deleteEvent:        vi.fn().mockResolvedValue({ affectedRows: 1 }),
-  upsertRsvp:         vi.fn().mockResolvedValue(undefined),
   countPublicEvents:  vi.fn().mockResolvedValue([{ total: 1 }]),
   countAllEvents:     vi.fn().mockResolvedValue([{ total: 1 }]),
   countVisibleEvents: vi.fn().mockResolvedValue([{ total: 1 }]),
-  getEventRsvpCounts: vi.fn().mockResolvedValue([]),
   TIMEFRAMES:         ['upcoming', 'archived', 'all'],
 }));
 vi.mock('../../db/queries/advanced.js', () => ({
@@ -102,6 +100,28 @@ describe('GET /api/v1/events timeframes', () => {
     await request(app).get('/api/v1/events?timeframe=archived').set('Cookie', memberCookie);
     expect(filtersOf(queries.getVisibleEvents).timeframe).toBe('archived');
     expect(filtersOf(queries.countVisibleEvents).timeframe).toBe('archived');
+  });
+});
+
+/**
+ * RSVPs are gone. The endpoints are not deprecated and they do not answer with
+ * an empty result, they are simply not there, so anything still calling them
+ * is told so rather than being led to believe it recorded something.
+ */
+describe('the RSVP endpoints, which were removed', () => {
+  const cookie = `via_token=${signToken({ net_id: 'tester' })}`;
+
+  it('offers nowhere to record an RSVP', async () => {
+    const res = await request(app)
+      .post('/api/v1/events/1/rsvp')
+      .set('Cookie', cookie)
+      .send({ status: 'Going' });
+    expect(res.status).toBe(404);
+  });
+
+  it('offers nowhere to read who is going', async () => {
+    const res = await request(app).get('/api/v1/events/1/rsvps').set('Cookie', cookie);
+    expect(res.status).toBe(404);
   });
 });
 

@@ -4,6 +4,7 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+- RSVPs are removed. The RSVP card on the event page, the Going and Maybe buttons on every event card, and the two endpoints behind them are gone, along with the calls the browser made to them and the copy elsewhere on the site that offered the feature. Anything still asking for those two addresses is answered with a 404, rather than being led to believe it recorded something. The RSVPs table is left where it is, holding what was recorded, since dropping it would throw away the only copy and nothing reads it now.
 - The events feed opens on what is still to come. It listed every event VIA had ever held, oldest first, so the first page a student landed on was full of talks and socials from previous terms and the events happening this week were pages deep. The feed now starts at the beginning of the campus day, which keeps an event that began this morning on the page for the rest of the day, and everything before that moves into an archive. The archive is a click away in the filter panel, under When, and it reads most recent first, which is the order somebody looking back through the term wants. The calendar is unaffected and still shows whichever week or month it is pointed at, including the ones that have passed. The front page that search engines and assistants read now lists upcoming events too, which is what its heading always claimed.
 
 ## 0.4.0 (2026-09-01)

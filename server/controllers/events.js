@@ -132,32 +132,3 @@ export async function deleteEvent(req, res, next) {
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
-
-export async function rsvpEvent(req, res, next) {
-  try {
-    const eventId = parseInt(req.params.id);
-    const { status = 'Going' } = req.body;
-    if (!['Going', 'Maybe', 'Not Going'].includes(status)) {
-      return res.status(400).json({ error: 'status must be Going, Maybe, or Not Going' });
-    }
-    await eventsDb.upsertRsvp(req.user.net_id, eventId, status);
-    res.json({ ok: true });
-  } catch (err) { next(err); }
-}
-
-export async function getEventRsvps(req, res, next) {
-  try {
-    const eventId = parseInt(req.params.id);
-    const event = await eventsDb.getEventById(eventId);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.is_private && !req.user.is_global_admin) {
-      const memberships = await rsoDb.getUserMemberships(req.user.net_id);
-      const canSee = memberships.some(m => m.rso_id === event.rso_id);
-      if (!canSee) return res.status(404).json({ error: 'Event not found' });
-    }
-    const rows = await eventsDb.getEventRsvpCounts(eventId);
-    const counts = { Going: 0, Maybe: 0, 'Not Going': 0 };
-    rows.forEach(r => { counts[r.status] = r.count; });
-    res.json({ counts });
-  } catch (err) { next(err); }
-}

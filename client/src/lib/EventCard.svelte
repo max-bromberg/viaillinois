@@ -2,8 +2,6 @@
   import { locationLabel } from './locationLabel.js';
   import { campusDate, campusTime } from './campusTime.js';
   import { currentUser } from '../stores/auth.js';
-  import { rsvpEvent } from '../api/events.js';
-  import { showToast } from '../stores/ui.js';
   import { navigate } from '../lib/router.js';
 
   export let event;
@@ -20,21 +18,6 @@
   $: tags = event.tags ? event.tags.split(',').filter(Boolean) : [];
   $: formattedDate = campusDate(event.start_time);
   $: formattedTime = campusTime(event.start_time);
-
-  let rsvpStatus = event.user_rsvp ?? null;
-  let _trackedId = event.event_id;
-  $: if (event.event_id !== _trackedId) { _trackedId = event.event_id; rsvpStatus = event.user_rsvp ?? null; }
-
-  async function handleRsvp(status) {
-    if (!$currentUser) { showToast('Sign in to RSVP', 'error'); return; }
-    try {
-      await rsvpEvent(event.event_id, status);
-      rsvpStatus = status;
-      showToast(status === 'Going' ? "You're going!" : `RSVP set to ${status}`);
-    } catch (e) {
-      showToast(e.message, 'error');
-    }
-  }
 </script>
 
 <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-card flex">
@@ -65,20 +48,12 @@
       {/if}
     </div>
     {#if tags.length}
-      <div class="flex flex-wrap gap-1 mb-3">
+      <div class="flex flex-wrap gap-1">
         {#each tags as tag}
           <span class="text-xs border rounded-full px-2 py-0.5">{tag}</span>
         {/each}
       </div>
     {/if}
-    <div class="flex gap-2">
-      {#if rsvpStatus === 'Going'}
-        <button class="text-sm px-3 py-1 rounded bg-secondary hover:bg-secondary/80 transition-colors" on:click={() => handleRsvp('Not Going')}>✓ Going</button>
-      {:else}
-        <button class="text-sm px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors" on:click={() => handleRsvp('Going')}>RSVP</button>
-      {/if}
-      <button class="text-sm px-3 py-1 rounded hover:bg-accent transition-colors" on:click={() => handleRsvp('Maybe')}>Maybe</button>
-    </div>
   {/if}
   </div>
 </div>

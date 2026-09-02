@@ -19,8 +19,6 @@ vi.mock('../../src/api/events.js', () => ({
       tags: 'Workshop, Free Food',
     },
   }),
-  getEventRsvps: vi.fn().mockResolvedValue({ counts: { Going: 3, Maybe: 1, 'Not Going': 0 } }),
-  rsvpEvent: vi.fn(),
 }));
 
 vi.mock('../../src/api/rsos.js', () => ({
@@ -67,11 +65,15 @@ describe('EventDetail', () => {
     });
   });
 
-  it('shows sign-in nudge for unauthenticated users', async () => {
-    const { getByText } = render(EventDetail, { id: 1 });
-    await waitFor(() => {
-      expect(getByText(/Sign in/)).toBeTruthy();
-    });
+  /**
+   * RSVPs are gone, so the page no longer holds a card asking the reader to
+   * sign in to say whether they are going.
+   */
+  it('shows no RSVP card', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.textContent).not.toMatch(/RSVP/i);
+    expect(container.textContent).not.toMatch(/who's going/i);
   });
 });
 

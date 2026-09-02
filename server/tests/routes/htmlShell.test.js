@@ -12,8 +12,7 @@ vi.mock('../../db/queries/events.js', () => ({
   getEventById: (...a) => getEventById(...a),
   countPublicEvents: vi.fn().mockResolvedValue([{ total: 0 }]),
   countAllEvents: vi.fn().mockResolvedValue([{ total: 0 }]), updateEvent: vi.fn(),
-  deleteEvent: vi.fn(), upsertRsvp: vi.fn(), getEventRsvpCounts: vi.fn().mockResolvedValue([]),
-  findEventsByUid: vi.fn(), createEvent: vi.fn(),
+  deleteEvent: vi.fn(), findEventsByUid: vi.fn(), createEvent: vi.fn(),
 }));
 vi.mock('../../db/queries/midterms.js', () => ({ getConfirmedMidterms: vi.fn().mockResolvedValue([]) }));
 

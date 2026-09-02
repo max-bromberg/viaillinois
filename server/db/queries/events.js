@@ -256,17 +256,6 @@ export async function deleteEvent(eventId) {
 }
 
 /**
- * Upsert RSVP status for a user-event pair.
- * @param {string} netId
- * @param {number} eventId
- * @param {'Going'|'Maybe'|'Not Going'} status
- * @returns {Promise<void>}
- */
-export async function upsertRsvp(netId, eventId, status) {
-    return query('INSERT INTO RSVPs (net_id, event_id, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE status = ?', [netId, eventId, status, status])
-}
-
-/**
  * Next N upcoming public events for kiosk display (minimal payload).
  * @param {number} [limit=10]
  * @returns {Promise<Array<{event_id, title, start_time, end_time, rso_name, building, room_number}>>}
@@ -436,13 +425,4 @@ export async function countAllEvents(filters = {}) {
   `,
         [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, tag, tag]
     )
-}
-
-/**
- * RSVP counts for an event grouped by status.
- * @param {number} eventId
- * @returns {Promise<Array<{ status: string, count: number }>>}
- */
-export async function getEventRsvpCounts(eventId) {
-    return query('SELECT status, COUNT(*) AS count FROM RSVPs WHERE event_id = ? GROUP BY status', [eventId])
 }

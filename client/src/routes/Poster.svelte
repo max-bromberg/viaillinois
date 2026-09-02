@@ -326,7 +326,7 @@
 
     ctx.fillStyle = bodyMuted;
     ctx.font = `15px ${fc}`;
-    ctx.fillText('Scan for details & RSVP', M, 922);
+    ctx.fillText('Scan for details', M, 922);
 
     // QR + logo
     try {
