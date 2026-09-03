@@ -7,12 +7,7 @@ import { recordDenial } from '../services/denialRecorder.js';
 
 export async function getCourses(req, res, next) {
   try {
-    // The request is validated against the route ceiling here, but the ceiling
-    // is not yet enforced at the database, because coursesDb.getCourses takes
-    // no limit and returns every row. Task 15 of the plan pushes the bound
-    // down into the query. Until it lands, this rejects a malformed page
-    // without capping one.
-    const { refusal } = readPaging(req.query, PAGING_LIMITS.courses);
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.courses);
     if (refusal) {
       recordDenial({
         reason: 'pagination_refused', route: '/api/v1/midterms/courses',
@@ -20,7 +15,7 @@ export async function getCourses(req, res, next) {
       });
       return res.status(400).json({ error: refusal });
     }
-    const courses = await coursesDb.getCourses();
+    const courses = await coursesDb.getCourses({ limit, offset });
     res.json({ courses });
   } catch (err) { next(err); }
 }
@@ -28,13 +23,7 @@ export async function getCourses(req, res, next) {
 export async function listMidterms(req, res, next) {
   try {
     const { courseCode } = req.query;
-    // The request is validated against the route ceiling here, but the ceiling
-    // is not yet enforced at the database, because midtermsDb.getMidterms
-    // takes no limit and returns every matching row, which this handler then
-    // filters by campus date in JavaScript. Task 15 of the plan pushes the
-    // bound down into the query. Until it lands, this rejects a malformed
-    // page without capping one.
-    const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
     if (refusal) {
       recordDenial({
         reason: 'pagination_refused', route: '/api/v1/midterms',
@@ -42,13 +31,18 @@ export async function listMidterms(req, res, next) {
       });
       return res.status(400).json({ error: refusal });
     }
-    const all = await midtermsDb.getMidterms({ courseCode: courseCode || null });
     // Hide midterms once the calendar day after they take place has begun. The
     // day that counts is the campus one, and end_time is campus wall clock, so
-    // the two are compared as the strings they are rather than through a Date,
-    // which would read both of them in whatever zone this process runs in.
-    const startOfToday = campusStartOfToday();
-    const midterms = all.filter(m => String(m.end_time ?? '') >= startOfToday);
+    // the comparison is between strings rather than through a Date, which would
+    // read both of them in whatever zone this process runs in. The filter goes
+    // to the database with the limit, because filtering here afterwards would
+    // let the limit cut the page before the filter ran and hand the caller a
+    // short page while the rows it wanted sat behind the cut.
+    const midterms = await midtermsDb.getMidterms({
+      courseCode: courseCode || null,
+      endingOnOrAfter: campusStartOfToday(),
+      limit, offset,
+    });
     res.json({ midterms });
   } catch (err) { next(err); }
 }
@@ -68,12 +62,7 @@ export async function createMidterm(req, res, next) {
 
 export async function getConfirmedMidtermsHandler(req, res, next) {
   try {
-    // The request is validated against the route ceiling here, but the ceiling
-    // is not yet enforced at the database, because midtermsDb.getConfirmedMidterms
-    // takes no limit and returns every confirmed row. Task 15 of the plan
-    // pushes the bound down into the query. Until it lands, this rejects a
-    // malformed page without capping one.
-    const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
     if (refusal) {
       recordDenial({
         reason: 'pagination_refused', route: '/api/v1/midterms',
@@ -81,7 +70,7 @@ export async function getConfirmedMidtermsHandler(req, res, next) {
       });
       return res.status(400).json({ error: refusal });
     }
-    const midterms = await midtermsDb.getConfirmedMidterms();
+    const midterms = await midtermsDb.getConfirmedMidterms({ limit, offset });
     res.json({ midterms });
   } catch (err) { next(err); }
 }
