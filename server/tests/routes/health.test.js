@@ -7,6 +7,8 @@ const currentVersion = vi.fn();
 vi.mock('../../db/pool.js', () => ({
   default: { query: (...args) => ping(...args) },
   query:   (...args) => ping(...args),
+  // The shedding middleware reads this gauge, so the mock carries it too.
+  waitingCount: () => 0,
 }));
 vi.mock('../../db/migrate.ts', () => ({ currentVersion }));
 vi.mock('../../db/queries/users.js', () => ({

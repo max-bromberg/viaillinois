@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 
-vi.mock('../../db/pool.js', () => ({ default: { query: vi.fn() }, query: vi.fn() }));
+// waitingCount is part of this module's surface now, because the shedding
+// middleware reads it on every request that is not the health endpoint.
+vi.mock('../../db/pool.js', () => ({
+  default: { query: vi.fn() }, query: vi.fn(), waitingCount: () => 0,
+}));
 vi.mock('../../db/queries/users.js', () => ({
   getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn(),
 }));
