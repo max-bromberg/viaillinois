@@ -248,7 +248,8 @@ script. What it needs first is a decision about where the backups should live.
 ## Cloudflare and the origin
 
 Traffic reaches VIA through Cloudflare's proxy, then through the Nginx Proxy Manager
-container on the host, then to the `via` service.
+container on the host, then to the `via` service. The application depends on two properties
+of that arrangement, and both are configuration rather than code.
 
 ### Nginx Proxy Manager accepts Cloudflare only
 
@@ -261,3 +262,40 @@ is always the proxy container.
 
 Cloudflare publishes its ranges at https://www.cloudflare.com/ips/ and changes them
 occasionally. Refresh the allow list when they do.
+
+### Recommended Cloudflare configuration
+
+The edge absorbs volume before it reaches the host and before it touches the monthly
+transfer budget. It cannot see what a request costs and cannot tell a board member from a
+visitor, so it is the outer layer rather than the protection itself.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Rate limiting rule on `/api/v1/*` | 600 requests per minute per address | Well above the origin's own budget of 120, so the two layers do not fight. This one stops a flood, and the origin one stops a collector. |
+| Bot Fight Mode | On | Costs nothing and turns away the least sophisticated traffic. |
+| Cache rules | Respect origin headers | The application already sets a public lifetime on the kiosk and semester routes and `no-store` on everything else. Overriding that at the edge would put one person's answer in front of another. |
+| Browser Integrity Check | Off | It challenges readers, and the platform is meant to be open. |
+
+### Tuning the origin limits
+
+Every threshold is an environment variable on the `via` service, so changing one is a
+restart rather than a release.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `TRUSTED_PROXY_HOPS` | `2` | Cloudflare then Nginx Proxy Manager. Change only if the chain changes. |
+| `SHED_LAG_MS` | `200` | Event loop delay above which requests start being refused |
+| `SHED_MAX_INFLIGHT` | `200` | Concurrent requests above which requests start being refused |
+| `SHED_MAX_DB_WAITERS` | `20` | Callers queued for a database connection before refusing |
+| `SHED_RECOVERY_RATIO` | `0.6` | How far a signal must recede before refusing stops |
+| `SHED_RETRY_AFTER_SECONDS` | `30` | Retry window on a 503 |
+| `DB_QUEUE_LIMIT` | `50` | Callers allowed to queue for a connection |
+| `PUBLIC_REQUESTS_PER_MINUTE` | `120` | Anonymous request budget |
+| `PUBLIC_ROWS_PER_HOUR` | `5000` | Anonymous row budget, which is the anti-scrape signal |
+| `BUDGET_RETRY_AFTER_SECONDS` | `60` | Retry window on a 429 |
+| `DENIAL_FLUSH_INTERVAL_MS` | `60000` | How often refusal counts are written |
+| `DENIAL_RETENTION_DAYS` | `90` | How long refusal counts are kept |
+
+Read the Availability tab on the admin page before changing any of them. A week with no
+`row_budget` or `rate_limited` refusals against the feed routes means the budgets are not
+touching real readers, and a week with many means they are too tight.
