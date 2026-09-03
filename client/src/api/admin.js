@@ -10,3 +10,5 @@ export const getPollStatus      = ()           => apiFetch('/api/v1/admin/poll-s
 export const getPollHistory     = (service)    => apiFetch(`/api/v1/admin/poll-history/${service}`);
 export const getUnknownCodes    = ()           => apiFetch('/api/v1/admin/poll-unknown-codes');
 export const triggerPoll        = (service)    => apiFetch(`/api/v1/admin/poll-trigger/${service}`, { method: 'POST' });
+
+export const getDenials         = (days = 7)   => apiFetch(`/api/v1/admin/denials?days=${days}`);

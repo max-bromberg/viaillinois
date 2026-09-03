@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth, requireGlobalAdmin } from '../middleware/auth.js';
 import {
   listUsers, createUser, updateUser, resetPassword, deleteUser,
-  getPollStatus, getPollHistory, getUnknownCodes, triggerPoll,
+  getPollStatus, getPollHistory, getUnknownCodes, triggerPoll, getDenials,
 } from '../controllers/admin.js';
 
 const router = Router();
@@ -19,5 +19,7 @@ router.get('/poll-status',            getPollStatus);
 router.get('/poll-history/:service',  getPollHistory);
 router.get('/poll-unknown-codes',     getUnknownCodes);
 router.post('/poll-trigger/:service', triggerPoll);
+
+router.get('/denials',                getDenials);
 
 export default router;

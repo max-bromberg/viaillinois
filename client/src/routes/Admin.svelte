@@ -4,10 +4,11 @@
   import { navigate } from '../lib/router.js';
   import { isGlobalAdmin } from '../stores/auth.js';
   import { getRsos, getRso, createRso, updateRso, deleteRso, addMember, removeMember } from '../api/rsos.js';
-  import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser, getPollStatus, getPollHistory, getUnknownCodes, triggerPoll } from '../api/admin.js';
+  import { getAdminUsers, createAdminUser, updateAdminUser, resetAdminPassword, deleteAdminUser, getPollStatus, getPollHistory, getUnknownCodes, triggerPoll, getDenials } from '../api/admin.js';
   import { showToast } from '../stores/ui.js';
   import { getAdminMidterms, updateMidtermStatus, deleteMidterm } from '../api/midterms.js';
   import CalendarImport from '../lib/CalendarImport.svelte';
+  import DenialChart from '../lib/DenialChart.svelte';
   import { campusDate, campusDateTime, campusTime } from '../lib/campusTime.js';
 
   // ── Access control ────────────────────────────────────────────────────────
@@ -61,6 +62,23 @@
   let mappingFor = {};
   let mappingOpen = {};
   let expandedHistoryRow = {};
+
+  // Availability tab state
+  let denials = [];
+  let denialsLoading = false;
+  let denialWindowDays = 7;
+
+  async function loadDenials() {
+    denialsLoading = true;
+    try {
+      const data = await getDenials(denialWindowDays);
+      denials = data.denials;
+    } catch (err) {
+      showToast('Could not load the denial history.', 'error');
+    } finally {
+      denialsLoading = false;
+    }
+  }
 
   // ── Load users when tab activates ─────────────────────────────────────────
   $: if (activeTab === 'users' && !usersLoaded) loadUsers();
@@ -428,6 +446,10 @@
         class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'dataSources' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
         on:click={() => activeTab = 'dataSources'}
       >Data Sources</button>
+      <button
+        class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'availability' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
+        on:click={() => { activeTab = 'availability'; loadDenials(); }}
+      >Availability</button>
     </div>
 
     <!-- ── RSOs Tab ───────────────────────────────────────────────────── -->
@@ -1169,6 +1191,38 @@
             {/if}
           </div>
         {/if}
+      </div>
+    {/if}
+
+    <!-- ── Availability Tab ───────────────────────────────────────────── -->
+    {#if activeTab === 'availability'}
+      <div class="space-y-4">
+        <section class="border rounded-lg p-5 bg-card shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-semibold">Requests VIA refused</h2>
+              <p class="text-sm text-muted-foreground">
+                Every request the platform turned away, grouped by day and by reason. An
+                empty table means the limits are not touching real readers.
+              </p>
+            </div>
+            <select
+              class="border rounded-md px-2 py-1 text-sm"
+              bind:value={denialWindowDays}
+              on:change={loadDenials}
+            >
+              <option value={1}>Last day</option>
+              <option value={7}>Last week</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+          </div>
+          {#if denialsLoading}
+            <p class="text-sm text-muted-foreground">Loading the denial history.</p>
+          {:else}
+            <DenialChart series={denials} />
+          {/if}
+        </section>
       </div>
     {/if}
 
