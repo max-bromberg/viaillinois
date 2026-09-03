@@ -37,7 +37,12 @@ const APP_VERSION = JSON.parse(
 
 const app = express();
 
-if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
+// Cloudflare, then Nginx Proxy Manager, is two hops. At the previous value of
+// one, Express resolved req.ip to the Cloudflare edge address, which put every
+// visitor behind a given edge into one bucket of the login limiter.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', parseInt(process.env.TRUSTED_PROXY_HOPS || '2', 10));
+}
 
 // Nothing is gained by telling the world which framework this is.
 app.disable('x-powered-by');
