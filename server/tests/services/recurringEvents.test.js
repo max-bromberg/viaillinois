@@ -122,6 +122,39 @@ describe('planSeries', () => {
       .toMatch(/after/i);
   });
 
+  /**
+   * The create event form posts what a browser date and time field holds, which
+   * is YYYY-MM-DDTHH:MM. Read as though it were a stored wall clock reading, the
+   * hour was lost and the length came out as no number at all, and the insert
+   * failed on it.
+   */
+  it('plans a repeat from the times a browser date and time field gives it', () => {
+    const { series, occurrences } = planSeries({
+      startTime: '2026-09-07T18:00',
+      endTime: '2026-09-07T19:30',
+      recurrence: { days_of_week: ['Mon'], ends_on: '2026-09-21' },
+      term: TERM,
+    });
+    expect(series).toMatchObject({
+      days_of_week: 'Mon',
+      starts_on: '2026-09-07',
+      ends_on: '2026-09-21',
+      start_of_day: '18:00:00',
+      duration_minutes: 90,
+    });
+    expect(occurrences.map(o => o.start)).toEqual([
+      '2026-09-07 18:00:00', '2026-09-14 18:00:00', '2026-09-21 18:00:00',
+    ]);
+  });
+
+  it('refuses times it cannot read rather than storing a length that is not a number', () => {
+    const { error } = planSeries({
+      startTime: 'the seventh at six', endTime: 'half past seven',
+      recurrence: { days_of_week: ['Mon'] }, term: TERM,
+    });
+    expect(error).toMatch(/a date and a time/i);
+  });
+
   it('reads the term from the start date when it is not given one', () => {
     const { series } = planSeries({ ...MEETING, recurrence: { days_of_week: ['Tue'] } });
     expect(series.ends_on > series.starts_on).toBe(true);

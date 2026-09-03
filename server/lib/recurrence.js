@@ -25,12 +25,45 @@ export const MAX_OCCURRENCES = 200;
 
 const MS_PER_MINUTE = 60_000;
 
+/**
+ * The readings that name a time on the campus clock.
+ *
+ * The database writes one shape, YYYY-MM-DD HH:MM:SS. A browser date and time
+ * field writes another, YYYY-MM-DDTHH:MM, with a T in place of the space and no
+ * seconds at all, and that is what the create event form posts. Both are the
+ * same reading, so both are read here, along with a date on its own, which
+ * names midnight.
+ */
+const WALL_CLOCK = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+
+/**
+ * The calendar fields of a wall clock reading, or null for anything that is not
+ * one. A date that no calendar has, such as the thirty first of February, is
+ * not one either, because rolling it into the next month would store a day
+ * nobody asked for.
+ *
+ * @param {string|null|undefined} value
+ * @returns {{year: number, month: number, day: number, hour: number, minute: number, second: number}|null}
+ */
+function fieldsOf(value) {
+  if (value == null) return null;
+  const match = WALL_CLOCK.exec(String(value).trim());
+  if (!match) return null;
+  const [, y, mo, d, h = '00', mi = '00', s = '00'] = match;
+  const fields = {
+    year: +y, month: +mo, day: +d, hour: +h, minute: +mi, second: +s,
+  };
+  if (fields.month < 1 || fields.month > 12 || fields.day < 1 || fields.day > 31) return null;
+  if (fields.hour > 23 || fields.minute > 59 || fields.second > 59) return null;
+  const instant = new Date(Date.UTC(fields.year, fields.month - 1, fields.day));
+  if (instant.getUTCMonth() !== fields.month - 1 || instant.getUTCDate() !== fields.day) return null;
+  return fields;
+}
+
 /** A wall clock reading as the UTC instant of the same fields, for arithmetic. */
 function asUtc(wallClock) {
-  const [date, time = '00:00:00'] = wallClock.split(' ');
-  const [y, mo, d] = date.split('-').map(Number);
-  const [h, mi, s] = time.split(':').map(Number);
-  return Date.UTC(y, mo - 1, d, h, mi, s);
+  const f = fieldsOf(wallClock);
+  return f === null ? null : Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute, f.second);
 }
 
 const pad = n => String(n).padStart(2, '0');
@@ -42,23 +75,57 @@ function asWallClock(instant) {
 }
 
 /**
- * A wall clock reading a number of minutes later, still wall clock.
+ * A time in the one shape the database holds, YYYY-MM-DD HH:MM:SS, or null for
+ * a reading that names no time.
  *
- * @param {string} wallClock YYYY-MM-DD HH:MM:SS
+ * @param {string|null|undefined} value
+ * @returns {string|null}
+ */
+export function toWallClock(value) {
+  const f = fieldsOf(value);
+  if (f === null) return null;
+  return `${f.year}-${pad(f.month)}-${pad(f.day)} ${pad(f.hour)}:${pad(f.minute)}:${pad(f.second)}`;
+}
+
+/**
+ * A wall clock reading a number of minutes later, still wall clock, or null for
+ * a reading it cannot make sense of.
+ *
+ * @param {string} wallClock
  * @param {number} minutes
+ * @returns {string|null}
  */
 export function addMinutes(wallClock, minutes) {
-  return asWallClock(asUtc(wallClock) + minutes * MS_PER_MINUTE);
+  const instant = asUtc(wallClock);
+  if (instant === null || !Number.isFinite(minutes)) return null;
+  return asWallClock(instant + minutes * MS_PER_MINUTE);
 }
 
-/** The hour of the day an event starts, as MySQL stores a TIME. */
+/**
+ * The hour of the day an event starts, as MySQL stores a TIME, or null for a
+ * reading it cannot make sense of.
+ *
+ * @param {string|null|undefined} wallClock
+ * @returns {string|null}
+ */
 export function timeOfDay(wallClock) {
-  return wallClock.split(' ')[1] ?? '00:00:00';
+  const f = fieldsOf(wallClock);
+  return f === null ? null : `${pad(f.hour)}:${pad(f.minute)}:${pad(f.second)}`;
 }
 
-/** How long an event runs, in whole minutes, including one that passes midnight. */
+/**
+ * How long an event runs, in whole minutes, including one that passes midnight,
+ * or null for a pair of readings it cannot make sense of.
+ *
+ * @param {string|null|undefined} start
+ * @param {string|null|undefined} end
+ * @returns {number|null}
+ */
 export function durationMinutes(start, end) {
-  return Math.round((asUtc(end) - asUtc(start)) / MS_PER_MINUTE);
+  const from = asUtc(start);
+  const to = asUtc(end);
+  if (from === null || to === null) return null;
+  return Math.round((to - from) / MS_PER_MINUTE);
 }
 
 /** Whether a date falls inside any of a set of ranges, each inclusive of both ends. */
@@ -93,8 +160,13 @@ export function expandOccurrences(rule) {
   const wanted = new Set(daysOfWeek);
   if (wanted.size === 0 || !startsOn || !endsOn || endsOn < startsOn) return [];
 
+  // Times that name no time produce no dates. A rule cannot be expanded around
+  // an hour that could not be read, and the alternative is rows at midnight
+  // with no length.
   const time = timeOfDay(startTime);
   const length = durationMinutes(startTime, endTime);
+  if (time === null || length === null) return [];
+
   const excluded = new Set(exclude.map(value => value.slice(0, 10)));
 
   // Week zero is the week the rule starts in, counted from its Sunday, so that

@@ -364,6 +364,16 @@ describe('recommend, for an event that repeats', () => {
     expect(pick.start.slice(0, 10)).toBe('2026-09-01');
   });
 
+  /**
+   * A length that is not a number offers no hours to start at, so a recurring
+   * search for one comes back with nothing to recommend rather than failing.
+   */
+  it('offers nothing for a length it cannot read as a number of minutes', async () => {
+    const result = await recommend(recurringParams({ durationMinutes: Number.NaN }));
+    expect(result.curatedPicks).toEqual([]);
+    expect(result.allOptions).toEqual([]);
+  });
+
   it('recommends the same room every week, which is the point of a weekly meeting', async () => {
     const [pick] = (await recommend(recurringParams())).curatedPicks;
     expect(pick.location.location_id).toBeDefined();

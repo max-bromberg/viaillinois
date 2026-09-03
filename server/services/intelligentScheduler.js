@@ -161,8 +161,9 @@ function startTimesOfDay(durationMins, timeConstraint) {
     for (const mins of [0, 30]) {
       const start = `${String(h).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
       const end = addMinutes(`2000-01-01 ${start}`, durationMins);
-      // An hour that would run past the end of the window, or past midnight,
-      // is not a slot.
+      // A length that is not a number of minutes names no end, and an hour that
+      // would run past the end of the window, or past midnight, is not a slot.
+      if (end === null) continue;
       if (end.slice(0, 10) !== '2000-01-01') continue;
       if (end.slice(11) > `${String(endH).padStart(2, '0')}:00:00`) continue;
       times.push(start);

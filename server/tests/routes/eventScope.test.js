@@ -99,6 +99,29 @@ describe('PUT /api/v1/events/:id with a scope', () => {
     }));
   });
 
+  /**
+   * The edit form posts what a browser date and time field holds, with a T and
+   * no seconds. Read as a stored wall clock reading, that moved every week of
+   * the series to midnight and gave it a length that was not a number.
+   */
+  it('moves the whole series when the form posts a browser date and time field', async () => {
+    const res = await put(5, '?scope=all', {
+      ...EDIT, start_time: '2026-09-15T19:00', end_time: '2026-09-15T20:00',
+    });
+    expect(res.status).toBe(200);
+    expect(seriesDb.applyToSeries).toHaveBeenCalledWith(3, expect.objectContaining({
+      startOfDay: '19:00:00', durationMinutes: 60,
+    }));
+  });
+
+  it('refuses times it cannot read rather than moving the series to midnight', async () => {
+    const res = await put(5, '?scope=all', {
+      ...EDIT, start_time: 'half past seven', end_time: 'half past eight',
+    });
+    expect(res.status).toBe(400);
+    expect(seriesDb.applyToSeries).not.toHaveBeenCalled();
+  });
+
   it('carries the fields that are not times into the whole series', async () => {
     await put(5, '?scope=all', { ...EDIT, description: 'New room this term', is_private: true });
     const [, options] = seriesDb.applyToSeries.mock.calls[0];
