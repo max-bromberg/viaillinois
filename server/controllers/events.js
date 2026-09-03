@@ -4,7 +4,7 @@ import * as advancedDb from '../db/queries/advanced.js';
 import * as seriesDb from '../db/queries/eventSeries.js';
 import { planSeries, splitByBusyRoom } from '../services/recurringEvents.js';
 import { checkConflict } from '../services/conflictDetector.js';
-import { timeOfDay, durationMinutes, addMinutes } from '../lib/recurrence.js';
+import { timeOfDay, durationMinutes, addMinutes, toWallClock } from '../lib/recurrence.js';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
@@ -226,9 +226,19 @@ export async function updateEvent(req, res, next) {
       return res.json({ ok: true, updated: 1 });
     }
 
+    // The form posts what a browser date and time field holds, with a T where
+    // the database writes a space and no seconds. A time that cannot be read
+    // would move every week of the series to midnight, so it is refused here
+    // rather than applied.
+    const start = start_time ? toWallClock(start_time) : null;
+    const end = end_time ? toWallClock(end_time) : null;
+    if ((start_time && !start) || (end_time && !end)) {
+      return res.status(400).json({ error: 'The start time and the end time each have to be a date and a time.' });
+    }
+
     const from = scope === 'following' ? String(event.start_time) : null;
-    const startOfDay = start_time ? timeOfDay(start_time) : null;
-    const minutes = start_time && end_time ? durationMinutes(start_time, end_time) : null;
+    const startOfDay = start ? timeOfDay(start) : null;
+    const minutes = start && end ? durationMinutes(start, end) : null;
 
     const covered = await seriesDb.occurrencesOfSeries(event.series_id, { from });
     const projected = projectOccurrences(covered, startOfDay, minutes);

@@ -75,6 +75,37 @@ describe('POST /api/v1/events/series', () => {
     expect(call[0].tagNames).toEqual(['Weekly Meeting']);
   });
 
+  /**
+   * What the create event form posts is what a browser date and time field
+   * holds: a T between the date and the hour, and no seconds. A series created
+   * from the form failed on the insert, because the length of the event came
+   * out of that reading as no number at all.
+   */
+  it('creates a series from the times the create event form posts', async () => {
+    const res = await post({
+      ...BODY,
+      start_time: '2026-09-07T18:00',
+      end_time: '2026-09-07T19:30',
+      recurrence: { days_of_week: ['Mon'], ends_on: '2026-09-21' },
+    });
+    expect(res.status).toBe(201);
+
+    const { series, occurrences } = seriesDb.createSeriesWithOccurrences.mock.calls[0][0];
+    expect(series).toMatchObject({ start_of_day: '18:00:00', duration_minutes: 90 });
+    expect(occurrences.map(o => o.start)).toEqual([
+      '2026-09-07 18:00:00', '2026-09-14 18:00:00', '2026-09-21 18:00:00',
+    ]);
+    expect(occurrences.map(o => o.end)).toEqual([
+      '2026-09-07 19:30:00', '2026-09-14 19:30:00', '2026-09-21 19:30:00',
+    ]);
+  });
+
+  it('explains times it cannot read rather than failing on the insert', async () => {
+    const res = await post({ ...BODY, start_time: 'the seventh at six', end_time: 'half past seven' });
+    expect(res.status).toBe(400);
+    expect(seriesDb.createSeriesWithOccurrences).not.toHaveBeenCalled();
+  });
+
   it('runs to the end of the term when the request names no end date', async () => {
     await post({ ...BODY, recurrence: { days_of_week: ['Tue'] } });
     const { series, occurrences } = seriesDb.createSeriesWithOccurrences.mock.calls[0][0];

@@ -1,4 +1,4 @@
-import { expandOccurrences, timeOfDay, durationMinutes, WEEKDAYS } from '../lib/recurrence.js';
+import { expandOccurrences, timeOfDay, durationMinutes, toWallClock, WEEKDAYS } from '../lib/recurrence.js';
 import { termForDate, addDays, weekdayOf } from '../lib/academicCalendar.js';
 
 /**
@@ -46,9 +46,17 @@ function readDays(value) {
  */
 export function planSeries({ startTime, endTime, recurrence = {}, term = null }) {
   if (!startTime || !endTime) return problem('A repeating event needs a start time and an end time.');
-  if (endTime <= startTime) return problem('The end time has to be after the start time.');
 
-  const startsOn = (recurrence.starts_on ?? startTime).slice(0, 10);
+  // The form posts what a browser date and time field holds, which writes a T
+  // where the database writes a space and leaves the seconds off. Both readings
+  // are read into the one shape here, so everything below compares and stores
+  // times of the same shape.
+  const start = toWallClock(startTime);
+  const end = toWallClock(endTime);
+  if (!start || !end) return problem('The start time and the end time each have to be a date and a time.');
+  if (end <= start) return problem('The end time has to be after the start time.');
+
+  const startsOn = (recurrence.starts_on ?? start).slice(0, 10);
   const calendar = term ?? termForDate(startsOn);
 
   const days = readDays(recurrence.days_of_week);
@@ -67,7 +75,7 @@ export function planSeries({ startTime, endTime, recurrence = {}, term = null })
   if (endsOn > addDays(startsOn, MAX_DAYS)) return problem('A repeat can run for at most a year.');
 
   const occurrences = expandOccurrences({
-    startTime, endTime, daysOfWeek, intervalWeeks, startsOn, endsOn,
+    startTime: start, endTime: end, daysOfWeek, intervalWeeks, startsOn, endsOn,
     skip: calendar.breaks ?? [],
   });
 
@@ -82,8 +90,8 @@ export function planSeries({ startTime, endTime, recurrence = {}, term = null })
       days_of_week: daysOfWeek.join(','),
       starts_on: occurrences[0].date,
       ends_on: occurrences.at(-1).date,
-      start_of_day: timeOfDay(startTime),
-      duration_minutes: durationMinutes(startTime, endTime),
+      start_of_day: timeOfDay(start),
+      duration_minutes: durationMinutes(start, end),
     },
     occurrences,
   };

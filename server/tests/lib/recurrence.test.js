@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  expandOccurrences, parseRecurrenceRule, timeOfDay, durationMinutes, MAX_OCCURRENCES,
+  expandOccurrences, parseRecurrenceRule, timeOfDay, durationMinutes, addMinutes, MAX_OCCURRENCES,
 } from '../../lib/recurrence.js';
 
 const WEEKLY_MEETING = {
@@ -118,6 +118,27 @@ describe('expandOccurrences', () => {
     });
   });
 
+  /**
+   * The times arrive from the create event form as a browser date and time
+   * field wrote them. The occurrences are still stored wall clock readings.
+   */
+  it('takes the times a browser date and time field gives it', () => {
+    const occurrences = expandOccurrences({
+      ...WEEKLY_MEETING,
+      startTime: '2026-09-01T18:00', endTime: '2026-09-01T19:30',
+      endsOn: '2026-09-08',
+    });
+    expect(occurrences).toEqual([
+      { date: '2026-09-01', start: '2026-09-01 18:00:00', end: '2026-09-01 19:30:00' },
+      { date: '2026-09-08', start: '2026-09-08 18:00:00', end: '2026-09-08 19:30:00' },
+    ]);
+  });
+
+  it('produces nothing when it cannot read the times it was given', () => {
+    expect(expandOccurrences({ ...WEEKLY_MEETING, startTime: 'not a time' })).toEqual([]);
+    expect(expandOccurrences({ ...WEEKLY_MEETING, endTime: 'not a time' })).toEqual([]);
+  });
+
   it('produces nothing when the range holds no listed weekday', () => {
     expect(expandOccurrences({
       ...WEEKLY_MEETING, startsOn: '2026-09-02', endsOn: '2026-09-05', daysOfWeek: ['Mon'],
@@ -195,5 +216,42 @@ describe('timeOfDay and durationMinutes', () => {
   it('measures how long an event runs, over midnight as well', () => {
     expect(durationMinutes('2026-09-01 18:00:00', '2026-09-01 19:30:00')).toBe(90);
     expect(durationMinutes('2026-09-01 23:00:00', '2026-09-02 01:00:00')).toBe(120);
+  });
+
+  /**
+   * A browser date and time field hands over its value as YYYY-MM-DDTHH:MM,
+   * with a T where the database writes a space and with no seconds at all. That
+   * is what the create event form posts, so it is a reading these have to take.
+   */
+  it('reads a browser date and time field, which uses a T and gives no seconds', () => {
+    expect(timeOfDay('2026-09-07T18:00')).toBe('18:00:00');
+    expect(timeOfDay('2026-09-07T18:30:45')).toBe('18:30:45');
+    expect(durationMinutes('2026-09-07T18:00', '2026-09-07T19:30')).toBe(90);
+    expect(durationMinutes('2026-09-07T23:00', '2026-09-08T01:00')).toBe(120);
+  });
+
+  it('says nothing rather than a wrong hour for a reading it cannot make sense of', () => {
+    expect(timeOfDay('not a time')).toBeNull();
+    expect(timeOfDay('')).toBeNull();
+    expect(timeOfDay(null)).toBeNull();
+    expect(durationMinutes('not a time', '2026-09-07 19:30:00')).toBeNull();
+    expect(durationMinutes('2026-09-07 18:00:00', 'not a time')).toBeNull();
+  });
+
+  /** A date on its own is the whole of that day, starting at midnight. */
+  it('reads a date on its own as midnight', () => {
+    expect(timeOfDay('2026-09-07')).toBe('00:00:00');
+    expect(durationMinutes('2026-09-07', '2026-09-08')).toBe(1440);
+  });
+});
+
+describe('addMinutes', () => {
+  it('moves a wall clock reading on, and gives one back in the stored shape', () => {
+    expect(addMinutes('2026-09-07 18:00:00', 90)).toBe('2026-09-07 19:30:00');
+    expect(addMinutes('2026-09-07T18:00', 90)).toBe('2026-09-07 19:30:00');
+  });
+
+  it('says nothing rather than an invalid date for a reading it cannot make sense of', () => {
+    expect(addMinutes('not a time', 90)).toBeNull();
   });
 });
