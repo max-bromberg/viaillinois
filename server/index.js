@@ -28,6 +28,15 @@ const server = app.listen(PORT, () => {
   }
 });
 
+// Node's defaults let a connection hold a socket open for a long time saying
+// very little, which is free for the client and not free for the server.
+server.requestTimeout = parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10);
+server.headersTimeout = parseInt(process.env.HEADERS_TIMEOUT_MS || '35000', 10);
+// Deliberately above Cloudflare's idle timeout, so the origin is never the
+// side that closes a connection the edge still believes is open. When it is,
+// the reader sees a 502 that nothing in the logs explains.
+server.keepAliveTimeout = parseInt(process.env.KEEPALIVE_TIMEOUT_MS || '65000', 10);
+
 async function shutdown() {
   // Hard-kill after 3 s so CTRL+C never hangs
   setTimeout(() => process.exit(0), 3000).unref();

@@ -2,6 +2,16 @@ services:
   db:
     image: mysql:8.0
     restart: unless-stopped
+    # The host is shared with other applications. Without a limit, a runaway
+    # query is a runaway host, and the kernel chooses its victim without caring
+    # which container caused the problem.
+    mem_limit: 2g
+    cpus: 2.0
+    # The default buffer pool is sized against the host's memory rather than
+    # against the container's, which on a 10 GB host would put it well past the
+    # limit above and get the container killed rather than slowed.
+    command:
+      - --innodb-buffer-pool-size=1G
     environment:
       # VIA serves one campus and stores wall clock times, so the database keeps
       # that campus's clock. On the image default of UTC, every CURRENT_TIMESTAMP
@@ -35,6 +45,8 @@ services:
       context: .
       dockerfile: Dockerfile.server
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 2.0
     depends_on:
       db:
         condition: service_healthy
