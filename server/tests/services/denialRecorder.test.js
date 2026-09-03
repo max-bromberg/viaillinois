@@ -83,6 +83,27 @@ describe('recordDenial', () => {
     expect(bufferSize()).toBe(0);
   });
 
+  /**
+   * The shedding middleware runs before routing, so it has no matched pattern
+   * to record and reports the raw path instead. A caller can make that path any
+   * length it likes, and the column holds a hundred characters, so an untrimmed
+   * route would fail the insert and lose the whole minute of denials for
+   * everybody rather than just that one refusal.
+   */
+  it('trims a route to what the column can hold', async () => {
+    const long = '/api/v1/events/' + 'a'.repeat(300);
+    recordDenial({ reason: 'overloaded', route: long, authenticated: false, client: 'a' });
+    await flushDenials();
+    expect(upsertDenialBuckets.mock.calls[0][0][0].route.length).toBeLessThanOrEqual(100);
+  });
+
+  it('keeps two long routes apart rather than folding them into one', async () => {
+    recordDenial({ reason: 'overloaded', route: '/api/v1/events/' + 'a'.repeat(300), authenticated: false, client: 'a' });
+    recordDenial({ reason: 'overloaded', route: '/api/v1/rsos/' + 'b'.repeat(300), authenticated: false, client: 'a' });
+    await flushDenials();
+    expect(upsertDenialBuckets.mock.calls[0][0]).toHaveLength(2);
+  });
+
   it('stops accepting new keys past its bound, so telemetry is never the leak', () => {
     for (let i = 0; i < 6000; i++) {
       recordDenial({ reason: 'overloaded', route: `/api/v1/r${i}`, authenticated: false, client: 'a' });

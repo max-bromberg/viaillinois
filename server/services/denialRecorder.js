@@ -17,6 +17,8 @@ import { upsertDenialBuckets, pruneDenials } from '../db/queries/accessDenials.j
 const BUFFER_MAX_KEYS = parseInt(process.env.DENIAL_BUFFER_MAX_KEYS || '5000', 10);
 const CLIENTS_PER_KEY_MAX = parseInt(process.env.DENIAL_CLIENTS_PER_KEY_MAX || '1000', 10);
 const RETENTION_DAYS = parseInt(process.env.DENIAL_RETENTION_DAYS || '90', 10);
+/** The width of Access_Denials.route. Longer than this and the insert fails. */
+const ROUTE_MAX_LENGTH = 100;
 
 /** key -> { bucketStart, reason, route, authenticated, denialCount, clients:Set } */
 let buffer = new Map();
@@ -36,12 +38,16 @@ function minuteBucket(date = new Date()) {
  */
 export function recordDenial({ reason, route, authenticated, client }) {
   const bucketStart = minuteBucket();
-  const key = `${bucketStart}|${reason}|${route}|${authenticated ? 1 : 0}`;
+  // The shedding middleware runs before routing and so reports the raw path,
+  // whose length a caller chooses. Left untrimmed, one long path would fail the
+  // insert and lose the whole minute of denials rather than just that one.
+  const trimmed = String(route ?? 'unknown').slice(0, ROUTE_MAX_LENGTH);
+  const key = `${bucketStart}|${reason}|${trimmed}|${authenticated ? 1 : 0}`;
   let entry = buffer.get(key);
   if (!entry) {
     if (buffer.size >= BUFFER_MAX_KEYS) { droppedKeys += 1; return; }
     entry = {
-      bucketStart, reason, route, authenticated: Boolean(authenticated),
+      bucketStart, reason, route: trimmed, authenticated: Boolean(authenticated),
       denialCount: 0, clients: new Set(),
     };
     buffer.set(key, entry);

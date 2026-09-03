@@ -21,7 +21,14 @@ import { clientIp } from '../lib/clientIdentity.js';
  * those apart must not be able to do lasting harm to either.
  */
 
-/** Paths that are never counted, each for its own reason. */
+/**
+ * Paths that are never counted, each for its own reason.
+ *
+ * These are matched against the whole path rather than against req.path. This
+ * middleware is mounted on /api/v1, and Express strips a mount path from
+ * req.path, so a prefix written in full would never match anything and the
+ * exemptions below would all be dead.
+ */
 const EXEMPT_PREFIXES = [
   '/health',
   // A lobby display polls from one address forever, which is exactly the shape
@@ -59,7 +66,11 @@ export function createPublicApiBudget({
     // A signed in reader is accountable through a NetID, and the expensive
     // authenticated actions already have their own limits.
     if (req.user) return next();
-    if (EXEMPT_PREFIXES.some(prefix => req.path.startsWith(prefix))) return next();
+
+    // The path as the caller wrote it, which is what the exemptions and the
+    // denial log both mean. req.path alone is missing the mount prefix.
+    const fullPath = (req.baseUrl || '') + req.path;
+    if (EXEMPT_PREFIXES.some(prefix => fullPath.startsWith(prefix))) return next();
 
     const key = req.clientIp || clientIp(req);
 
@@ -68,10 +79,7 @@ export function createPublicApiBudget({
     })) return next();
 
     const deny = reason => {
-      onDenied({
-        reason, route: req.baseUrl ? req.baseUrl + req.path : req.path,
-        authenticated: false, client: key,
-      });
+      onDenied({ reason, route: fullPath, authenticated: false, client: key });
       return sendBudgetExhausted(res, retryAfterSeconds);
     };
 

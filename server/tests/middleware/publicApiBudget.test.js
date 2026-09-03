@@ -104,6 +104,40 @@ describe('createPublicApiBudget', () => {
     );
   });
 
+  /**
+   * Mounted the way app.js mounts it, on /api/v1 rather than at the root.
+   * Express strips the mount path from req.path there, so an exemption written
+   * as a full path never matches and the lobby display, which polls from one
+   * address forever, meets the budget it was specifically exempted from.
+   */
+  it('exempts the kiosk when it is mounted under a prefix, as it really is', async () => {
+    const app = express();
+    app.use('/api/v1', createPublicApiBudget(base()));
+    app.get('/api/v1/kiosk/events', (_req, res) => res.json({ events: [{}] }));
+    for (let i = 0; i < 20; i++) {
+      expect((await request(app).get('/api/v1/kiosk/events')).status).toBe(200);
+    }
+  });
+
+  it('exempts the semester routes under that same prefix', async () => {
+    const app = express();
+    app.use('/api/v1', createPublicApiBudget(base()));
+    app.get('/api/v1/semester/current', (_req, res) => res.json({ semester: {} }));
+    for (let i = 0; i < 20; i++) {
+      expect((await request(app).get('/api/v1/semester/current')).status).toBe(200);
+    }
+  });
+
+  it('names the whole path in the denial, not the part after the mount', async () => {
+    const app = express();
+    app.use('/api/v1', createPublicApiBudget(base()));
+    app.get('/api/v1/events', (_req, res) => res.json({ events: [{}] }));
+    for (let i = 0; i < 6; i++) await request(app).get('/api/v1/events');
+    expect(onDenied).toHaveBeenCalledWith(
+      expect.objectContaining({ route: '/api/v1/events' })
+    );
+  });
+
   it('does not charge a caller for rows it was refused', async () => {
     const app = appWith(base(), 1);
     for (let i = 0; i < 6; i++) await request(app).get('/api/v1/events');
