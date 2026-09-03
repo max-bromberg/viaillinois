@@ -2,9 +2,13 @@ import { apiFetch } from './base.js';
 
 /**
  * @param {{ tags?: string[], startDate?: string, endDate?: string, keyword?: string,
- *           timeframe?: 'upcoming'|'archived'|'all', limit?: number, offset?: number }} filters
+ *           timeframe?: 'upcoming'|'archived'|'all', rsoIds?: number[],
+ *           excludePrivate?: boolean, limit?: number, offset?: number }} filters
  *   The timeframe divides events at the start of the campus day. Naming none
- *   leaves the choice to the server, which serves upcoming events.
+ *   leaves the choice to the server, which serves upcoming events. rsoIds and
+ *   excludePrivate are the filter panel's two controls, and they are answered
+ *   by the server so that one page of results is one query rather than every
+ *   matching event narrowed down afterwards in the browser.
  */
 export function getEvents(filters = {}) {
   const params = new URLSearchParams();
@@ -12,8 +16,14 @@ export function getEvents(filters = {}) {
   if (filters.startDate) params.set('startDate', filters.startDate);
   if (filters.endDate)   params.set('endDate', filters.endDate);
   if (filters.timeframe) params.set('timeframe', filters.timeframe);
+  if (filters.rsoIds?.length) params.set('rsoIds', filters.rsoIds.join(','));
+  if (filters.excludePrivate) params.set('excludePrivate', 'true');
   if (filters.limit)     params.set('limit', String(filters.limit));
-  if (filters.offset)    params.set('offset', String(filters.offset));
+  // Zero is a real offset, and it is the first page, so it is sent rather than
+  // left to a falsy check that treats it as absent.
+  if (filters.offset !== undefined && filters.offset !== null) {
+    params.set('offset', String(filters.offset));
+  }
   (filters.tags || []).forEach(t => params.append('tags', t));
   return apiFetch(`/api/v1/events?${params}`);
 }

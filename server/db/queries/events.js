@@ -35,6 +35,33 @@ function timeframeBound(name) {
 }
 
 /**
+ * The two filters the feed's panel offers, as SQL rather than as work the
+ * browser does afterwards.
+ *
+ * They used to be applied in the browser, which meant the feed had to fetch
+ * every matching event before it could show one page of them. That is a request
+ * for the whole table by another name, it stopped working the moment a request
+ * was bounded, and it charged an ordinary reader for a term of events every
+ * time they touched the filter panel.
+ *
+ * An empty selection means no filter rather than nothing selected, which is
+ * what the panel means when nobody has picked an RSO.
+ *
+ * @param {{ rsoIds?: number[], excludePrivate?: boolean }} filters
+ * @returns {{ clause: string, params: Array }}
+ */
+function panelFilters({ rsoIds = [], excludePrivate = false } = {}) {
+  const clauses = [];
+  const params = [];
+  if (Array.isArray(rsoIds) && rsoIds.length) {
+    clauses.push(`AND e.rso_id IN (${rsoIds.map(() => '?').join(',')})`);
+    params.push(...rsoIds);
+  }
+  if (excludePrivate) clauses.push('AND e.is_private = FALSE');
+  return { clause: clauses.join('\n      '), params };
+}
+
+/**
  * STAGE 3 ADVANCED QUERY 1
  * Public event feed with optional filters.
  * @param {{ tag?: string, startDate?: string, endDate?: string, keyword?: string, timeframe?: 'upcoming'|'archived'|'all', limit?: number, offset?: number }} filters
@@ -44,6 +71,7 @@ export async function getPublicEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
+    const panel = panelFilters(filters)
     return query(
         `
   SELECT
@@ -80,6 +108,7 @@ export async function getPublicEvents(filters = {}) {
           (? IS NULL OR e.start_time <= ?)
       )
       ${bound.clause}
+      ${panel.clause}
   GROUP BY
       e.event_id
   HAVING
@@ -88,7 +117,7 @@ export async function getPublicEvents(filters = {}) {
       e.start_time ${bound.direction}
   LIMIT ? OFFSET ?
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, tag, tag, limit, offset]
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
     )
 }
 
@@ -103,6 +132,7 @@ export async function getAllEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
+    const panel = panelFilters(filters)
     return query(
         `
   SELECT
@@ -138,6 +168,7 @@ export async function getAllEvents(filters = {}) {
           (? IS NULL OR e.start_time <= ?)
       )
       ${bound.clause}
+      ${panel.clause}
   GROUP BY
       e.event_id
   HAVING
@@ -146,7 +177,7 @@ export async function getAllEvents(filters = {}) {
       e.start_time ${bound.direction}
   LIMIT ? OFFSET ?
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, tag, tag, limit, offset]
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
     )
 }
 
@@ -332,7 +363,8 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
   if (!memberRsoIds.length) return getPublicEvents(filters);
   const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters;
   const tag = rawTags[0] ?? null;
-  const bound = timeframeBound(timeframe);
+  const bound = timeframeBound(timeframe)
+  const panel = panelFilters(filters);
   return query(
     `SELECT
       e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
@@ -348,11 +380,12 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
       AND (? IS NULL OR e.start_time >= ?)
       AND (? IS NULL OR e.start_time <= ?)
       ${bound.clause}
+      ${panel.clause}
     GROUP BY e.event_id
     HAVING (? IS NULL OR tags LIKE CONCAT('%',?,'%'))
     ORDER BY e.start_time ${bound.direction}
     LIMIT ? OFFSET ?`,
-    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, tag, tag, limit, offset]
+    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
   );
 }
 
@@ -365,7 +398,8 @@ export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
   if (!memberRsoIds.length) return countPublicEvents(filters);
   const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters;
   const tag = rawTags[0] ?? null;
-  const bound = timeframeBound(timeframe);
+  const bound = timeframeBound(timeframe)
+  const panel = panelFilters(filters);
   return query(
     `SELECT COUNT(DISTINCT e.event_id) AS total
     FROM Events e
@@ -378,8 +412,9 @@ export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
       AND (? IS NULL OR e.start_time >= ?)
       AND (? IS NULL OR e.start_time <= ?)
       ${bound.clause}
+      ${panel.clause}
       AND (? IS NULL OR t.tag_name = ?)`,
-    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, tag, tag]
+    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
   );
 }
 
@@ -392,6 +427,7 @@ export async function countPublicEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
+    const panel = panelFilters(filters)
     return query(
         `
   SELECT COUNT(DISTINCT e.event_id) AS total
@@ -411,11 +447,12 @@ export async function countPublicEvents(filters = {}) {
         (? IS NULL OR e.start_time <= ?)
     )
     ${bound.clause}
+      ${panel.clause}
     AND (
         ? IS NULL OR t.tag_name = ?
     )
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, tag, tag]
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
     )
 }
 
@@ -428,6 +465,7 @@ export async function countAllEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
+    const panel = panelFilters(filters)
     return query(
         `
   SELECT COUNT(DISTINCT e.event_id) AS total
@@ -447,10 +485,11 @@ export async function countAllEvents(filters = {}) {
         (? IS NULL OR e.start_time <= ?)
     )
     ${bound.clause}
+      ${panel.clause}
     AND (
         ? IS NULL OR t.tag_name = ?
     )
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, tag, tag]
+        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
     )
 }

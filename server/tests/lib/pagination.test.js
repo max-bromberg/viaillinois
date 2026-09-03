@@ -20,7 +20,7 @@ describe('readPaging', () => {
 
   it('clamps a limit above the maximum rather than refusing it', () => {
     expect(readPaging({ limit: '999999999' }, EVENTS))
-      .toEqual({ limit: 100, offset: 0, refusal: null });
+      .toEqual({ limit: EVENTS.maxLimit, offset: 0, refusal: null });
   });
 
   it('refuses a limit that is not a number', () => {
@@ -151,5 +151,21 @@ describe('the listings a page reads whole', () => {
   it.each(readWhole)('still clamps %s rather than serving what was asked', (name) => {
     const limits = PAGING_LIMITS[name];
     expect(readPaging({ limit: '999999' }, limits).limit).toBe(limits.maxLimit);
+  });
+});
+
+/**
+ * The calendar asks for a month of events and draws them on a grid, with no
+ * second page to ask for. A busy month of a term whose meetings repeat weekly
+ * runs well past a hundred, so the ceiling has to clear that even though the
+ * feed itself pages.
+ */
+describe('the events ceiling', () => {
+  it('clears a busy month, which the calendar draws in one go', () => {
+    expect(PAGING_LIMITS.events.maxLimit).toBeGreaterThanOrEqual(300);
+  });
+
+  it('still pages by default, because the feed has a page control', () => {
+    expect(readPaging({}, PAGING_LIMITS.events).limit).toBe(50);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
+import { PAGING_LIMITS } from '../../lib/pagination.js';
 
 const getPublicEvents = vi.fn().mockResolvedValue([]);
 const countPublicEvents = vi.fn().mockResolvedValue([{ total: 0 }]);
@@ -34,7 +35,7 @@ describe('list endpoints bound what one request may ask for', () => {
   it('clamps an enormous event limit to the route ceiling', async () => {
     const res = await request(app).get('/api/v1/events?limit=999999999');
     expect(res.status).toBe(200);
-    expect(getPublicEvents.mock.calls[0][0].limit).toBe(100);
+    expect(getPublicEvents.mock.calls[0][0].limit).toBe(PAGING_LIMITS.events.maxLimit);
   });
 
   it('refuses an event limit that is not a number, rather than failing in the database', async () => {

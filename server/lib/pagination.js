@@ -31,8 +31,11 @@ const TOO_DEEP = 'That page is too far into the results. Please narrow the range
  * asked for once.
  */
 export const PAGING_LIMITS = {
-  // The feed pages, and its own control offers twenty at a time.
-  events:   { defaultLimit: 50, maxLimit: 100, maxOffset: 5000 },
+  // The feed pages eighteen at a time, so the default covers a page with room
+  // to spare. The ceiling is set for the calendar, which asks for a month of
+  // events at once and draws them on a grid, and a busy month with recurring
+  // events runs well past a hundred.
+  events:   { defaultLimit: 50, maxLimit: 500, maxOffset: 5000 },
   // The midterm schedule is one page of every exam still to come, across the
   // seven subjects the poller follows, and it has no second page to ask for.
   midterms: { defaultLimit: 500, maxLimit: 500, maxOffset: 5000 },
