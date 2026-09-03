@@ -5,6 +5,7 @@ import * as seriesDb from '../db/queries/eventSeries.js';
 import { planSeries, splitByBusyRoom } from '../services/recurringEvents.js';
 import { checkConflict } from '../services/conflictDetector.js';
 import { timeOfDay, durationMinutes, addMinutes, toWallClock } from '../lib/recurrence.js';
+import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
@@ -14,18 +15,20 @@ export async function listEvents(req, res, next) {
     // timeframe gets today and later. Events that have already happened are
     // still served, under the archived timeframe, for anyone who asks for them,
     // and a view that spans the calendar, such as the month grid, asks for all.
-    const { tags, startDate, endDate, keyword, timeframe = 'upcoming', limit = 50, offset = 0 } = req.query;
+    const { tags, startDate, endDate, keyword, timeframe = 'upcoming' } = req.query;
     if (!eventsDb.TIMEFRAMES.includes(timeframe)) {
       return res.status(400).json({ error: `timeframe must be one of: ${eventsDb.TIMEFRAMES.join(', ')}` });
     }
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.events);
+    if (refusal) return res.status(400).json({ error: refusal });
     const filters = {
       tags:      tags      ? (Array.isArray(tags) ? tags : [tags]) : [],
       startDate: startDate || null,
       endDate:   endDate   || null,
       keyword:   keyword   || null,
       timeframe,
-      limit:     parseInt(limit),
-      offset:    parseInt(offset),
+      limit,
+      offset,
     };
 
     // Global admins and RSO board/admin members see all events (including private).

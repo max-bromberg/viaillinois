@@ -2,9 +2,12 @@ import * as midtermsDb from '../db/queries/midterms.js';
 import * as coursesDb from '../db/queries/courses.js';
 import { campusStartOfToday } from '../lib/timezone.js';
 import { checkAnyRsoBoard } from '../middleware/auth.js';
+import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 
 export async function getCourses(req, res, next) {
   try {
+    const { refusal } = readPaging(req.query, PAGING_LIMITS.courses);
+    if (refusal) return res.status(400).json({ error: refusal });
     const courses = await coursesDb.getCourses();
     res.json({ courses });
   } catch (err) { next(err); }
@@ -13,6 +16,8 @@ export async function getCourses(req, res, next) {
 export async function listMidterms(req, res, next) {
   try {
     const { courseCode } = req.query;
+    const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
+    if (refusal) return res.status(400).json({ error: refusal });
     const all = await midtermsDb.getMidterms({ courseCode: courseCode || null });
     // Hide midterms once the calendar day after they take place has begun. The
     // day that counts is the campus one, and end_time is campus wall clock, so
@@ -39,6 +44,8 @@ export async function createMidterm(req, res, next) {
 
 export async function getConfirmedMidtermsHandler(req, res, next) {
   try {
+    const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
+    if (refusal) return res.status(400).json({ error: refusal });
     const midterms = await midtermsDb.getConfirmedMidterms();
     res.json({ midterms });
   } catch (err) { next(err); }

@@ -3,6 +3,7 @@ import * as eventsDb from '../db/queries/events.js';
 import { checkRsoAdmin } from '../middleware/auth.js';
 import * as usersDb from '../db/queries/users.js';
 import { parseRoster } from '../lib/netId.js';
+import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 
 /** Largest roster accepted in one request. */
 const MAX_ROSTER = 200;
@@ -18,6 +19,8 @@ export async function deleteRso(req, res, next) {
 
 export async function listRsos(req, res, next) {
   try {
+    const { refusal } = readPaging(req.query, PAGING_LIMITS.rsos);
+    if (refusal) return res.status(400).json({ error: refusal });
     const rsos = await rsoDb.getAllRsos();
     res.json({ rsos });
   } catch (err) { next(err); }
