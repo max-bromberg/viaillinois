@@ -35,4 +35,6 @@ COPY server/ ./
 COPY --from=client-build /app/client/dist ../client/dist
 
 EXPOSE 3001
-CMD ["node", "--experimental-strip-types", "index.js"]
+# Below the container's 1g limit, so V8 collects under pressure instead of the
+# cgroup killing a process that still had work it could have refused.
+CMD ["node", "--experimental-strip-types", "--max-old-space-size=768", "index.js"]

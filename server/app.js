@@ -7,6 +7,10 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { passport, attachUser } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { createProductionLoadShed } from './middleware/loadShed.js';
+import { clientIp, trustedProxyHops } from './lib/clientIdentity.js';
+import { recordDenial } from './services/denialRecorder.js';
+import { createProductionPublicApiBudget } from './middleware/publicApiBudget.js';
 import { campusTimeJson } from './middleware/campusTime.js';
 import { privateByDefault, publicFor, cacheControlForStaticFile } from './middleware/caching.js';
 import authRouter     from './routes/auth.js';
@@ -37,11 +41,20 @@ const APP_VERSION = JSON.parse(
 
 const app = express();
 
-if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
+// Cloudflare, then Nginx Proxy Manager, is two hops. At the previous value of
+// one, Express resolved req.ip to the Cloudflare edge address, which put every
+// visitor behind a given edge into one bucket of the login limiter.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', trustedProxyHops());
+}
 
 // Nothing is gained by telling the world which framework this is.
 app.disable('x-powered-by');
 app.use(securityHeaders);
+
+// Who is asking, resolved once and read by everything downstream. This sits
+// early because it is trivially cheap and the login limiter reads it.
+app.use((req, _res, next) => { req.clientIp = clientIp(req); next(); });
 
 // The CDN fetches from here compressed when the origin offers it, so every
 // cache miss travels a fraction of the bytes, and so does every response the
@@ -78,6 +91,12 @@ app.use(session({
 app.use(passport.initialize());
 app.use(attachUser);
 
+// After attachUser, because the tiers above distinguish a signed in board
+// member from an anonymous reader, and req.user does not exist before it.
+// attachUser reads a cookie and verifies a JWT with no database access, so
+// the cost of shedding this late is negligible.
+app.use(createProductionLoadShed({ onDenied: recordDenial }));
+
 // Every time this API publishes leaves with the campus offset on it. Mounted
 // once here rather than per route, because a route that forgot was the whole
 // of the inconsistency this replaces.
@@ -108,6 +127,8 @@ app.get('/health', async (_req, res) => {
 // otherwise. Most of it depends on who is asking, and the cost of getting that
 // wrong is one person's answer handed to somebody else.
 app.use('/api/v1', privateByDefault);
+// Anonymous callers only, and generous enough that a reader never meets it.
+app.use('/api/v1', createProductionPublicApiBudget({ onDenied: recordDenial }));
 app.use('/auth', privateByDefault);
 
 app.use('/auth',              authRouter);

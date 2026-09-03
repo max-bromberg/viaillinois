@@ -115,3 +115,29 @@ describe('the deployment checkout', () => {
     expect(ignored.status).toBe(0);
   });
 });
+
+/**
+ * The VPS is shared with other applications belonging to the same operator.
+ * Without limits, a runaway VIA is a runaway host, and the kernel picks its
+ * victim without caring which container caused the problem. Limits here mean
+ * the worst case is that VIA alone suffers.
+ */
+describe('container resource limits', () => {
+  it('caps what the application may take', () => {
+    const via = section(compose, ['services', 'via']);
+    expect(via).toContain('mem_limit: 1g');
+    expect(via).toContain('cpus: 2.0');
+  });
+
+  it('caps what the database may take', () => {
+    const db = section(compose, ['services', 'db']);
+    expect(db).toContain('mem_limit: 2g');
+    expect(db).toContain('cpus: 2.0');
+  });
+
+  it('sizes the buffer pool to sit inside the database limit', () => {
+    // The default is sized against the host's 10 GB rather than against the
+    // container's 2 GB, which gets the container killed rather than slowed.
+    expect(section(compose, ['services', 'db'])).toContain('--innodb-buffer-pool-size=1G');
+  });
+});

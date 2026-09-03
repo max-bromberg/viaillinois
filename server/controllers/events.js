@@ -5,8 +5,43 @@ import * as seriesDb from '../db/queries/eventSeries.js';
 import { planSeries, splitByBusyRoom } from '../services/recurringEvents.js';
 import { checkConflict } from '../services/conflictDetector.js';
 import { timeOfDay, durationMinutes, addMinutes, toWallClock } from '../lib/recurrence.js';
+import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
+import { recordDenial } from '../services/denialRecorder.js';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
+
+/**
+ * More RSOs than VIA will ever have, which is what makes this a guard against
+ * a query built to be expensive rather than a limit anybody could meet. The
+ * filter panel offers one checkbox per RSO, so a real reader sends at most the
+ * number of RSOs there are.
+ */
+const MAX_RSO_FILTER = 200;
+const RSO_IDS_REFUSED =
+  'rsoIds must be a list of at most 200 whole numbers, separated by commas.';
+
+/**
+ * The RSOs a reader ticked, as numbers, or null when the value is not that.
+ *
+ * Accepts a comma separated list and a repeated parameter, because both are
+ * ordinary ways to write a list in a query string and the panel should not
+ * depend on which one the client happens to use.
+ *
+ * @param {unknown} raw
+ * @returns {number[]|null} an empty list means no filter, which is what the
+ *   panel means when nobody has ticked anything
+ */
+function readRsoIds(raw) {
+  if (raw === undefined || raw === '') return [];
+  const parts = (Array.isArray(raw) ? raw : [raw])
+    .flatMap(value => (typeof value === 'string' ? value.split(',') : [value]))
+    .map(value => String(value).trim())
+    .filter(value => value !== '');
+  if (parts.length > MAX_RSO_FILTER) return null;
+  const ids = parts.map(Number);
+  if (ids.some(id => !Number.isInteger(id) || id < 1)) return null;
+  return ids;
+}
 
 export async function listEvents(req, res, next) {
   try {
@@ -14,9 +49,26 @@ export async function listEvents(req, res, next) {
     // timeframe gets today and later. Events that have already happened are
     // still served, under the archived timeframe, for anyone who asks for them,
     // and a view that spans the calendar, such as the month grid, asks for all.
-    const { tags, startDate, endDate, keyword, timeframe = 'upcoming', limit = 50, offset = 0 } = req.query;
+    const { tags, startDate, endDate, keyword, timeframe = 'upcoming' } = req.query;
     if (!eventsDb.TIMEFRAMES.includes(timeframe)) {
       return res.status(400).json({ error: `timeframe must be one of: ${eventsDb.TIMEFRAMES.join(', ')}` });
+    }
+    // The feed's filter panel. Both of these used to be applied in the browser,
+    // which meant the feed had to fetch every matching event before it could
+    // draw one page of them, so the page a reader saw and the page the database
+    // built were different things.
+    const rsoIds = readRsoIds(req.query.rsoIds);
+    if (rsoIds === null) {
+      return res.status(400).json({ error: RSO_IDS_REFUSED });
+    }
+    const excludePrivate = req.query.excludePrivate === 'true';
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.events);
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/events',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
     }
     const filters = {
       tags:      tags      ? (Array.isArray(tags) ? tags : [tags]) : [],
@@ -24,8 +76,10 @@ export async function listEvents(req, res, next) {
       endDate:   endDate   || null,
       keyword:   keyword   || null,
       timeframe,
-      limit:     parseInt(limit),
-      offset:    parseInt(offset),
+      rsoIds,
+      excludePrivate,
+      limit,
+      offset,
     };
 
     // Global admins and RSO board/admin members see all events (including private).

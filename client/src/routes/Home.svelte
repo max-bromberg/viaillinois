@@ -18,36 +18,24 @@
   let page = 1;
   let rsos = [];
 
-  // All events returned by the server for the current server-filter combination.
-  // When client filters are active we fetch the full set; otherwise just one page.
+  // One page of events, as the server built it. Every filter the panel offers
+  // is applied by the query, so this is already the page the reader asked for.
   let rawEvents = [];
-  let serverTotal = 0; // only meaningful when no client filters active
+  let serverTotal = 0; // every filter is applied by the server, so this counts them all
 
   $: archived = filters.timeframe === 'archived';
   $: heading = archived ? 'Archived Events' : 'Upcoming Events';
 
-  $: hasClientFilters = selectedRsoIds.length > 0 || !showInternal;
   $: rsoColorByName = Object.fromEntries(rsos.map(r => [r.name, r.logo_color || null]));
   $: rsoIdByName = Object.fromEntries(rsos.map(r => [r.name, r.rso_id]));
 
-  $: filteredEvents = rawEvents.filter(ev => {
-    if (!showInternal && ev.is_private) return false;
-    if (selectedRsoIds.length > 0) {
-      const rso = rsos.find(r => r.name === ev.rso_name);
-      if (!rso || !selectedRsoIds.includes(rso.rso_id)) return false;
-    }
-    return true;
-  });
-
-  // When client filters are active, paginate filteredEvents locally.
-  // Otherwise the server already returned the correct page.
-  $: totalPages = hasClientFilters
-    ? Math.ceil(filteredEvents.length / PAGE_SIZE)
-    : Math.ceil(serverTotal / PAGE_SIZE);
-
-  $: displayedEvents = hasClientFilters
-    ? filteredEvents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-    : filteredEvents;
+  // Both filter panel controls are answered by the server, so one page of
+  // results is one query. They used to be applied here, which meant the feed
+  // asked for every matching event in the term before it could draw eighteen of
+  // them, and the count under the pager was worked out from whatever subset had
+  // arrived.
+  $: displayedEvents = rawEvents;
+  $: totalPages = Math.max(1, Math.ceil(serverTotal / PAGE_SIZE));
 
   function readPageFromUrl() {
     const params = new URLSearchParams(window.location.search);
@@ -69,24 +57,18 @@
   async function fetchEvents() {
     loading = true;
     error = null;
-    // Read directly from variables, since $: hasClientFilters may not have re-evaluated yet
-    // when fetchEvents is called synchronously after assigning selectedRsoIds/showInternal.
-    const clientFiltered = selectedRsoIds.length > 0 || !showInternal;
+    // Read directly from the variables rather than from a reactive statement,
+    // since fetchEvents is called synchronously after they are assigned.
     try {
-      if (clientFiltered) {
-        // Fetch all server-matching events so client-side pagination is accurate.
-        const { events } = await getEvents({ ...filters, limit: 10000, offset: 0 });
-        rawEvents = events;
-        serverTotal = 0;
-      } else {
-        const { events, total: t } = await getEvents({
-          ...filters,
-          limit: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
-        });
-        rawEvents = events;
-        serverTotal = t ?? 0;
-      }
+      const { events, total: t } = await getEvents({
+        ...filters,
+        rsoIds: selectedRsoIds,
+        excludePrivate: !showInternal,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      });
+      rawEvents = events;
+      serverTotal = t ?? 0;
     } catch (e) {
       error = e.message;
       rawEvents = [];
@@ -109,7 +91,7 @@
     page = e.detail;
     pushPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (!(selectedRsoIds.length > 0 || !showInternal)) fetchEvents(); // client-filtered pages need no re-fetch
+    fetchEvents();
   }
 
   onMount(async () => {

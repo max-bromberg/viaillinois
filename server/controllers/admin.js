@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import * as usersDb from '../db/queries/users.js';
 import * as pollLogDb from '../db/queries/pollLog.js';
+import * as accessDenialsDb from '../db/queries/accessDenials.js';
 import { startPollerRun } from '../lib/pollerUtils.js';
 import * as astraPoller from '../services/astraPoller.js';
 import * as coursesPoller from '../services/coursesPoller.js';
@@ -103,5 +104,27 @@ export async function triggerPoll(req, res, next) {
     }
     const logId = await startPollerRun(service, POLLER_MAP[service]);
     res.json({ ok: true, logId });
+  } catch (err) { next(err); }
+}
+
+/**
+ * What VIA refused to serve, by day and reason.
+ *
+ * This is the surface the operator reads to answer whether the budgets and the
+ * shedding thresholds are set anywhere near right. A week of nothing means the
+ * limits are not touching real readers. A week of row_budget refusals against
+ * the feed means they are too tight and the environment variables should move.
+ */
+export async function getDenials(req, res, next) {
+  try {
+    const raw = req.query.days;
+    const days = raw === undefined ? 7 : Number(raw);
+    if (!Number.isInteger(days) || days < 1) {
+      return res.status(400).json({ error: 'days must be a whole number of one or more.' });
+    }
+    // Retention is ninety days, so a longer window would only scan the table
+    // for rows that are not there.
+    const denials = await accessDenialsDb.getDenialSeries(Math.min(days, 90));
+    res.json({ denials });
   } catch (err) { next(err); }
 }

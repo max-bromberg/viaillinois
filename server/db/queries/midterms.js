@@ -3,14 +3,26 @@ import { query } from '../pool.js';
 import { db } from '../client.ts';
 import { midterms } from '../schema/schema.ts';
 import { campusNow } from '../../lib/timezone.js';
+import { pageClause, pageParams } from './paging.js';
 
 /**
  * List midterms, optionally filtered by course_code and date range.
- * @param {{ courseCode?: string, startDate?: string, endDate?: string }} filters
+ *
+ * endingOnOrAfter hides exams that have already finished. It belongs here
+ * rather than in the caller, because a limit applied to the whole table and a
+ * filter applied afterwards disagree: the limit would cut the page before the
+ * filter ran, and a caller asking for ten upcoming exams could be handed an
+ * empty page while the rows it wanted sat behind the cut.
+ *
+ * limit and offset are optional, and a caller that passes neither still gets
+ * every matching row, which is what the admin listing and the sitemap want.
+ *
+ * @param {{ courseCode?: string, startDate?: string, endDate?: string,
+ *           endingOnOrAfter?: string, limit?: number, offset?: number }} filters
  * @returns {Promise<Array<{ midterm_id, title, course_code, course_title, start_time, end_time, status, building, room_number, submitted_by }>>}
  */
 export async function getMidterms(filters = {}) {
-  const { courseCode, startDate, endDate } = filters
+  const { courseCode, startDate, endDate, endingOnOrAfter, limit, offset } = filters
   const params = []
   let whereClauses = []
   
@@ -25,6 +37,10 @@ export async function getMidterms(filters = {}) {
   if (endDate) {
     whereClauses.push('m.start_time <= ?')
     params.push(endDate)
+  }
+  if (endingOnOrAfter) {
+    whereClauses.push('m.end_time >= ?')
+    params.push(endingOnOrAfter)
   }
 
   const whereClause = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : ''
@@ -54,8 +70,9 @@ export async function getMidterms(filters = {}) {
     LEFT JOIN Locations l ON m.location_id = l.location_id
     ${whereClause}
     ORDER BY m.start_time ASC
+    ${pageClause(limit, offset)}
     `,
-    [now, now, ...params]
+    [now, now, ...params, ...pageParams(limit, offset)]
   )
 }
 
@@ -92,10 +109,21 @@ export async function findMidtermsByUid(uids) {
 
 /**
  * Confirmed midterms for calendar display.
+ * @param {{ limit?: number, offset?: number }} [page] omit both for every row,
+ *   which is what the sitemap builder wants.
  * @returns {Promise<Array<{ midterm_id, title, course_code, start_time, end_time, building, room_number }>>}
  */
-export async function getConfirmedMidterms() {
-  return query('SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, m.location_text, l.building, l.room_number FROM Midterms m LEFT JOIN Locations l ON m.location_id = l.location_id WHERE m.status = "Confirmed" AND m.end_time > ? ORDER BY m.start_time ASC', [campusNow()])
+export async function getConfirmedMidterms({ limit, offset } = {}) {
+  return query(
+    `SELECT m.midterm_id, m.title, m.course_code, m.start_time, m.end_time, m.location_text,
+            l.building, l.room_number
+     FROM Midterms m
+     LEFT JOIN Locations l ON m.location_id = l.location_id
+     WHERE m.status = "Confirmed" AND m.end_time > ?
+     ORDER BY m.start_time ASC
+     ${pageClause(limit, offset)}`,
+    [campusNow(), ...pageParams(limit, offset)]
+  )
 }
 
 /**

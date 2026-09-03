@@ -1,3 +1,5 @@
+import { recordDenial } from '../services/denialRecorder.js';
+
 /**
  * Minimal in-memory fixed-window rate limiter.
  *
@@ -22,7 +24,7 @@ export function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Too 
 
   return function rateLimitMiddleware(req, res, next) {
     const now = Date.now();
-    const key = req.ip || req.socket?.remoteAddress || 'unknown';
+    const key = req.clientIp || req.ip || req.socket?.remoteAddress || 'unknown';
     let entry = hits.get(key);
     if (!entry || entry.resetAt <= now) {
       entry = { count: 0, resetAt: now + windowMs };
@@ -31,6 +33,12 @@ export function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Too 
     entry.count += 1;
     if (entry.count > max) {
       const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+      // The same series as every other refusal, so the admin surface answers
+      // "are people being turned away" once rather than per mechanism.
+      recordDenial({
+        reason: 'rate_limited', route: req.baseUrl + (req.route?.path || req.path),
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
       res.set('Retry-After', String(retryAfter));
       return res.status(429).json({ error: message });
     }

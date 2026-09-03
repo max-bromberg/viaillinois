@@ -57,6 +57,13 @@
       "when": 1788581189249,
       "tag": "0007_event_feed_index",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1788667589249,
+      "tag": "0008_access_denials",
+      "breakpoints": true
     }
   ]
 }

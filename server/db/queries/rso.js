@@ -1,11 +1,17 @@
 import { query } from '../pool.js';
+import { pageClause, pageParams } from './paging.js';
 
 /**
- * List all RSOs.
+ * List RSOs.
+ * @param {{ limit?: number, offset?: number }} [page] omit both for every row.
  * @returns {Promise<Array>}
  */
-export async function getAllRsos() {
-  return query('SELECT rso_id, name, description, logo_color, founded_year FROM RSOs')
+export async function getAllRsos({ limit, offset } = {}) {
+  return query(
+    `SELECT rso_id, name, description, logo_color, founded_year FROM RSOs
+     ORDER BY rso_id ${pageClause(limit, offset)}`,
+    pageParams(limit, offset)
+  )
 }
 
 /**

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import { campusStartOfToday } from '../../lib/timezone.js';
 
 const midtermRows = vi.hoisted(() => ({ value: [{ midterm_id: 1, title: 'ECE 110 Midterm 1' }] }));
 
@@ -30,6 +31,7 @@ const userToken  = jwt.sign({ net_id: 'plain1', is_global_admin: false }, secret
 
 beforeEach(() => {
   midtermRows.value = [{ midterm_id: 1, title: 'ECE 110 Midterm 1' }];
+  midtermsDb.getMidterms.mockClear();
 });
 
 describe('GET /api/v1/midterms', () => {
@@ -63,14 +65,19 @@ describe('GET /api/v1/midterms', () => {
     expect(res.body.midterms[0].start_time).toBe('2099-01-15T18:00:00-06:00');
   });
 
-  /** An exam is listed until the campus day after it has begun. */
-  it('drops an exam that finished before today on campus', async () => {
-    midtermRows.value = [
-      { midterm_id: 1, title: 'Past',   end_time: '2000-01-15 20:00:00' },
-      { midterm_id: 2, title: 'Future', end_time: '2099-01-15 20:00:00' },
-    ];
-    const res = await request(app).get('/api/v1/midterms');
-    expect(res.body.midterms.map(m => m.midterm_id)).toEqual([2]);
+  /**
+   * An exam is listed until the campus day after it has begun. The cut is made
+   * in SQL rather than here, because a limit applied to the whole table and a
+   * filter applied afterwards disagree: the limit would take the finished exams
+   * first and this handler would then hide them, leaving the caller a short
+   * page or an empty one. tests/db/listQueryLimits.db.test.js exercises the
+   * cut against a real database, so this asserts only that the handler asks
+   * for it, and asks for the campus day rather than the process one.
+   */
+  it('asks the database to drop exams that finished before today on campus', async () => {
+    await request(app).get('/api/v1/midterms');
+    const filters = midtermsDb.getMidterms.mock.calls.at(-1)[0];
+    expect(filters.endingOnOrAfter).toBe(campusStartOfToday());
   });
 });
 

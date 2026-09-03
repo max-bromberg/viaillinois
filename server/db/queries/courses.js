@@ -1,4 +1,5 @@
 import { query } from '../pool.js';
+import { pageClause, pageParams } from './paging.js';
 
 /**
  * Upsert a course row. Safe to re-run across semesters.
@@ -26,10 +27,6 @@ export async function upsertSection(courseCode, locationId, dayOfWeek, startTime
 }
 
 /**
- * List all courses (used to populate midterm submission form dropdown).
- * @returns {Promise<Array<{ course_code, title }>>}
- */
-/**
  * Just the course codes, for matching a course named in imported text.
  * @returns {Promise<string[]>}
  */
@@ -38,8 +35,16 @@ export async function getCourseCodes() {
   return rows.map(r => r.course_code)
 }
 
-export async function getCourses() {
-  return query('SELECT course_code, title FROM Courses ORDER BY course_code')
+/**
+ * List courses, for the midterm submission form and the public course list.
+ * @param {{ limit?: number, offset?: number }} [page] omit both for every row.
+ * @returns {Promise<Array<{ course_code, title }>>}
+ */
+export async function getCourses({ limit, offset } = {}) {
+  return query(
+    `SELECT course_code, title FROM Courses ORDER BY course_code ${pageClause(limit, offset)}`,
+    pageParams(limit, offset)
+  )
 }
 
 /**

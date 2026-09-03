@@ -2,10 +2,20 @@ import * as midtermsDb from '../db/queries/midterms.js';
 import * as coursesDb from '../db/queries/courses.js';
 import { campusStartOfToday } from '../lib/timezone.js';
 import { checkAnyRsoBoard } from '../middleware/auth.js';
+import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
+import { recordDenial } from '../services/denialRecorder.js';
 
 export async function getCourses(req, res, next) {
   try {
-    const courses = await coursesDb.getCourses();
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.courses);
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/midterms/courses',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
+    const courses = await coursesDb.getCourses({ limit, offset });
     res.json({ courses });
   } catch (err) { next(err); }
 }
@@ -13,13 +23,26 @@ export async function getCourses(req, res, next) {
 export async function listMidterms(req, res, next) {
   try {
     const { courseCode } = req.query;
-    const all = await midtermsDb.getMidterms({ courseCode: courseCode || null });
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/midterms',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
     // Hide midterms once the calendar day after they take place has begun. The
     // day that counts is the campus one, and end_time is campus wall clock, so
-    // the two are compared as the strings they are rather than through a Date,
-    // which would read both of them in whatever zone this process runs in.
-    const startOfToday = campusStartOfToday();
-    const midterms = all.filter(m => String(m.end_time ?? '') >= startOfToday);
+    // the comparison is between strings rather than through a Date, which would
+    // read both of them in whatever zone this process runs in. The filter goes
+    // to the database with the limit, because filtering here afterwards would
+    // let the limit cut the page before the filter ran and hand the caller a
+    // short page while the rows it wanted sat behind the cut.
+    const midterms = await midtermsDb.getMidterms({
+      courseCode: courseCode || null,
+      endingOnOrAfter: campusStartOfToday(),
+      limit, offset,
+    });
     res.json({ midterms });
   } catch (err) { next(err); }
 }
@@ -39,7 +62,15 @@ export async function createMidterm(req, res, next) {
 
 export async function getConfirmedMidtermsHandler(req, res, next) {
   try {
-    const midterms = await midtermsDb.getConfirmedMidterms();
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.confirmedMidterms);
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/midterms',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
+    const midterms = await midtermsDb.getConfirmedMidterms({ limit, offset });
     res.json({ midterms });
   } catch (err) { next(err); }
 }
