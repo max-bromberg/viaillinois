@@ -4,6 +4,7 @@ import { checkRsoAdmin } from '../middleware/auth.js';
 import * as usersDb from '../db/queries/users.js';
 import { parseRoster } from '../lib/netId.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
+import { recordDenial } from '../services/denialRecorder.js';
 
 /** Largest roster accepted in one request. */
 const MAX_ROSTER = 200;
@@ -24,7 +25,13 @@ export async function listRsos(req, res, next) {
     // and returns every row. Task 15 of the plan pushes the bound down into the
     // query. Until it lands, this rejects a malformed page without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.rsos);
-    if (refusal) return res.status(400).json({ error: refusal });
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/rsos',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
     const rsos = await rsoDb.getAllRsos();
     res.json({ rsos });
   } catch (err) { next(err); }

@@ -1,4 +1,5 @@
 import { sendBusy } from '../lib/busyResponse.js';
+import { recordDenial } from '../services/denialRecorder.js';
 
 /**
  * Global Express error handler.
@@ -18,6 +19,10 @@ export function errorHandler(err, req, res, _next) {
   // A full queue is the bounded pool working as designed, not a fault, so it
   // gets the same honest answer that shedding gives.
   if (QUEUE_FULL.has(err.code) || /queue limit/i.test(err.message || '')) {
+    recordDenial({
+      reason: 'pool_exhausted', route: req.route?.path || req.path || 'unknown',
+      authenticated: Boolean(req.user), client: req.clientIp,
+    });
     return sendBusy(res, POOL_RETRY_AFTER_SECONDS);
   }
 

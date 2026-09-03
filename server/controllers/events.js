@@ -6,6 +6,7 @@ import { planSeries, splitByBusyRoom } from '../services/recurringEvents.js';
 import { checkConflict } from '../services/conflictDetector.js';
 import { timeOfDay, durationMinutes, addMinutes, toWallClock } from '../lib/recurrence.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
+import { recordDenial } from '../services/denialRecorder.js';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
@@ -20,7 +21,13 @@ export async function listEvents(req, res, next) {
       return res.status(400).json({ error: `timeframe must be one of: ${eventsDb.TIMEFRAMES.join(', ')}` });
     }
     const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.events);
-    if (refusal) return res.status(400).json({ error: refusal });
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/events',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
     const filters = {
       tags:      tags      ? (Array.isArray(tags) ? tags : [tags]) : [],
       startDate: startDate || null,

@@ -3,6 +3,7 @@ import * as coursesDb from '../db/queries/courses.js';
 import { campusStartOfToday } from '../lib/timezone.js';
 import { checkAnyRsoBoard } from '../middleware/auth.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
+import { recordDenial } from '../services/denialRecorder.js';
 
 export async function getCourses(req, res, next) {
   try {
@@ -12,7 +13,13 @@ export async function getCourses(req, res, next) {
     // down into the query. Until it lands, this rejects a malformed page
     // without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.courses);
-    if (refusal) return res.status(400).json({ error: refusal });
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/midterms/courses',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
     const courses = await coursesDb.getCourses();
     res.json({ courses });
   } catch (err) { next(err); }
@@ -28,7 +35,13 @@ export async function listMidterms(req, res, next) {
     // bound down into the query. Until it lands, this rejects a malformed
     // page without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
-    if (refusal) return res.status(400).json({ error: refusal });
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/midterms',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
     const all = await midtermsDb.getMidterms({ courseCode: courseCode || null });
     // Hide midterms once the calendar day after they take place has begun. The
     // day that counts is the campus one, and end_time is campus wall clock, so
@@ -61,7 +74,13 @@ export async function getConfirmedMidtermsHandler(req, res, next) {
     // pushes the bound down into the query. Until it lands, this rejects a
     // malformed page without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
-    if (refusal) return res.status(400).json({ error: refusal });
+    if (refusal) {
+      recordDenial({
+        reason: 'pagination_refused', route: '/api/v1/midterms',
+        authenticated: Boolean(req.user), client: req.clientIp,
+      });
+      return res.status(400).json({ error: refusal });
+    }
     const midterms = await midtermsDb.getConfirmedMidterms();
     res.json({ midterms });
   } catch (err) { next(err); }

@@ -9,6 +9,7 @@ import { passport, attachUser } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createProductionLoadShed } from './middleware/loadShed.js';
 import { clientIp } from './lib/clientIdentity.js';
+import { recordDenial } from './services/denialRecorder.js';
 import { campusTimeJson } from './middleware/campusTime.js';
 import { privateByDefault, publicFor, cacheControlForStaticFile } from './middleware/caching.js';
 import authRouter     from './routes/auth.js';
@@ -93,8 +94,7 @@ app.use(attachUser);
 // member from an anonymous reader, and req.user does not exist before it.
 // attachUser reads a cookie and verifies a JWT with no database access, so
 // the cost of shedding this late is negligible.
-// Task 9 replaces this sink with the denial recorder.
-app.use(createProductionLoadShed({ onDenied: () => {} }));
+app.use(createProductionLoadShed({ onDenied: recordDenial }));
 
 // Every time this API publishes leaves with the campus offset on it. Mounted
 // once here rather than per route, because a route that forgot was the whole
