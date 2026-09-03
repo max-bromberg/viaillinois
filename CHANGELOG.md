@@ -4,6 +4,8 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+## 0.5.1 (2026-09-03)
+
 - Creating a repeating event works again. The create event form posts its times as the browser's date and time field holds them, with a T between the date and the hour and no seconds, and the server read them as though they were the shape the database writes, with a space. The hour came out as midnight and the length of the event came out as no number at all, so the insert failed and the organizer was shown the failed query across the top of the form. Both shapes are now read as the same time, and a time the server genuinely cannot read is answered with a sentence saying so rather than a database error. The same reading is applied when a repeat is edited, where it would otherwise have moved every week of the series to midnight.
 
 ## 0.5.0 (2026-09-02)
