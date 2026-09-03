@@ -14,6 +14,25 @@ const reservationSource = customType<{ data: 'tableau' | 'astra'; driverData: st
 	},
 });
 
+/**
+ * What VIA refused to serve, and why, aggregated by the minute. Written by
+ * server/services/denialRecorder.js once a minute rather than once a refusal,
+ * because a row per refusal would load the database hardest exactly when the
+ * database is the thing under pressure. No address is stored in any column.
+ */
+export const accessDenials = mysqlTable("Access_Denials", {
+	bucketStart: datetime("bucket_start", { mode: 'string' }).notNull(),
+	reason: varchar({ length: 32 }).notNull(),
+	route: varchar({ length: 100 }).notNull(),
+	authenticated: tinyint().default(0).notNull(),
+	denialCount: int("denial_count").default(0).notNull(),
+	clientCount: int("client_count").default(0).notNull(),
+},
+(table) => [
+	index("idx_access_denials_bucket").on(table.bucketStart),
+	primaryKey({ columns: [table.bucketStart, table.reason, table.route, table.authenticated], name: "Access_Denials_pk"}),
+]);
+
 export const courseSections = mysqlTable("Course_Sections", {
 	sectionId: int("section_id").autoincrement().notNull(),
 	courseCode: varchar("course_code", { length: 20 }).notNull().references(() => courses.courseCode, { onDelete: "cascade" } ),
