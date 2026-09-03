@@ -244,3 +244,20 @@ Moving backups off the box is tracked as follow-up work. The code is ready for i
 destination is an interface in `server/db/backup/destination.js`, and an off-box target is a
 new implementation of `store`, `list` and `prune` rather than a change to the cutover
 script. What it needs first is a decision about where the backups should live.
+
+## Cloudflare and the origin
+
+Traffic reaches VIA through Cloudflare's proxy, then through the Nginx Proxy Manager
+container on the host, then to the `via` service.
+
+### Nginx Proxy Manager accepts Cloudflare only
+
+Ports 80 and 443 accept connections only from Cloudflare's published address ranges. This
+is the trust boundary the whole client identity design rests on. `server/lib/clientIdentity.js`
+reads the visitor's address from the `CF-Connecting-IP` header, which Cloudflare writes
+itself, and a client able to reach the origin directly could write that header itself
+instead. No application code can tell the difference, because the socket peer Express sees
+is always the proxy container.
+
+Cloudflare publishes its ranges at https://www.cloudflare.com/ips/ and changes them
+occasionally. Refresh the allow list when they do.
