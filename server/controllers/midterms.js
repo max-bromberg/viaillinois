@@ -62,7 +62,7 @@ export async function createMidterm(req, res, next) {
 
 export async function getConfirmedMidtermsHandler(req, res, next) {
   try {
-    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
+    const { limit, offset, refusal } = readPaging(req.query, PAGING_LIMITS.confirmedMidterms);
     if (refusal) {
       recordDenial({
         reason: 'pagination_refused', route: '/api/v1/midterms',

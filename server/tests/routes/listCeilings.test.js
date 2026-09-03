@@ -37,7 +37,7 @@ beforeEach(() => {
 describe('the list ceilings reach the database', () => {
   it('bounds the midterm list, and clamps a limit above the ceiling', async () => {
     await request(app).get('/api/v1/midterms?limit=999999');
-    expect(getMidterms).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
+    expect(getMidterms).toHaveBeenCalledWith(expect.objectContaining({ limit: 500 }));
   });
 
   it('sends the campus date filter with the bound, not after it', async () => {
@@ -47,24 +47,29 @@ describe('the list ceilings reach the database', () => {
     expect(filters.endingOnOrAfter).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   });
 
-  it('bounds the confirmed midterm list', async () => {
+  it('bounds the confirmed midterm list at its own, larger ceiling', async () => {
     await request(app).get('/api/v1/midterms/confirmed?limit=999999');
-    expect(getConfirmedMidterms).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
+    expect(getConfirmedMidterms).toHaveBeenCalledWith(expect.objectContaining({ limit: 500 }));
+  });
+
+  it('still hands the calendar the whole confirmed set when it asks for no limit', async () => {
+    await request(app).get('/api/v1/midterms/confirmed');
+    expect(getConfirmedMidterms).toHaveBeenCalledWith({ limit: 500, offset: 0 });
   });
 
   it('bounds the course list', async () => {
     await request(app).get('/api/v1/midterms/courses?limit=999999');
-    expect(getCourses).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
+    expect(getCourses).toHaveBeenCalledWith(expect.objectContaining({ limit: 5000 }));
   });
 
   it('bounds the RSO list, and passes the offset through', async () => {
     await request(app).get('/api/v1/rsos?limit=999999&offset=25');
-    expect(getAllRsos).toHaveBeenCalledWith({ limit: 100, offset: 25 });
+    expect(getAllRsos).toHaveBeenCalledWith({ limit: 500, offset: 25 });
   });
 
   it('gives each of them the route default when no limit is asked for', async () => {
     await request(app).get('/api/v1/rsos');
-    expect(getAllRsos).toHaveBeenCalledWith({ limit: 50, offset: 0 });
+    expect(getAllRsos).toHaveBeenCalledWith({ limit: 500, offset: 0 });
   });
 
   it('still refuses a page too far in, without asking the database', async () => {

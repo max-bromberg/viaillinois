@@ -14,16 +14,42 @@
 const NOT_A_WHOLE_NUMBER = 'limit and offset must be whole numbers of zero or more.';
 const TOO_DEEP = 'That page is too far into the results. Please narrow the range by date.';
 
-/** Per route ceilings. Every list endpoint names one of these. */
+/**
+ * Per route ceilings. Every list endpoint names one of these.
+ *
+ * A ceiling is here to bound what one request may ask for. It is not here to
+ * change what a page already receives, and the difference matters: several of
+ * these listings are read by a page that fetches once and draws everything it
+ * was given, with no way to ask for a second page. A default below the real
+ * size of one of those sets does not paginate it, it hides rows from a page
+ * somebody is planning around. Those entries therefore have a default equal to
+ * their ceiling, and the ceiling is set above the size the set really reaches.
+ *
+ * The per request ceiling is not what makes bulk collection impractical in any
+ * case. The row budget in middleware/publicApiBudget.js is, because it measures
+ * what an anonymous caller was served across a whole hour rather than what it
+ * asked for once.
+ */
 export const PAGING_LIMITS = {
+  // The feed pages, and its own control offers twenty at a time.
   events:   { defaultLimit: 50, maxLimit: 100, maxOffset: 5000 },
-  midterms: { defaultLimit: 50, maxLimit: 100, maxOffset: 5000 },
-  courses:  { defaultLimit: 50, maxLimit: 100, maxOffset: 5000 },
-  rsos:     { defaultLimit: 50, maxLimit: 100, maxOffset: 1000 },
+  // The midterm schedule is one page of every exam still to come, across the
+  // seven subjects the poller follows, and it has no second page to ask for.
+  midterms: { defaultLimit: 500, maxLimit: 500, maxOffset: 5000 },
+  // The scheduler puts every course in one picker. The poller syncs seven
+  // subjects across the university, which is well over a thousand rows.
+  courses:  { defaultLimit: 5000, maxLimit: 5000, maxOffset: 5000 },
+  // Every RSO appears in the feed's filter panel and in the event form.
+  rsos:     { defaultLimit: 500, maxLimit: 500, maxOffset: 1000 },
   // The venues search box was serving ten results before this module existed,
   // and this table exists to add a ceiling rather than to change a default.
   venues:   { defaultLimit: 10, maxLimit: 100, maxOffset: 1000 },
   kiosk:    { defaultLimit: 10, maxLimit: 50,  maxOffset: 0 },
+  // The calendar asks for every confirmed exam still to come and draws the ones
+  // that fall in the week or month it is showing. The query behind it is
+  // already narrow, since it returns only confirmed exams that have not
+  // finished, and there is nothing to page through.
+  confirmedMidterms: { defaultLimit: 500, maxLimit: 500, maxOffset: 0 },
 };
 
 /**

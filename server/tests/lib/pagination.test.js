@@ -101,3 +101,55 @@ describe('readPaging on input that is not a plain number', () => {
     expect(readPaging({ offset: { a: '1' } }, PAGING_LIMITS.events).refusal).not.toBeNull();
   });
 });
+
+/**
+ * The calendar asks for every confirmed exam and draws whichever ones fall in
+ * the week or month it is pointed at. Giving that route the paged list default
+ * of fifty would quietly drop exams off a page students plan around, so it has
+ * its own entry whose default is its ceiling. The ceiling is there to bound
+ * what one request can ask for, not to change what the calendar already gets.
+ */
+describe('the confirmed midterm ceiling', () => {
+  it('serves the whole confirmed set by default, as the calendar expects', () => {
+    const { limit } = readPaging({}, PAGING_LIMITS.confirmedMidterms);
+    expect(limit).toBe(PAGING_LIMITS.confirmedMidterms.maxLimit);
+  });
+
+  it('still refuses to page into it, because it is not a paged list', () => {
+    expect(readPaging({ offset: '1' }, PAGING_LIMITS.confirmedMidterms).refusal).not.toBeNull();
+  });
+
+  it('clamps a caller asking for more than the ceiling', () => {
+    const { limit } = readPaging({ limit: '999999' }, PAGING_LIMITS.confirmedMidterms);
+    expect(limit).toBe(PAGING_LIMITS.confirmedMidterms.maxLimit);
+  });
+});
+
+/**
+ * Some of these listings are read by a page that has no way to ask for a second
+ * one. The scheduler's course picker, the midterm schedule and the RSO filter
+ * all fetch once and draw everything they were given, so a default below the
+ * real size of the set does not paginate them, it silently hides rows from a
+ * page somebody is planning around. Those entries have a default equal to their
+ * ceiling: the ceiling is there to bound what one request may ask for, not to
+ * change what these pages already receive.
+ */
+describe('the listings a page reads whole', () => {
+  const readWhole = ['courses', 'confirmedMidterms', 'midterms', 'rsos'];
+
+  it.each(readWhole)('serves %s in full when no limit is asked for', (name) => {
+    const limits = PAGING_LIMITS[name];
+    expect(readPaging({}, limits).limit).toBe(limits.maxLimit);
+  });
+
+  it('holds the course list above the size the poller really produces', () => {
+    // The poller syncs seven subjects across the university, which is well over
+    // a thousand rows, and the scheduler puts all of them in one picker.
+    expect(PAGING_LIMITS.courses.maxLimit).toBeGreaterThanOrEqual(5000);
+  });
+
+  it.each(readWhole)('still clamps %s rather than serving what was asked', (name) => {
+    const limits = PAGING_LIMITS[name];
+    expect(readPaging({ limit: '999999' }, limits).limit).toBe(limits.maxLimit);
+  });
+});
