@@ -73,6 +73,21 @@ describe('createSlidingBudget', () => {
     expect(budget.size()).toBe(0);
   });
 
+  /**
+   * Rows are charged after the response has gone out, so the spend is a fact
+   * rather than a request. consume() refuses a spend that would exceed the
+   * maximum, which is right for asking permission and wrong for recording
+   * something already served: the overspend would vanish and the total could
+   * never pass the maximum that is supposed to stop the next caller.
+   */
+  it('records a spend that overshoots, because it already happened', () => {
+    const clock = clockAt(0);
+    const budget = createSlidingBudget({ windowMs: 60000, max: 100, now: clock.now });
+    budget.charge('a', 60);
+    budget.charge('a', 60);
+    expect(budget.consume('a', 0).allowed).toBe(false);
+  });
+
   it('reports a caller who is already out, when asked to spend nothing', () => {
     const clock = clockAt(0);
     const budget = createSlidingBudget({ windowMs: 60000, max: 10, now: clock.now });

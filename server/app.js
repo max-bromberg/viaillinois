@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { createProductionLoadShed } from './middleware/loadShed.js';
 import { clientIp } from './lib/clientIdentity.js';
 import { recordDenial } from './services/denialRecorder.js';
+import { createProductionPublicApiBudget } from './middleware/publicApiBudget.js';
 import { campusTimeJson } from './middleware/campusTime.js';
 import { privateByDefault, publicFor, cacheControlForStaticFile } from './middleware/caching.js';
 import authRouter     from './routes/auth.js';
@@ -126,6 +127,8 @@ app.get('/health', async (_req, res) => {
 // otherwise. Most of it depends on who is asking, and the cost of getting that
 // wrong is one person's answer handed to somebody else.
 app.use('/api/v1', privateByDefault);
+// Anonymous callers only, and generous enough that a reader never meets it.
+app.use('/api/v1', createProductionPublicApiBudget({ onDenied: recordDenial }));
 app.use('/auth', privateByDefault);
 
 app.use('/auth',              authRouter);

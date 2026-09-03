@@ -57,6 +57,24 @@ export function createSlidingBudget({ windowMs, max, now = Date.now }) {
       return { allowed: true, retryAfterSeconds: 0 };
     },
 
+    /**
+     * Record a spend that has already happened, without asking permission.
+     *
+     * Rows are charged once the response has gone out, so refusing the charge
+     * would only lose the count: the caller has the rows either way. consume()
+     * is the right shape for asking whether something may happen, and this is
+     * the right shape for recording that it did.
+     * @param {string} key
+     * @param {number} amount
+     */
+    charge(key, amount) {
+      if (!(amount > 0)) return;
+      const at = now();
+      const kept = live(key, at);
+      kept.push([at, amount]);
+      spends.set(key, kept);
+    },
+
     /** Drop callers whose spends have all aged out. */
     sweep() {
       const at = now();
