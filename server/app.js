@@ -8,7 +8,7 @@ import session from 'express-session';
 import { passport, attachUser } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createProductionLoadShed } from './middleware/loadShed.js';
-import { clientIp } from './lib/clientIdentity.js';
+import { clientIp, trustedProxyHops } from './lib/clientIdentity.js';
 import { recordDenial } from './services/denialRecorder.js';
 import { createProductionPublicApiBudget } from './middleware/publicApiBudget.js';
 import { campusTimeJson } from './middleware/campusTime.js';
@@ -45,7 +45,7 @@ const app = express();
 // one, Express resolved req.ip to the Cloudflare edge address, which put every
 // visitor behind a given edge into one bucket of the login limiter.
 if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', parseInt(process.env.TRUSTED_PROXY_HOPS || '2', 10));
+  app.set('trust proxy', trustedProxyHops());
 }
 
 // Nothing is gained by telling the world which framework this is.

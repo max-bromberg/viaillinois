@@ -30,9 +30,17 @@ export const PAGING_LIMITS = {
  * A whole number of zero or more, or null when the value is anything else.
  * Written by hand rather than with parseInt, which reads '10.5' as 10 and
  * 'abc' as NaN without ever saying that it was given nonsense.
+ *
+ * An empty value is treated as one that was never sent, because a caller that
+ * built its URL from an empty form field is not asking for nonsense. Anything
+ * that is not a string or a number is refused outright: a repeated or nested
+ * parameter arrives as a list or an object, and Number(['10']) is 10, so
+ * reading one of those as a number would be a guess about what the caller
+ * meant rather than an answer to what it sent.
  */
 function wholeNumber(raw, fallback) {
   if (raw === undefined || raw === null || raw === '') return fallback;
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 0) return null;
   return value;

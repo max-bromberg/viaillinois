@@ -38,3 +38,23 @@ export function clientIp(req) {
     : '';
   return firstValid(headers['cf-connecting-ip'], forwarded, req.socket?.remoteAddress);
 }
+
+/** The real chain in front of the origin: Cloudflare, then Nginx Proxy Manager. */
+const DEFAULT_PROXY_HOPS = 2;
+
+/**
+ * How many proxies Express should trust, read from the environment.
+ *
+ * This decides which entry of the forwarded chain Express calls the visitor's
+ * address, so a typo here quietly changes who every rate limit thinks it is
+ * talking to. parseInt alone would hand Express NaN, which it accepts as a
+ * trust setting of its own, so anything that is not a count falls back to the
+ * real one instead.
+ *
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {number}
+ */
+export function trustedProxyHops(env = process.env) {
+  const hops = Number.parseInt(env.TRUSTED_PROXY_HOPS ?? '', 10);
+  return Number.isInteger(hops) && hops >= 0 ? hops : DEFAULT_PROXY_HOPS;
+}

@@ -63,3 +63,41 @@ describe('readPaging', () => {
       .toEqual({ limit: 10, offset: 0, refusal: null });
   });
 });
+
+/**
+ * Edge cases that reach this module from a real query string. Each one was
+ * noticed during review and left untested, which meant the behaviour was
+ * whatever Number() happened to do rather than something anybody had decided.
+ */
+describe('readPaging on input that is not a plain number', () => {
+  it('treats an empty value as one that was not given at all', () => {
+    // ?limit= is a caller that built a URL from an empty field, not one asking
+    // for nonsense, so it gets the default rather than a refusal.
+    expect(readPaging({ limit: '' }, PAGING_LIMITS.events).limit).toBe(50);
+    expect(readPaging({ limit: '' }, PAGING_LIMITS.events).refusal).toBeNull();
+  });
+
+  it('accepts a number with spaces around it', () => {
+    expect(readPaging({ limit: ' 10 ' }, PAGING_LIMITS.events).limit).toBe(10);
+  });
+
+  it('refuses a value that is infinite rather than clamping it', () => {
+    expect(readPaging({ limit: 'Infinity' }, PAGING_LIMITS.events).refusal).not.toBeNull();
+    expect(readPaging({ offset: 'Infinity' }, PAGING_LIMITS.events).refusal).not.toBeNull();
+  });
+
+  it('refuses a repeated parameter rather than reading one of the two', () => {
+    expect(readPaging({ limit: ['1', '2'] }, PAGING_LIMITS.events).refusal).not.toBeNull();
+  });
+
+  it('refuses a list even when it holds a single number', () => {
+    // Number(['10']) is 10, so a one element list used to be accepted as
+    // though the caller had sent a number. It did not, and reading it as one
+    // is a guess.
+    expect(readPaging({ limit: ['10'] }, PAGING_LIMITS.events).refusal).not.toBeNull();
+  });
+
+  it('refuses an object, which is what a nested parameter parses to', () => {
+    expect(readPaging({ offset: { a: '1' } }, PAGING_LIMITS.events).refusal).not.toBeNull();
+  });
+});
