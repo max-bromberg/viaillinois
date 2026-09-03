@@ -19,6 +19,10 @@ export async function deleteRso(req, res, next) {
 
 export async function listRsos(req, res, next) {
   try {
+    // The request is validated against the route ceiling here, but the ceiling
+    // is not yet enforced at the database, because getAllRsos takes no limit
+    // and returns every row. Task 15 of the plan pushes the bound down into the
+    // query. Until it lands, this rejects a malformed page without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.rsos);
     if (refusal) return res.status(400).json({ error: refusal });
     const rsos = await rsoDb.getAllRsos();

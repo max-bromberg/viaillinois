@@ -57,4 +57,9 @@ describe('readPaging', () => {
     expect(readPaging({ limit: 10, offset: 20 }, EVENTS))
       .toEqual({ limit: 10, offset: 20, refusal: null });
   });
+
+  it('leaves the venues search box serving the ten results it always served', () => {
+    expect(readPaging({}, PAGING_LIMITS.venues))
+      .toEqual({ limit: 10, offset: 0, refusal: null });
+  });
 });

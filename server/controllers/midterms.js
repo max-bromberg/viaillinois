@@ -6,6 +6,11 @@ import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 
 export async function getCourses(req, res, next) {
   try {
+    // The request is validated against the route ceiling here, but the ceiling
+    // is not yet enforced at the database, because coursesDb.getCourses takes
+    // no limit and returns every row. Task 15 of the plan pushes the bound
+    // down into the query. Until it lands, this rejects a malformed page
+    // without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.courses);
     if (refusal) return res.status(400).json({ error: refusal });
     const courses = await coursesDb.getCourses();
@@ -16,6 +21,12 @@ export async function getCourses(req, res, next) {
 export async function listMidterms(req, res, next) {
   try {
     const { courseCode } = req.query;
+    // The request is validated against the route ceiling here, but the ceiling
+    // is not yet enforced at the database, because midtermsDb.getMidterms
+    // takes no limit and returns every matching row, which this handler then
+    // filters by campus date in JavaScript. Task 15 of the plan pushes the
+    // bound down into the query. Until it lands, this rejects a malformed
+    // page without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
     if (refusal) return res.status(400).json({ error: refusal });
     const all = await midtermsDb.getMidterms({ courseCode: courseCode || null });
@@ -44,6 +55,11 @@ export async function createMidterm(req, res, next) {
 
 export async function getConfirmedMidtermsHandler(req, res, next) {
   try {
+    // The request is validated against the route ceiling here, but the ceiling
+    // is not yet enforced at the database, because midtermsDb.getConfirmedMidterms
+    // takes no limit and returns every confirmed row. Task 15 of the plan
+    // pushes the bound down into the query. Until it lands, this rejects a
+    // malformed page without capping one.
     const { refusal } = readPaging(req.query, PAGING_LIMITS.midterms);
     if (refusal) return res.status(400).json({ error: refusal });
     const midterms = await midtermsDb.getConfirmedMidterms();

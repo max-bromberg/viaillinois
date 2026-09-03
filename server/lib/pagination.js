@@ -20,7 +20,9 @@ export const PAGING_LIMITS = {
   midterms: { defaultLimit: 50, maxLimit: 100, maxOffset: 5000 },
   courses:  { defaultLimit: 50, maxLimit: 100, maxOffset: 5000 },
   rsos:     { defaultLimit: 50, maxLimit: 100, maxOffset: 1000 },
-  venues:   { defaultLimit: 50, maxLimit: 100, maxOffset: 1000 },
+  // The venues search box was serving ten results before this module existed,
+  // and this table exists to add a ceiling rather than to change a default.
+  venues:   { defaultLimit: 10, maxLimit: 100, maxOffset: 1000 },
   kiosk:    { defaultLimit: 10, maxLimit: 50,  maxOffset: 0 },
 };
 
