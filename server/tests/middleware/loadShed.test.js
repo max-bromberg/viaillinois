@@ -72,6 +72,29 @@ describe('createLoadShed', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  /**
+   * The bot carries no cookie, so on its own it would look like the cheapest
+   * anonymous traffic. It is answering people who pressed a button in
+   * Discord, so it is refused only at the worst level, alongside a board
+   * member's write, and it honours the wait the answer names.
+   */
+  it('serves the internal service API at every level but the worst', () => {
+    for (const level of [1, 2, 3]) {
+      const next = vi.fn();
+      shedAt(level)(req({ path: '/internal/v1/events' }), fakeResponse(), next);
+      expect(next).toHaveBeenCalled();
+    }
+  });
+
+  it('refuses the internal service API at the worst level, with the same busy answer', () => {
+    const res = fakeResponse();
+    const next = vi.fn();
+    shedAt(4)(req({ path: '/internal/v1/events' }), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.recorded.status).toBe(503);
+    expect(res.recorded.headers['Retry-After']).toBe('30');
+  });
+
   it('never refuses the health endpoint, at any level', () => {
     const next = vi.fn();
     shedAt(4)(req({ path: '/health' }), fakeResponse(), next);

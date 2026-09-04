@@ -11,6 +11,7 @@
     row_budget: 'The caller was served more rows than an ordinary reader needs.',
     pool_exhausted: 'The database connection queue was full.',
     pagination_refused: 'The caller asked for a page too far into the results.',
+    internal_unauthorized: 'Something other than the Discord bot tried the internal service API.',
   };
 </script>
 

@@ -5,6 +5,7 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 ## Unreleased
 
 - The tables the Discord bot will need are in place: a link between a Discord account and a NetID, the short lived session that makes one, an outbox of changes for the bot to read in order, interest in an event, feedback after an event, and a personal calendar subscription. Events can also now be cancelled rather than deleted, and can carry a location note. Nothing reads or writes any of it yet.
+- The door the Discord bot will come through is in place. Requests under the internal service API prefix must carry the bot's service token, are answered 404 if they arrived through the reverse proxy or if no token is configured, and are refused last under load, alongside a board member's write. A request the bot makes for a person carries that person's Discord identifier, and the web platform resolves it to a NetID through the link table and applies exactly the rules the dashboard applies. There are no endpoints behind the door yet.
 
 ## 0.5.2 (2026-09-03)
 

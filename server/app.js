@@ -24,6 +24,7 @@ import midtermsRouter from './routes/midterms.js';
 import kioskRouter    from './routes/kiosk.js';
 import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
+import { createInternalRouter } from './routes/internal/index.js';
 import semesterRouter  from './routes/semester.js';
 import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
@@ -145,6 +146,10 @@ app.use('/api/v1/midterms',   midtermsRouter);
 app.use('/api/v1/kiosk',      publicFor({ edgeSeconds: 30 }), kioskRouter);
 app.use('/api/v1/admin',      adminRouter);
 app.use('/api/v1/scheduler',  schedulerRouter);
+// The Discord bot's door. Off the /api/v1 prefix on purpose, so the public
+// budget mounted there never counts the bot, and behind its own guard, so
+// nothing but the bot gets in.
+app.use('/internal/v1', createInternalRouter({ version: APP_VERSION, onDenied: recordDenial }));
 // A term calendar changes once a year, and every form and search reads it.
 app.use('/api/v1/semester',   publicFor({ browserSeconds: 300, edgeSeconds: 3600 }), semesterRouter);
 
