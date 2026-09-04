@@ -1,4 +1,4 @@
-import { mysqlTable, index, foreignKey, primaryKey, unique, int, varchar, time, date, check, text, datetime, mysqlEnum, json, tinyint, customType } from "drizzle-orm/mysql-core"
+import { mysqlTable, index, foreignKey, primaryKey, unique, int, bigint, varchar, char, varbinary, time, date, check, text, datetime, mysqlEnum, json, tinyint, customType } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 /**
@@ -107,6 +107,11 @@ export const events = mysqlTable("Events", {
 	seriesId: int("series_id").references(() => eventSeries.seriesId, { onDelete: "cascade" } ),
 	// An occurrence edited on its own. A later edit to the whole series skips it.
 	detached: tinyint().default(0).notNull(),
+	// Set when the event is called off. The row stays, so the people who planned
+	// to go can be told, and the feed shows it marked in the archive.
+	cancelledAt: datetime("cancelled_at", { mode: 'string'}),
+	// The small thing a board changes at the door, shown beside the room.
+	locationNote: varchar("location_note", { length: 500 }),
 },
 (table) => [
 	index("rso_id").on(table.rsoId),
@@ -261,4 +266,106 @@ export const users = mysqlTable("Users", {
 (table) => [
 	primaryKey({ columns: [table.netId], name: "Users_net_id"}),
 	unique("uq_email").on(table.email),
+]);
+
+/**
+ * A Discord account standing for a NetID. The bot reports the Discord identifier
+ * it observed and this table is how the web platform decides who that is, so
+ * authorization for anything done through the bot is decided here. Both
+ * columns are unique, and the identifier is a string because a Discord
+ * snowflake does not fit a JavaScript number exactly.
+ */
+export const discordLinks = mysqlTable("Discord_Links", {
+	discordUserId: varchar("discord_user_id", { length: 32 }).notNull(),
+	netId: varchar("net_id", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
+	linkedAt: datetime("linked_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	// The Discord refresh token from the link flow, encrypted, held only while
+	// the person accepted the linked roles step.
+	discordAuthorization: varbinary("discord_authorization", { length: 1024 }),
+},
+(table) => [
+	primaryKey({ columns: [table.discordUserId], name: "Discord_Links_discord_user_id"}),
+	unique("uq_discord_links_net_id").on(table.netId),
+]);
+
+/**
+ * The short lived handshake before a link exists. Opened by the bot for the
+ * Discord account that asked, completed on the website, and checked against
+ * the Discord account the callback actually receives.
+ */
+export const linkSessions = mysqlTable("Link_Sessions", {
+	sessionId: char("session_id", { length: 43 }).notNull(),
+	discordUserId: varchar("discord_user_id", { length: 32 }).notNull(),
+	createdAt: datetime("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	expiresAt: datetime("expires_at", { mode: 'string' }).notNull(),
+	completedAt: datetime("completed_at", { mode: 'string' }),
+},
+(table) => [
+	primaryKey({ columns: [table.sessionId], name: "Link_Sessions_session_id"}),
+]);
+
+/**
+ * What changed, in order, for the Discord bot to act on. The identifier is the
+ * reader's cursor and only grows. The web platform records nothing about what
+ * any reader has read.
+ */
+export const outbox = mysqlTable("Outbox", {
+	outboxId: bigint("outbox_id", { mode: 'number' }).autoincrement().notNull(),
+	kind: varchar({ length: 40 }).notNull(),
+	subjectType: varchar("subject_type", { length: 20 }).notNull(),
+	subjectId: varchar("subject_id", { length: 40 }).notNull(),
+	// Copied out of the payload so a reader can route without a second query.
+	rsoId: int("rso_id"),
+	payload: json().notNull(),
+	createdAt: datetime("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	primaryKey({ columns: [table.outboxId], name: "Outbox_outbox_id"}),
+	index("idx_outbox_created").on(table.createdAt),
+]);
+
+/**
+ * Who means to go. Replaces the count the removed RSVPs used to give. A subject
+ * is a NetID for a linked person and "h:" plus a salted hash of a Discord
+ * identifier for anyone else, and the primary key counts each once.
+ */
+export const eventInterest = mysqlTable("Event_Interest", {
+	eventId: int("event_id").notNull().references(() => events.eventId, { onDelete: "cascade" } ),
+	subject: varchar({ length: 64 }).notNull(),
+	source: varchar({ length: 20 }).notNull(),
+	createdAt: datetime("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	primaryKey({ columns: [table.eventId, table.subject], name: "Event_Interest_event_id_subject"}),
+]);
+
+/**
+ * One rating per person per event, between one and five, with an optional
+ * comment. The board sees the aggregate and the comments, never the raters.
+ */
+export const eventFeedback = mysqlTable("Event_Feedback", {
+	eventId: int("event_id").notNull().references(() => events.eventId, { onDelete: "cascade" } ),
+	netId: varchar("net_id", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
+	rating: tinyint().notNull(),
+	comment: text(),
+	createdAt: datetime("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	primaryKey({ columns: [table.eventId, table.netId], name: "Event_Feedback_event_id_net_id"}),
+	check("chk_feedback_rating", sql`(\`rating\` between 1 and 5)`),
+]);
+
+/**
+ * A calendar subscription address per person, guarded by a token stored only
+ * as its hash, carrying the RSOs the person follows. Null means every RSO.
+ */
+export const personalCalendars = mysqlTable("Personal_Calendars", {
+	netId: varchar("net_id", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
+	tokenHash: char("token_hash", { length: 64 }).notNull(),
+	rsoIds: json("rso_ids"),
+	rotatedAt: datetime("rotated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	primaryKey({ columns: [table.netId], name: "Personal_Calendars_net_id"}),
+	unique("uq_personal_calendars_token_hash").on(table.tokenHash),
 ]);

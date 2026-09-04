@@ -64,6 +64,41 @@
       "when": 1788667589249,
       "tag": "0008_access_denials",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1788753989249,
+      "tag": "0009_discord_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1788840389249,
+      "tag": "0010_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1788926789249,
+      "tag": "0011_event_cancellation_and_location_note",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1789013189249,
+      "tag": "0012_event_interest_and_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1789099589249,
+      "tag": "0013_personal_calendars",
+      "breakpoints": true
     }
   ]
 }

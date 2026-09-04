@@ -4,6 +4,8 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+- The tables the Discord bot will need are in place: a link between a Discord account and a NetID, the short lived session that makes one, an outbox of changes for the bot to read in order, interest in an event, feedback after an event, and a personal calendar subscription. Events can also now be cancelled rather than deleted, and can carry a location note. Nothing reads or writes any of it yet.
+
 ## 0.5.2 (2026-09-03)
 
 - VIA now degrades into honest refusals rather than into an out of memory kill. Under enough load, callers used to queue for a database connection without any bound, each holding a socket and a half built response while memory climbed until the kernel picked a victim, and because the server is shared with other applications the victim was not necessarily VIA. The connection queue is now bounded, three self calibrating signals decide when the platform is overloaded, and traffic is refused in order of increasing value: anonymous reads of the public feed first, and a board member's half written event last. A refused request is answered with a sentence saying VIA is busy and when to try again, as a small page for somebody who followed a link and as JSON for anything else. The health endpoint is never refused, so a deploy is still judged on whether the platform is actually up.
