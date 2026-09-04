@@ -31,9 +31,14 @@
       on:click|preventDefault={() => navigate(`/events/${event.event_id}`)}
       class="font-semibold text-base leading-snug hover:underline underline-offset-2"
     >{event.title}</a>
-    {#if event.is_private}
-      <span class="text-xs bg-orange-500/15 text-orange-700 dark:text-orange-400 rounded px-1.5 py-0.5 shrink-0">Internal</span>
-    {/if}
+    <div class="flex gap-1 shrink-0">
+      {#if event.cancelled_at}
+        <span class="text-xs bg-destructive/15 text-destructive rounded px-1.5 py-0.5">Cancelled</span>
+      {/if}
+      {#if event.is_private}
+        <span class="text-xs bg-orange-500/15 text-orange-700 dark:text-orange-400 rounded px-1.5 py-0.5">Internal</span>
+      {/if}
+    </div>
   </div>
   <p class="text-xs text-muted-foreground mb-2">{event.rso_name}</p>
 

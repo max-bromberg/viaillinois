@@ -120,3 +120,20 @@ describe('EventCard shows campus time', () => {
     expect(getByText(/Thu, Jan 15 at 6:00 PM/)).toBeTruthy();
   });
 });
+
+/**
+ * A cancelled event stays in the archive with its date, so the people who
+ * planned to go can see that it was called off rather than wonder whether they
+ * imagined it. The card says so in the same place it says internal.
+ */
+describe('EventCard, cancelled', () => {
+  it('says the event was cancelled', () => {
+    const { getByText } = render(EventCard, { event: { ...mockEvent, cancelled_at: '2026-04-09T09:00:00-05:00' } });
+    expect(getByText('Cancelled')).toBeTruthy();
+  });
+
+  it('says nothing of the sort otherwise', () => {
+    const { queryByText } = render(EventCard, { event: { ...mockEvent, cancelled_at: null } });
+    expect(queryByText('Cancelled')).toBeNull();
+  });
+});

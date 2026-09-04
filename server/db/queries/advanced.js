@@ -32,7 +32,7 @@ export async function createEventTransactional(eventData, tagNames = [], isGloba
       const [conflicts] = await conn.query(
         `SELECT location_id FROM (
            SELECT location_id FROM Events
-           WHERE location_id = ? AND start_time < ? AND end_time > ?
+           WHERE location_id = ? AND start_time < ? AND end_time > ? AND cancelled_at IS NULL
            UNION ALL
            SELECT location_id FROM Facility_Reservations
            WHERE location_id = ? AND start_time < ? AND end_time > ?

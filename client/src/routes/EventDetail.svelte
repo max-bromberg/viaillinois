@@ -28,6 +28,11 @@
   $: formattedDate      = campusDate(event?.start_time, { weekday: 'long', month: 'long', day: 'numeric' });
   $: formattedStartTime = campusTime(event?.start_time);
   $: formattedEndTime   = campusTime(event?.end_time);
+  // The count that stands in for the RSVPs that were removed. Nothing is said
+  // until somebody has shown interest, because a zero reads as a verdict.
+  $: interestSentence = !event?.interest_count ? null
+    : event.interest_count === 1 ? '1 person is interested'
+    : `${event.interest_count} people are interested`;
 
   onMount(async () => {
     try {
@@ -112,13 +117,26 @@
 
   {:else if event}
 
+    <!-- 0. Cancellation notice, above everything else, because it changes what everything else means -->
+    {#if event.cancelled_at}
+      <div class="rounded-xl p-4 border border-destructive/40 bg-destructive/10 text-sm">
+        <p class="font-medium text-destructive">This event was cancelled.</p>
+        <p class="text-muted-foreground mt-1">It was scheduled for {formattedDate}. The details below are kept for reference.</p>
+      </div>
+    {/if}
+
     <!-- 1. Header card -->
     <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
       <div class="flex items-start justify-between gap-3">
         <h1 class="text-2xl font-bold leading-tight">{event.title}</h1>
-        {#if event.is_private}
-          <span class="text-xs bg-secondary text-secondary-foreground rounded px-2 py-1 shrink-0 mt-1">Private</span>
-        {/if}
+        <div class="flex gap-1 shrink-0 mt-1">
+          {#if event.cancelled_at}
+            <span class="text-xs bg-destructive/15 text-destructive rounded px-2 py-1">Cancelled</span>
+          {/if}
+          {#if event.is_private}
+            <span class="text-xs bg-secondary text-secondary-foreground rounded px-2 py-1">Private</span>
+          {/if}
+        </div>
       </div>
       <div class="flex items-center gap-2">
         {#if rso}
@@ -145,6 +163,15 @@
         <span>📍</span>
         <span>{locationLabel(event)}</span>
       </div>
+      {#if event.location_note}
+        <p class="text-sm text-muted-foreground pl-7">{event.location_note}</p>
+      {/if}
+      {#if interestSentence}
+        <div class="flex items-center gap-2 text-sm">
+          <span>⭐</span>
+          <span>{interestSentence}</span>
+        </div>
+      {/if}
       {#if repeats}
         <div class="flex items-center gap-2 text-sm">
           <span>🔁</span>

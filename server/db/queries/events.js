@@ -12,9 +12,12 @@ import { campusNow, campusStartOfToday } from '../../lib/timezone.js';
  * reads in.
  */
 const TIMEFRAME_BOUNDS = {
-    upcoming: { comparison: '>=', direction: 'ASC' },
-    archived: { comparison: '<',  direction: 'DESC' },
-    all:      { comparison: null, direction: 'ASC' },
+    // A cancelled event is not coming up, whatever its date says. It belongs
+    // in the archive, marked, where the people who planned to go can still
+    // find it, so the archive takes it from the moment it is cancelled.
+    upcoming: { clause: 'AND e.start_time >= ? AND e.cancelled_at IS NULL',           direction: 'ASC' },
+    archived: { clause: 'AND (e.start_time < ? OR e.cancelled_at IS NOT NULL)', direction: 'DESC' },
+    all:      { clause: null, direction: 'ASC' },
 };
 
 /** The timeframes a request may name. */
@@ -29,9 +32,9 @@ export const TIMEFRAMES = Object.keys(TIMEFRAME_BOUNDS);
  * @returns {{ clause: string, params: string[], direction: 'ASC'|'DESC' }}
  */
 function timeframeBound(name) {
-    const { comparison, direction } = TIMEFRAME_BOUNDS[name] ?? TIMEFRAME_BOUNDS.all;
-    if (!comparison) return { clause: '', params: [], direction };
-    return { clause: `AND e.start_time ${comparison} ?`, params: [campusStartOfToday()], direction };
+    const { clause, direction } = TIMEFRAME_BOUNDS[name] ?? TIMEFRAME_BOUNDS.all;
+    if (!clause) return { clause: '', params: [], direction };
+    return { clause, params: [campusStartOfToday()], direction };
 }
 
 /**
@@ -81,6 +84,7 @@ export async function getPublicEvents(filters = {}) {
       e.start_time,
       e.end_time,
       e.is_private,
+      e.cancelled_at,
       r.name AS rso_name,
       e.location_text,
       l.building,
@@ -142,6 +146,7 @@ export async function getAllEvents(filters = {}) {
       e.start_time,
       e.end_time,
       e.is_private,
+      e.cancelled_at,
       r.name AS rso_name,
       e.location_text,
       l.building,
@@ -196,11 +201,14 @@ export async function getEventById(eventId) {
       e.start_time,
       e.end_time,
       e.is_private,
+      e.cancelled_at,
+      e.location_note,
       e.rso_id,
       e.series_id,
       e.detached,
       r.name AS rso_name,
       e.location_text,
+      (SELECT COUNT(*) FROM Event_Interest i WHERE i.event_id = e.event_id) AS interest_count,
       l.building,
       l.room_number,
       s.frequency AS series_frequency,
@@ -300,7 +308,7 @@ export async function deleteEvent(eventId) {
  * @returns {Promise<Array<{event_id, title, start_time, end_time, rso_name, building, room_number}>>}
  */
 export async function getKioskEvents(limit = 10) {
-    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, e.location_text, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > ? ORDER BY e.start_time ASC LIMIT ?', [campusNow(), limit])
+    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, e.location_text, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.cancelled_at IS NULL AND e.start_time > ? ORDER BY e.start_time ASC LIMIT ?', [campusNow(), limit])
 }
 
 /**
@@ -332,7 +340,7 @@ export async function setEventTags(eventId, tagNames) {
 export async function getEventsByRso(rsoId) {
     return query(
         `SELECT
-            e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
+            e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, e.cancelled_at,
             e.series_id, e.detached, e.location_id,
             r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
             s.frequency AS series_frequency,
@@ -367,7 +375,7 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
   const panel = panelFilters(filters);
   return query(
     `SELECT
-      e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
+      e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, e.cancelled_at,
       r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
       GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
     FROM Events e

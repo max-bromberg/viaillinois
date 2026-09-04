@@ -5,7 +5,7 @@
   import { currentUser, adminRsoIds, boardRsoIds } from '../stores/auth.js';
   import { getMe } from '../api/users.js';
   import { getRso, updateRso, addMember, removeMember, getRsoStats } from '../api/rsos.js';
-  import { createEvent, createEventSeries, updateEvent, deleteEvent } from '../api/events.js';
+  import { createEvent, createEventSeries, updateEvent, deleteEvent, cancelEvent, restoreEvent } from '../api/events.js';
   import { getCurrentSemester } from '../api/semester.js';
   import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import EventForm from '../lib/EventForm.svelte';
@@ -173,6 +173,25 @@
     try {
       await deleteEvent(eventId, scope);
       showToast(scope === 'one' ? 'Event deleted' : 'Events deleted');
+      await loadRso(selectedRso.rso_id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      loading = false;
+    }
+  }
+
+  /**
+   * Cancelling is a state, not a delete. The event keeps its page so the
+   * people who planned to go can be told, and the same row offers to put it
+   * back if the cancellation was the mistake.
+   */
+  async function setCancelled(event, cancelled) {
+    loading = true;
+    try {
+      if (cancelled) await cancelEvent(event.event_id);
+      else await restoreEvent(event.event_id);
+      showToast(cancelled ? 'Event cancelled' : 'Event restored');
       await loadRso(selectedRso.rso_id);
     } catch (err) {
       showToast(err.message, 'error');
@@ -401,6 +420,9 @@
                   <tr class="border-t hover:bg-muted/40 transition-colors {editingEvent?.event_id === event.event_id ? 'bg-primary/5' : ''}">
                     <td class="px-4 py-2.5 font-medium max-w-[12rem] truncate">
                       {event.title}
+                      {#if event.cancelled_at}
+                        <span class="ml-1 align-middle text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">Cancelled</span>
+                      {/if}
                       {#if event.series_id}
                         <span
                           class="ml-1 align-middle text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary"
@@ -439,6 +461,17 @@
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                           Poster
                         </button>
+                        {#if event.cancelled_at}
+                          <button
+                            class="text-xs px-2.5 py-1 rounded border hover:bg-accent transition-colors"
+                            on:click={() => setCancelled(event, false)}
+                          >Restore event</button>
+                        {:else}
+                          <button
+                            class="text-xs px-2.5 py-1 rounded border border-amber-500/50 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                            on:click={() => setCancelled(event, true)}
+                          >Cancel event</button>
+                        {/if}
                         <button
                           class="text-xs px-2.5 py-1 rounded border border-destructive/50 text-destructive hover:bg-destructive/10 transition-colors"
                           on:click={() => handleDelete(event)}
@@ -514,6 +547,26 @@
                     <li class="flex items-center justify-between text-sm">
                       <span class="font-medium">{row.tag_name}</span>
                       <span class="tabular-nums text-muted-foreground">{row.usage_count} event{row.usage_count !== 1 ? 's' : ''}</span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+
+            <!-- Interest: the count that replaced RSVPs, from Discord's own controls and the bot's buttons -->
+            <div class="border rounded-lg p-5 bg-card shadow-sm space-y-3 sm:col-span-2">
+              <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Interest in upcoming events</h3>
+              {#if !insights.interest || insights.interest.length === 0}
+                <p class="text-sm text-muted-foreground">Nobody has shown interest in an upcoming event yet.</p>
+              {:else}
+                <ul class="space-y-2">
+                  {#each insights.interest as row (row.event_id)}
+                    <li class="flex items-center justify-between gap-3 text-sm">
+                      <span class="min-w-0">
+                        <span class="font-medium">{row.title}</span>
+                        <span class="text-xs text-muted-foreground ml-2">{fmtDate(row.start_time)}</span>
+                      </span>
+                      <span class="tabular-nums text-muted-foreground shrink-0">{row.interest_count} interested</span>
                     </li>
                   {/each}
                 </ul>

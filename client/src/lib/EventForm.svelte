@@ -43,6 +43,7 @@
   let endTime     = toDateTimeLocal(initial.end_time);
   let locationId   = initial.location_id   || null;
   let locationText = initial.location_text || null;
+  let locationNote = initial.location_note || '';
   let isPrivate   = initial.is_private  || false;
   let selectedTags = initial.tags ? initial.tags.split(',').filter(Boolean) : [];
 
@@ -112,6 +113,7 @@
       rso_id: rsoId, title, description,
       start_time: startTime, end_time: endTime,
       location_id: locationId, location_text: locationText,
+      location_note: locationNote.trim() || null,
       is_private: isPrivate,
       tags: selectedTags,
       recurrence: canRepeat ? recurrence : null,
@@ -233,6 +235,18 @@
 
   <!-- Location -->
   <LocationPicker initialLabel={initialLocationLabel} onChange={handleLocationChange} />
+
+  <!-- Location note: the small thing that changes at the door, kept apart from the room itself -->
+  <div class="space-y-1.5">
+    <Label htmlFor="locationNote">Location note</Label>
+    <Input
+      id="locationNote"
+      bind:value={locationNote}
+      maxlength="500"
+      placeholder="Use the north entrance, or ask at the front desk."
+    />
+    <p class="text-xs text-muted-foreground">Shown beside the room on the event page and in Discord.</p>
+  </div>
 
   <!-- Private toggle -->
   <div class="flex items-center gap-2">

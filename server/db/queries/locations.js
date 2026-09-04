@@ -38,7 +38,7 @@ export async function getOccupiedDuring(startTime, endTime, excludeEventId) {
     `
     SELECT DISTINCT location_id FROM (
       SELECT location_id FROM Events
-      WHERE start_time < ? AND end_time > ? ${eventCondition}
+      WHERE start_time < ? AND end_time > ? AND cancelled_at IS NULL ${eventCondition}
       UNION ALL
       SELECT location_id FROM Facility_Reservations
       WHERE start_time < ? AND end_time > ?

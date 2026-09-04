@@ -10,6 +10,8 @@ vi.mock('../../db/queries/advanced.js', () => ({
   createEventTransactional: vi.fn(),
 }));
 
+vi.mock('../../db/queries/eventInterest.ts', () => ({ getInterestByRso: vi.fn().mockResolvedValue([]) }));
+
 vi.mock('../../db/queries/rso.js', () => ({
   getMembership: vi.fn().mockResolvedValue({ role: 'Admin' }),
   getAllRsos: vi.fn().mockResolvedValue([]),

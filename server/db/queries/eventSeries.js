@@ -31,7 +31,7 @@ export async function busyInRoom(locationId, from, to, { excludeSeriesId = null 
   const [bookedEvents, bookedRooms] = await Promise.all([
     db.select({ start_time: events.startTime, end_time: events.endTime })
       .from(events)
-      .where(and(eq(events.locationId, locationId), lt(events.startTime, to), gt(events.endTime, from), ownRows)),
+      .where(and(eq(events.locationId, locationId), lt(events.startTime, to), gt(events.endTime, from), isNull(events.cancelledAt), ownRows)),
     db.select({ start_time: facilityReservations.startTime, end_time: facilityReservations.endTime })
       .from(facilityReservations)
       .where(and(

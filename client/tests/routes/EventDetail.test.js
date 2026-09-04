@@ -129,3 +129,61 @@ describe('EventDetail, for an event that repeats', () => {
     expect(container.textContent).not.toMatch(/Repeats/);
   });
 });
+
+/**
+ * Three things the Discord bot made necessary on the page itself: a cancelled
+ * event says so at the top, a location note sits beside the room, and the
+ * number of people interested stands in for the RSVP count that was removed.
+ */
+describe('EventDetail, cancellation, the location note and interest', () => {
+  const base = {
+    event_id: 1, rso_id: 2, title: 'IEEE Workshop', description: 'Something',
+    start_time: '2026-04-20T18:00:00', end_time: '2026-04-20T20:00:00',
+    is_private: false, rso_name: 'IEEE UIUC', building: 'ECEB', room_number: '1002',
+    cancelled_at: null, location_note: null, interest_count: 0,
+  };
+
+  it('says at the top that a cancelled event was cancelled', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: { ...base, cancelled_at: '2026-04-19T09:00:00-05:00' } });
+    const { findByText } = render(EventDetail, { id: 1 });
+    expect(await findByText('This event was cancelled.')).toBeTruthy();
+  });
+
+  it('says nothing about cancellation otherwise', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: base });
+    const { findByRole, queryByText } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(queryByText('This event was cancelled.')).toBeNull();
+  });
+
+  it('shows the location note beside the room', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: { ...base, location_note: 'Use the north entrance.' } });
+    const { findByText } = render(EventDetail, { id: 1 });
+    expect(await findByText('Use the north entrance.')).toBeTruthy();
+  });
+
+  it('says how many people are interested, once anybody is', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: { ...base, interest_count: 12 } });
+    const { findByText } = render(EventDetail, { id: 1 });
+    expect(await findByText('12 people are interested')).toBeTruthy();
+  });
+
+  it('counts one person in the singular', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: { ...base, interest_count: 1 } });
+    const { findByText } = render(EventDetail, { id: 1 });
+    expect(await findByText('1 person is interested')).toBeTruthy();
+  });
+
+  it('says nothing about interest when nobody has shown any', async () => {
+    const { getEvent } = await import('../../src/api/events.js');
+    getEvent.mockResolvedValueOnce({ event: base });
+    const { findByRole, queryByText } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(queryByText(/interested/)).toBeNull();
+  });
+});

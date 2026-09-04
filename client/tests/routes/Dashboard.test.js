@@ -5,13 +5,16 @@ const createEvent = vi.hoisted(() => vi.fn());
 const createEventSeries = vi.hoisted(() => vi.fn());
 const updateEvent = vi.hoisted(() => vi.fn());
 const deleteEvent = vi.hoisted(() => vi.fn());
+const cancelEvent = vi.hoisted(() => vi.fn());
+const restoreEvent = vi.hoisted(() => vi.fn());
+const getRsoStats = vi.hoisted(() => vi.fn());
 const getRso = vi.hoisted(() => vi.fn());
 const showToast = vi.hoisted(() => vi.fn());
 
-vi.mock('../../src/api/events.js', () => ({ createEvent, createEventSeries, updateEvent, deleteEvent }));
+vi.mock('../../src/api/events.js', () => ({ createEvent, createEventSeries, updateEvent, deleteEvent, cancelEvent, restoreEvent }));
 vi.mock('../../src/api/rsos.js', () => ({
   getRso, updateRso: vi.fn(), addMember: vi.fn(), removeMember: vi.fn(),
-  getRsoStats: vi.fn().mockResolvedValue({ stats: {} }),
+  getRsoStats,
 }));
 vi.mock('../../src/api/users.js', () => ({ getMe: vi.fn().mockResolvedValue({ user: USER }) }));
 vi.mock('../../src/api/semester.js', () => ({
@@ -57,6 +60,9 @@ beforeEach(() => {
   createEvent.mockResolvedValue({ event_id: 9 });
   updateEvent.mockResolvedValue({ ok: true });
   deleteEvent.mockResolvedValue({ ok: true });
+  cancelEvent.mockResolvedValue({ ok: true, cancelled_at: '2026-09-04T09:00:00-05:00' });
+  restoreEvent.mockResolvedValue({ ok: true, cancelled_at: null });
+  getRsoStats.mockResolvedValue({ memberBreakdown: [], topTags: [], interest: [] });
 });
 
 /**
@@ -165,5 +171,55 @@ describe('Dashboard, with repeating events', () => {
     expect(getByRole('button', { name: 'This event only' })).toBeTruthy();
     await fireEvent.click(getByRole('button', { name: 'This event only' }));
     await waitFor(() => expect(updateEvent).toHaveBeenCalledWith(5, expect.any(Object), 'one'));
+  });
+});
+
+/**
+ * Cancelling is a state, not a delete. The row says so, and the same place
+ * offers to put the event back.
+ */
+describe('Dashboard, cancelling an event', () => {
+  it('cancels an event from its row and reloads the list', async () => {
+    const { findAllByRole } = render(Dashboard);
+    const cancels = await findAllByRole('button', { name: 'Cancel event' });
+    await fireEvent.click(cancels[0]);
+    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(8));
+    await waitFor(() => expect(getRso).toHaveBeenCalledTimes(2));
+    expect(showToast).toHaveBeenCalledWith('Event cancelled');
+  });
+
+  it('marks a cancelled event and offers to restore it instead', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, rso_name: 'IEEE', name: 'IEEE', members: [],
+      events: [{ ...ONE_OFF, cancelled_at: '2026-09-04 09:00:00' }] } });
+    const { findByText, findByRole, queryByRole } = render(Dashboard);
+    expect(await findByText('Cancelled')).toBeTruthy();
+    const restore = await findByRole('button', { name: 'Restore event' });
+    expect(queryByRole('button', { name: 'Cancel event' })).toBeNull();
+    await fireEvent.click(restore);
+    await waitFor(() => expect(restoreEvent).toHaveBeenCalledWith(8));
+    expect(showToast).toHaveBeenCalledWith('Event restored');
+  });
+});
+
+/**
+ * Interest is what replaced the RSVP count, and the board reads it on the
+ * insights tab beside the members and the tags.
+ */
+describe('Dashboard, interest on the insights tab', () => {
+  it('lists how many people are interested in each upcoming event', async () => {
+    getRsoStats.mockResolvedValue({ memberBreakdown: [], topTags: [], interest: [
+      { event_id: 8, title: 'Career fair', start_time: '2026-10-01T10:00:00-05:00', interest_count: 12 },
+      { event_id: 5, title: 'IEEE Weekly Meeting', start_time: '2026-09-15T18:00:00-05:00', interest_count: 1 },
+    ] });
+    const { findByRole, findByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    expect(await findByText('12 interested')).toBeTruthy();
+    expect(await findByText('1 interested')).toBeTruthy();
+  });
+
+  it('says so when nobody has shown interest yet', async () => {
+    const { findByRole, findByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    expect(await findByText('Nobody has shown interest in an upcoming event yet.')).toBeTruthy();
   });
 });

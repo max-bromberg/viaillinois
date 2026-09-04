@@ -1,3 +1,4 @@
+import { campusNow } from '../lib/timezone.js';
 import * as eventsDb from '../db/queries/events.js';
 import * as rsoDb from '../db/queries/rso.js';
 import * as advancedDb from '../db/queries/advanced.js';
@@ -137,15 +138,36 @@ function readLocation(body) {
   };
 }
 
+/** The width of Events.location_note. */
+const LOCATION_NOTE_MAX = 500;
+
+/**
+ * The small thing a board changes at the door: the north entrance, the room
+ * beside the one booked. Stored trimmed, an empty note is no note, and a
+ * request that does not mention it leaves it alone.
+ *
+ * @returns {{ location_note?: string|null, error?: string }}
+ */
+function readLocationNote(body) {
+  if (!('location_note' in body)) return {};
+  const note = typeof body.location_note === 'string' ? body.location_note.trim() : '';
+  if (note.length > LOCATION_NOTE_MAX) {
+    return { error: `The location note has to be ${LOCATION_NOTE_MAX} characters or fewer.` };
+  }
+  return { location_note: note || null };
+}
+
 export async function createEvent(req, res, next) {
   try {
     const { rso_id, title, description, start_time, end_time, is_private = false, tags = [] } = req.body;
     if (!rso_id || !title || !start_time || !end_time) {
       return res.status(400).json({ error: 'rso_id, title, start_time, end_time required' });
     }
+    const note = readLocationNote(req.body);
+    if (note.error) return res.status(400).json({ error: note.error });
     const result = await advancedDb.createEventTransactional(
       {
-        rso_id, created_by: req.user.net_id, ...readLocation(req.body),
+        rso_id, created_by: req.user.net_id, ...readLocation(req.body), ...note,
         title, description, start_time, end_time, is_private,
       },
       tags,
@@ -261,6 +283,8 @@ export async function updateEvent(req, res, next) {
 
     const { title, description, start_time, end_time, is_private, tags } = req.body;
     const { location_id, location_text } = readLocation(req.body);
+    const note = readLocationNote(req.body);
+    if (note.error) return res.status(400).json({ error: note.error });
 
     // One event, which is every event that does not repeat, and the one week an
     // organizer moved on its own.
@@ -271,7 +295,7 @@ export async function updateEvent(req, res, next) {
         if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
       }
       await eventsDb.updateEvent(eventId, {
-        location_id, location_text, title, description, start_time, end_time, is_private,
+        location_id, location_text, title, description, start_time, end_time, is_private, ...note,
       });
       if (tags) await eventsDb.setEventTags(eventId, tags);
       // A week that was edited on its own stays where the organizer put it when
@@ -359,3 +383,29 @@ export async function deleteEvent(req, res, next) {
     res.json({ ok: true, deleted: 1 });
   } catch (err) { next(err); }
 }
+
+/**
+ * Cancelling is a state, not a delete. The event keeps its page and its date,
+ * so the people who planned to go can be told, and the board can put it back
+ * if the cancellation was the mistake. Both are editor actions, like every
+ * other change to an event.
+ */
+async function setCancelled(req, res, next, cancelled) {
+  try {
+    const eventId = parseInt(req.params.id);
+    const event = await eventsDb.getEventById(eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    const isAdmin = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, event.rso_id);
+    if (!isAdmin) return res.status(403).json({ error: 'RSO editor access required' });
+
+    const already = Boolean(event.cancelled_at) === cancelled;
+    if (already) return res.json({ ok: true, cancelled_at: event.cancelled_at ?? null });
+
+    const cancelled_at = cancelled ? campusNow() : null;
+    await eventsDb.updateEvent(eventId, { cancelled_at });
+    res.json({ ok: true, cancelled_at });
+  } catch (err) { next(err); }
+}
+
+export function cancelEvent(req, res, next)  { return setCancelled(req, res, next, true); }
+export function restoreEvent(req, res, next) { return setCancelled(req, res, next, false); }

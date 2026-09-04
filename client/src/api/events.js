@@ -65,6 +65,18 @@ export function deleteEvent(id, scope = 'one') {
   return apiFetch(scoped(id, scope), { method: 'DELETE' });
 }
 
+/**
+ * Cancelling is a state rather than a delete: the event keeps its page so the
+ * people who planned to go can be told, and a board can put it back.
+ */
+export function cancelEvent(id) {
+  return apiFetch(`/api/v1/events/${id}/cancel`, { method: 'POST' });
+}
+
+export function restoreEvent(id) {
+  return apiFetch(`/api/v1/events/${id}/restore`, { method: 'POST' });
+}
+
 export function getKioskEvents(limit = 10) {
   return apiFetch(`/api/v1/kiosk/events?limit=${limit}`);
 }

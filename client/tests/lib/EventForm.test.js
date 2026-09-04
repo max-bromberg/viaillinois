@@ -88,3 +88,26 @@ describe('EventForm repeat controls', () => {
     expect(getByText('Repeats every Tuesday until December 8')).toBeTruthy();
   });
 });
+
+/**
+ * The location note is the small thing a board changes at the door. It is a
+ * field of its own so that it is never mistaken for the room.
+ */
+describe('EventForm location note', () => {
+  it('offers a field for it, empty by default', () => {
+    const { getByLabelText } = setUp();
+    expect(getByLabelText(/Location note/).value).toBe('');
+  });
+
+  it('starts with the note the event already has', () => {
+    const { getByLabelText } = setUp({
+      initial: { title: 'Meeting', start_time: '2026-09-01 18:00:00', end_time: '2026-09-01 19:30:00', location_note: 'Use the north entrance.' },
+    });
+    expect(getByLabelText(/Location note/).value).toBe('Use the north entrance.');
+  });
+
+  it('will not take more than the note can hold', () => {
+    const { getByLabelText } = setUp();
+    expect(getByLabelText(/Location note/).getAttribute('maxlength')).toBe('500');
+  });
+});
