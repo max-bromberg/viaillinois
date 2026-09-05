@@ -230,16 +230,25 @@ export async function recordEventCreated(eventId: number) {
  * state after is read back here, so the entry names the fields that really
  * differ rather than the fields the request mentioned.
  *
+ * A change can carry a reason, which a postponement from Discord does and an
+ * ordinary edit does not. The reason belongs to the change rather than to the
+ * event, so it lives in the entry and in no column, and it is left out of the
+ * payload entirely when there is none.
+ *
  * @param before a row in the shape getEventById or the reading queries return
+ * @param options reason is what whoever made the change said about it
  */
-export async function recordEventUpdated(before: Record<string, any>) {
+export async function recordEventUpdated(
+  before: Record<string, any>,
+  { reason = null }: { reason?: string | null } = {},
+) {
   const event = await eventSnapshot(before.event_id);
   if (!event) return null;
   const changed = changedFields(presentEvent(before), event);
   if (changed.length === 0) return null;
   return writeOutbox({
     kind: 'event.updated', subjectType: 'event', subjectId: event.event_id,
-    rsoId: event.rso_id, payload: { event, changed },
+    rsoId: event.rso_id, payload: reason ? { event, changed, reason } : { event, changed },
   });
 }
 

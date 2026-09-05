@@ -39,6 +39,18 @@ const CODE_FOR_STATUS = {
 };
 
 /**
+ * The code that belongs with a status, for a refusal that did not come from a
+ * middleware this module can wrap. A status nothing here names is a refusal of
+ * the request itself, which is what `invalid` says.
+ *
+ * @param {number} status
+ * @returns {string} one of ERROR_CODES
+ */
+export function codeForStatus(status) {
+  return CODE_FOR_STATUS[status] ?? ERROR_CODES.INVALID;
+}
+
+/**
  * Run one of the website's own middlewares and give its refusal a code.
  *
  * requireRSOAdmin and its neighbours are the reason the bot cannot decide
@@ -56,7 +68,7 @@ export function withErrorCode(middleware) {
     const json = res.json.bind(res);
     res.json = body => {
       if (body && typeof body === 'object' && typeof body.error === 'string' && body.code === undefined) {
-        return json({ ...body, code: CODE_FOR_STATUS[res.statusCode] ?? ERROR_CODES.INVALID });
+        return json({ ...body, code: codeForStatus(res.statusCode) });
       }
       return json(body);
     };

@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    {
+      "start_time": "2026-09-16T18:00:00-05:00",
+      "end_time": "2026-09-16T19:00:00-05:00",
+      "location_id": 5,
+      "building": "Electrical & Computer Eng Bldg",
+      "room_number": "1002",
+      "score": 91
+    }
+  ],
+  "considered": 12
+}

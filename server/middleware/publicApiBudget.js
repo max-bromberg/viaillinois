@@ -37,6 +37,10 @@ const EXEMPT_PREFIXES = [
   '/api/v1/kiosk',
   // The same tiny answer for everybody, cached for an hour at the edge.
   '/api/v1/semester',
+  // A calendar application on a phone fetches one person's subscription every
+  // few hours forever, from an address that is the whole of its credential.
+  // Counting it would spend one student's budget on their own calendar.
+  '/calendar/personal',
 ];
 
 /**

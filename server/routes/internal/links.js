@@ -4,6 +4,7 @@ import { sendApiError, ERROR_CODES, withErrorCode } from '../../lib/apiError.js'
 import { getRso } from '../../db/queries/internalReads.ts';
 import { unlinkByDiscordUserId } from '../../services/accountLinking.js';
 import { openLinkSession, getLinkWithMemberships } from '../../db/queries/discordLinks.ts';
+import { rsoFromBody } from './rsoFromBody.js';
 
 /**
  * Linking, unlinking, and the question the bot asks about who somebody is.
@@ -82,25 +83,6 @@ export function createLinksRouter() {
       res.status(204).end();
     } catch (err) { next(err); }
   });
-
-  /**
-   * The RSO the body names, put where requireRSOAdmin looks for it.
-   *
-   * That middleware reads the identifier from the path, because every route
-   * that uses it on the website has the RSO in the path. This one has it in
-   * the body, and the identifier is validated here before it is put in front
-   * of the middleware, so the middleware itself is unchanged and behaves the
-   * same everywhere else.
-   */
-  function rsoFromBody(req, res, next) {
-    const rsoId = req.body?.rso_id;
-    if (!Number.isInteger(rsoId) || rsoId < 1) {
-      return sendApiError(res, 400, ERROR_CODES.INVALID,
-        'rso_id has to be the whole number that identifies the organization.');
-    }
-    req.params.rsoId = String(rsoId);
-    next();
-  }
 
   router.post('/guilds/bindings/confirm',
     rsoFromBody,

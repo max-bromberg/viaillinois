@@ -27,6 +27,7 @@ import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
 import { createInternalRouter } from './routes/internal/index.js';
 import semesterRouter  from './routes/semester.js';
+import personalCalendarRouter from './routes/personalCalendar.js';
 import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, readFileSync } from 'fs';
@@ -155,6 +156,11 @@ app.use('/api/v1/scheduler',  schedulerRouter);
 app.use('/internal/v1', createInternalRouter({ version: APP_VERSION, onDenied: recordDenial }));
 // A term calendar changes once a year, and every form and search reads it.
 app.use('/api/v1/semester',   publicFor({ browserSeconds: 300, edgeSeconds: 3600 }), semesterRouter);
+// A person's own calendar, fetched by a calendar application on their phone,
+// which has no cookie and no service token and holds only the address. Off the
+// /api/v1 prefix because it is a file somebody subscribes to rather than part
+// of the API, and it sets its own private caching, so no shared cache keeps it.
+app.use('/calendar/personal', personalCalendarRouter);
 
 app.use(errorHandler);
 

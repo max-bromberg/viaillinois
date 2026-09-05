@@ -8,6 +8,9 @@ vi.mock('../../db/queries/advanced.js', () => ({
 }));
 const getInterestByRso = vi.hoisted(() => vi.fn());
 vi.mock('../../db/queries/eventInterest.ts', () => ({ getInterestByRso }));
+vi.mock('../../db/queries/eventFeedback.ts', () => ({
+  getFeedbackByRso: vi.fn().mockResolvedValue([]), saveFeedback: vi.fn(),
+}));
 vi.mock('../../db/queries/rso.js', () => ({
   getMembership: vi.fn().mockResolvedValue({ role: 'Board' }),
   getAllRsos: vi.fn().mockResolvedValue([]), getRsoById: vi.fn().mockResolvedValue(null),

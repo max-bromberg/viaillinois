@@ -150,6 +150,20 @@ describe('the outbox writers', () => {
       expect(entry.payload.event.start_time).toBe(row.start_time);
     });
 
+    it('carries the reason with the change when the request gave one', async () => {
+      await call(events.updateEvent, {
+        params: { id: '10' }, body: { ...edit, reason: 'The room flooded.' }, user: ALICE,
+      });
+      const [entry] = await entries();
+      expect(entry.payload.reason).toBe('The room flooded.');
+    });
+
+    it('leaves the reason out of an ordinary edit rather than carrying an empty one', async () => {
+      await call(events.updateEvent, { params: { id: '10' }, body: edit, user: ALICE });
+      const [entry] = await entries();
+      expect('reason' in entry.payload).toBe(false);
+    });
+
     it('leaves no entry when the event the request named is not there', async () => {
       const res = await call(events.updateEvent, { params: { id: '999' }, body: edit, user: ALICE });
       expect(res.statusCode).toBe(404);

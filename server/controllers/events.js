@@ -127,6 +127,20 @@ export async function getEvent(req, res, next) {
 }
 
 /**
+ * Why an event moved, where whoever moved it said why.
+ *
+ * It is not a column on the event. It belongs to the change rather than to the
+ * event, so it travels in the entry the Discord bot reads and is what the bot
+ * puts in the message that tells people the meeting moved.
+ *
+ * @returns {string|null}
+ */
+function readReason(body) {
+  const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+  return reason || null;
+}
+
+/**
  * A location is optional, and can be either a room VIA knows about or free
  * text. Empty free text is stored as nothing rather than as an empty string,
  * so that "no location" has one representation instead of two.
@@ -305,7 +319,7 @@ export async function updateEvent(req, res, next) {
       // The entry follows the change, because this path has no transaction to
       // join, and it names what changed by comparing the event as it stood
       // with the event as it now is.
-      await outbox.recordEventUpdated(event);
+      await outbox.recordEventUpdated(event, { reason: readReason(req.body) });
       return res.json({ ok: true, updated: 1 });
     }
 

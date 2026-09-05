@@ -60,6 +60,38 @@ vi.mock('../../services/conflictDetector.js', () => ({
   occupiedLocationIds, checkConflict: vi.fn(),
 }));
 
+const seriesDb = vi.hoisted(() => ({
+  busyInRoom: vi.fn(), createSeriesWithOccurrences: vi.fn(), getSeriesById: vi.fn(),
+  findSeriesByUid: vi.fn(), occurrencesOfSeries: vi.fn(), detachEvent: vi.fn(),
+  applyToSeries: vi.fn(), setTagsForEvents: vi.fn(), deleteOccurrencesFrom: vi.fn(),
+  syncSeriesEnd: vi.fn(), deleteSeries: vi.fn(), updateSeriesRule: vi.fn(),
+}));
+vi.mock('../../db/queries/eventSeries.js', () => seriesDb);
+
+const recommend = vi.hoisted(() => vi.fn());
+vi.mock('../../services/intelligentScheduler.js', () => ({ recommend }));
+
+const interestDb = vi.hoisted(() => ({
+  getInterestByRso: vi.fn(), setInterest: vi.fn(), clearInterest: vi.fn(), countInterest: vi.fn(),
+}));
+vi.mock('../../db/queries/eventInterest.ts', () => interestDb);
+
+const feedbackDb = vi.hoisted(() => ({ saveFeedback: vi.fn(), getFeedbackByRso: vi.fn() }));
+vi.mock('../../db/queries/eventFeedback.ts', () => feedbackDb);
+
+const calendarsDb = vi.hoisted(() => ({
+  rotateCalendar: vi.fn(), setCalendarRsos: vi.fn(), getCalendarByTokenHash: vi.fn(),
+}));
+vi.mock('../../db/queries/personalCalendars.ts', () => calendarsDb);
+
+// A calendar address carries thirty two random bytes, and a fixture of a
+// random value would differ on every run, so the token is held still here and
+// hashed by the real code.
+vi.mock('../../lib/personalCalendarToken.js', async importOriginal => ({
+  ...(await importOriginal()),
+  newCalendarToken: () => 'T'.repeat(43),
+}));
+
 const readOutbox = vi.hoisted(() => vi.fn());
 vi.mock('../../db/queries/outbox.ts', async () => ({
   ...(await import('../support/outboxMock.js')).outboxMock(),
@@ -180,6 +212,9 @@ const asBot = path => request(app).get(path).set('Authorization', `Bearer ${TOKE
 const acting = path => asBot(path).set('X-Via-Acting-Discord-User', '123456789012345678');
 const post = path => request(app).post(path).set('Authorization', `Bearer ${TOKEN}`);
 const actingPost = path => post(path).set('X-Via-Acting-Discord-User', '123456789012345678');
+const actingSend = (method, path) => request(app)[method](path)
+  .set('Authorization', `Bearer ${TOKEN}`)
+  .set('X-Via-Acting-Discord-User', '123456789012345678');
 
 // The calendar file carries the moment it was written, so the clock is held
 // still while these answers are taken.
@@ -210,6 +245,21 @@ beforeEach(() => {
   getSectionsForCourses.mockResolvedValue([SECTION]);
   occupiedLocationIds.mockResolvedValue(new Set());
   readOutbox.mockResolvedValue(outboxEntries().slice(0, 2));
+  interestDb.countInterest.mockResolvedValue(4);
+  interestDb.getInterestByRso.mockResolvedValue([]);
+  feedbackDb.saveFeedback.mockResolvedValue(undefined);
+  seriesDb.createSeriesWithOccurrences.mockResolvedValue({ seriesId: 4, eventIds: [10, 11, 12] });
+  seriesDb.busyInRoom.mockResolvedValue([]);
+  recommend.mockResolvedValue({
+    recommendations: [{
+      start_time: '2026-09-16 18:00:00', end_time: '2026-09-16 19:00:00',
+      location_id: 5, building: 'Electrical & Computer Eng Bldg', room_number: '1002', score: 91,
+    }],
+    considered: 12,
+  });
+  calendarsDb.rotateCalendar.mockResolvedValue({ rotatedAt: '2026-09-05 12:00:00' });
+  calendarsDb.setCalendarRsos.mockResolvedValue(1);
+  calendarsDb.getCalendarByTokenHash.mockResolvedValue({ netId: 'alice', rsoIds: [1] });
   linksDb.openLinkSession.mockResolvedValue({
     sessionId: 'hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT',
     expiresAt: '2026-09-04 18:40:00',
@@ -332,6 +382,88 @@ describe('the answer shapes the Discord bot depends on', () => {
     const res = await actingPost('/internal/v1/guilds/bindings/confirm').send({ rso_id: 4 });
     expect(res.status).toBe(200);
     fixture('bindingsConfirm', res.body);
+  });
+
+  it('an event that was postponed', async () => {
+    const res = await actingSend('post', '/internal/v1/events/10/postpone')
+      .send({ start_time: '2026-09-17 18:00:00', end_time: '2026-09-17 19:00:00', reason: 'The room flooded.' });
+    expect(res.status).toBe(200);
+    fixture('acting.postpone', res.body);
+  });
+
+  it('an event that was cancelled', async () => {
+    const res = await actingPost('/internal/v1/events/10/cancel').send({});
+    expect(res.status).toBe(200);
+    fixture('acting.cancel', res.body);
+  });
+
+  it('an event that was put back', async () => {
+    eventsDb.getEventById.mockResolvedValue({
+      ...EVENT_ROW, detached: 0, tags: 'social', cancelled_at: '2026-09-05 09:00:00',
+    });
+    const res = await actingPost('/internal/v1/events/10/restore').send({});
+    expect(res.status).toBe(200);
+    fixture('acting.restore', res.body);
+  });
+
+  it('an event that was edited', async () => {
+    const res = await actingSend('patch', '/internal/v1/events/10')
+      .send({ description: 'Bring two laptops.', location_note: 'Use the north entrance.' });
+    expect(res.status).toBe(200);
+    fixture('acting.patch', res.body);
+  });
+
+  it('what the scheduler recommends', async () => {
+    const res = await actingPost('/internal/v1/scheduler/recommend').send({
+      rso_id: 1, durationMinutes: 60, dateRange: { start: '2026-09-14', end: '2026-09-21' },
+    });
+    expect(res.status).toBe(200);
+    fixture('acting.recommend', res.body);
+  });
+
+  it('a repeat that was created', async () => {
+    const res = await actingPost('/internal/v1/events/series').send({
+      rso_id: 1, title: 'Weekly meeting',
+      start_time: '2026-09-14 18:00:00', end_time: '2026-09-14 19:00:00',
+      recurrence: { frequency: 'weekly', intervalWeeks: 1, daysOfWeek: ['MO'], until: '2026-09-28' },
+    });
+    expect(res.status).toBe(201);
+    fixture('acting.series', res.body);
+  });
+
+  it('interest that was recorded', async () => {
+    const res = await actingSend('put', '/internal/v1/events/10/interest').send({ interested: true });
+    expect(res.status).toBe(200);
+    fixture('acting.interest', res.body);
+  });
+
+  it('feedback that was left', async () => {
+    const res = await actingPost('/internal/v1/events/10/feedback')
+      .send({ rating: 5, comment: 'The pizza arrived on time.' });
+    expect(res.status).toBe(200);
+    fixture('acting.feedback', res.body);
+  });
+
+  it('a personal calendar address', async () => {
+    const res = await actingPost('/internal/v1/calendars/personal').send({ rso_ids: [1] });
+    expect(res.status).toBe(200);
+    fixture('calendars.personal', res.body);
+  });
+
+  it('the RSOs a personal calendar follows', async () => {
+    const res = await actingSend('put', '/internal/v1/calendars/personal/rsos').send({ rso_ids: [1] });
+    expect(res.status).toBe(200);
+    fixture('calendars.personalRsos', res.body);
+  });
+
+  it('a personal calendar as the file a phone subscribes to', async () => {
+    const res = await request(app).get(`/calendar/personal/${'T'.repeat(43)}.ics`);
+    expect(res.status).toBe(200);
+    fixture('calendars.personalFile', {
+      content_type: res.headers['content-type'],
+      cache_control: res.headers['cache-control'],
+      body: res.text,
+    });
   });
 
   it('a refusal', async () => {

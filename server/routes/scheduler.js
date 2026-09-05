@@ -39,7 +39,17 @@ function readRecurrence(body) {
   return { recurrence: { intervalWeeks, daysOfWeek, until } };
 }
 
-router.post('/recommend', requireAuth, async (req, res, next) => {
+/**
+ * Where and when a repeat could go, given what the board is willing to accept.
+ *
+ * Exported rather than written inline in the route, because the Discord bot
+ * asks the same question through the internal service API and the two surfaces
+ * have to weigh a candidate the same way. The route below is the dashboard's
+ * door to it, and the internal one is the bot's.
+ *
+ * @type {import('express').RequestHandler}
+ */
+export async function recommendSchedule(req, res, next) {
   try {
     const {
       durationMinutes = 60,
@@ -78,6 +88,8 @@ router.post('/recommend', requireAuth, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+}
+
+router.post('/recommend', requireAuth, recommendSchedule);
 
 export default router;
