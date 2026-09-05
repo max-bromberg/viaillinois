@@ -21,8 +21,22 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-via}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
+      # Read by the initialisation script below, which creates the Discord
+      # bot's database and the account scoped to it. Left unset, the script
+      # says so and creates nothing, so a deployment that does not run the bot
+      # is unaffected.
+      BOT_DB_USER: ${BOT_DB_USER:-via_bot}
+      BOT_DB_PASSWORD: ${BOT_DB_PASSWORD:-}
+      BOT_DB_NAME: ${BOT_DB_NAME:-via_bot}
     volumes:
       - db_data:/var/lib/mysql
+      # MySQL runs this directory once, on an empty data directory, and never
+      # again. It creates the bot's database and its account, which no
+      # migration runner can create for itself, and it creates no table: every
+      # table on either database still comes from a migration. A host whose
+      # database already has data never runs it, and docs/deployment.md carries
+      # the same statements to run by hand there, once.
+      - ./server/db/init:/docker-entrypoint-initdb.d:ro
     networks:
       via_internal:
         aliases:
@@ -54,7 +68,14 @@ services:
       - "3000:3001"
     networks:
       - default
-      - via_internal
+      # On the stack's own network the website also answers to a name that
+      # belongs to this stack alone. The bot reaches it there. The service
+      # name is resolved on the shared network too, where another stack could
+      # one day run a service called via, which is the same collision that
+      # forced the via-db alias on the database.
+      via_internal:
+        aliases:
+          - via-platform
     volumes:
       # Backups have to outlive the container that writes them, and they must
       # not sit inside the database volume that a restore replaces.
@@ -86,6 +107,89 @@ services:
       ASTRA_POLL_INTERVAL_MS: ${ASTRA_POLL_INTERVAL_MS:-14400000}
       COURSES_POLL_INTERVAL_MS: ${COURSES_POLL_INTERVAL_MS:-86400000}
       COURSES_REQUEST_DELAY_MS: ${COURSES_REQUEST_DELAY_MS:-200}
+      # The token the Discord bot presents at the internal service API. Both
+      # containers read the same value, and with it unset that API answers 404
+      # to everything.
+      BOT_SERVICE_TOKEN: ${BOT_SERVICE_TOKEN:-}
+      # The Discord application the account link flow authorizes against, the
+      # key the stored authorization is sealed with, and the salt that stops
+      # the list of interested Discord accounts being rebuilt by hashing every
+      # identifier in a server.
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_LINK_KEY: ${DISCORD_LINK_KEY:-}
+      DISCORD_INTEREST_SALT: ${DISCORD_INTEREST_SALT:-}
+
+  # The Discord bot, which is the same service as the website in a second
+  # place rather than a separate product. It is built from a checkout of
+  # https://github.com/max-bromberg/viaillinois-bot beside this one, at the tag
+  # pinned in deploy/bot-release, and scripts/cutover.sh deploys both in one
+  # maintenance window.
+  via-bot:
+    build:
+      # The same setting scripts/cutover.sh reads, exported by it, so a
+      # checkout somewhere else is somewhere else for both. The default is the
+      # sibling directory, which is where the deployment procedure puts it.
+      context: ${BOT_CHECKOUT:-../viaillinois-bot}
+    restart: unless-stopped
+    # Smaller ceilings than the website's, because the work is one gateway
+    # connection, a poll of the outbox and whatever a person asks for in a
+    # command. The reason for having them at all is the reason the other two
+    # services have them: the host is shared, and a runaway container should
+    # cost VIA rather than the machine.
+    mem_limit: 512m
+    cpus: 1.0
+    depends_on:
+      db:
+        condition: service_healthy
+      # Started, not healthy. The bot's own health answer stays unavailable
+      # until the web platform answers it, so the cutover is what waits for the
+      # website to be ready; this only fixes the order at boot.
+      via:
+        condition: service_started
+    ports:
+      # The health endpoint the cutover gates on, and nothing else. The bot
+      # serves no public traffic, so the reverse proxy has no route to it.
+      - "${BOT_HEALTH_PORT:-3002}:3002"
+    networks:
+      # The private network reaches the database, and the shared one reaches
+      # the website's internal service API by service name.
+      - default
+      - via_internal
+    environment:
+      # As on the other two services, and for the same reason: a time this
+      # process reads has to mean what the database meant when it wrote it.
+      TZ: America/Chicago
+      NODE_ENV: production
+      HEALTH_PORT: 3002
+      # The bot's own database and its own account. The website's account and
+      # its signing secrets are deliberately absent: everything the bot knows
+      # about events, memberships and people comes through the internal
+      # service API, so a leak of this container is not a leak of the website.
+      DB_HOST: via-db
+      DB_PORT: 3306
+      BOT_DB_USER: ${BOT_DB_USER:-via_bot}
+      BOT_DB_PASSWORD: ${BOT_DB_PASSWORD:-}
+      BOT_DB_NAME: ${BOT_DB_NAME:-via_bot}
+      # The bot's migrate script wants an account that may change the schema,
+      # and inside via_bot the bot's own account is exactly that, because the
+      # initialisation script grants it everything there. Naming it here keeps
+      # the root password out of this container.
+      BOT_DB_ADMIN_USER: ${BOT_DB_USER:-via_bot}
+      BOT_DB_ADMIN_PASSWORD: ${BOT_DB_PASSWORD:-}
+      # Inside the stack the website is reached by the alias it carries on the
+      # private network, on the port it actually listens on, which is not the
+      # published one. Outside the stack it is the address every link button
+      # the bot posts opens.
+      VIA_INTERNAL_URL: http://via-platform:3001
+      VIA_PUBLIC_URL: ${CLIENT_URL}
+      BOT_SERVICE_TOKEN: ${BOT_SERVICE_TOKEN:-}
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+      DISCORD_APPLICATION_ID: ${DISCORD_APPLICATION_ID:-}
+      DISCORD_PUBLIC_KEY: ${DISCORD_PUBLIC_KEY:-}
+      RATE_LIMIT_UNLINKED_PER_HOUR: ${RATE_LIMIT_UNLINKED_PER_HOUR:-30}
+      RATE_LIMIT_LINKED_PER_HOUR: ${RATE_LIMIT_LINKED_PER_HOUR:-120}
+      RATE_LIMIT_GUILD_PER_HOUR: ${RATE_LIMIT_GUILD_PER_HOUR:-600}
 
 volumes:
   db_data:

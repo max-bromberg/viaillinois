@@ -5,11 +5,20 @@ import { join } from 'node:path';
 export class LocalDestination {
   /**
    * @param {string} dir directory to store dumps in
-   * @param {number} retentionCount how many dumps to keep
+   * @param {number} retentionCount how many dumps of this database to keep
+   * @param {string | null} database the database whose dumps this counts, or
+   *   null to count every dump in the directory. The stack keeps two databases
+   *   on one server, the web platform's and the Discord bot's, and the cutover
+   *   dumps both into the same directory on every deploy. Counted across the
+   *   directory, each would keep half the history the retention count names,
+   *   and a run of deploys of one would age out the dumps of the other.
    */
-  constructor(dir, retentionCount = 10) {
+  constructor(dir, retentionCount = 10, database = null) {
     this.dir = dir;
     this.retentionCount = retentionCount;
+    // createBackup names a dump after the database it came from, then the
+    // moment it was taken.
+    this.prefix = database ? `${database}-` : null;
   }
 
   async store(tmpPath, name) {
@@ -36,7 +45,9 @@ export class LocalDestination {
     } catch {
       return [];
     }
-    const dumps = names.filter(n => n.endsWith('.sql'));
+    const dumps = names.filter(
+      n => n.endsWith('.sql') && (this.prefix === null || n.startsWith(this.prefix))
+    );
     const withTimes = await Promise.all(
       dumps.map(async n => {
         const path = join(this.dir, n);

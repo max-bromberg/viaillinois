@@ -34,6 +34,12 @@ jobs:
       - name: Compose file tests
         run: npx vitest run scripts/tests/composeFile.test.js
 
+      # The cutover deploys the website and the Discord bot together, from two
+      # checkouts, and these run the real script against stub docker and curl
+      # commands to check the order of its steps and each of its refusals.
+      - name: Cutover and bot pin tests
+        run: npx vitest run scripts/tests/cutover.test.js scripts/tests/botRelease.test.js
+
       - name: Server fast tests
         run: npm test --prefix server
 
@@ -67,7 +73,14 @@ jobs:
       # how CI provisions its database. startTestDb polls with a real
       # connection, because MySQL reports healthy shortly before it finishes
       # first-boot initialization and docker compose up would return too early.
-      - name: Start the throwaway database
+      #
+      # That compose file mounts server/db/init, so this step also runs the
+      # initialisation script that creates the Discord bot's database and its
+      # account. A script that does not work stops the container from starting,
+      # and the deploy that would have run it on the server never happens. What
+      # the script built is then checked by tests/db/botDatabaseInit.db.test.js
+      # below, which is where the reach of the bot's account is asserted.
+      - name: Start the throwaway database, running the bot database script
         run: cd server && node -e "import('./tests/support/testDb.js').then(m => m.startTestDb())"
 
       - name: Migrations apply cleanly from empty

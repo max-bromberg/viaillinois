@@ -38,11 +38,20 @@ function section(text, keys) {
  * which is what these three checks are here to catch.
  */
 describe('docker-compose.yml', () => {
-  it('does not mount a schema file into docker-entrypoint-initdb.d', () => {
-    // A boot time schema mount runs only on an empty data directory, which is
-    // how the production schema drifted out of the repository before the
-    // migration system existed.
-    expect(compose).not.toContain('docker-entrypoint-initdb.d');
+  it('mounts nothing but the bot database initialisation into docker-entrypoint-initdb.d', () => {
+    // A boot time mount runs only on an empty data directory, which is how the
+    // production schema drifted out of the repository before the migration
+    // system existed. The one thing mounted there now creates the bot's
+    // database and its account, which no migration runner can do for itself,
+    // and it creates no table. Every table on either database still comes from
+    // a migration.
+    const volumes = section(compose, ['services', 'db', 'volumes']);
+    const mounts = volumes
+      .split('\n')
+      .filter((line) => line.includes('docker-entrypoint-initdb.d'))
+      .map((line) => line.trim());
+    expect(mounts).toEqual(['- ./server/db/init:/docker-entrypoint-initdb.d:ro']);
+    expect(compose).not.toContain('migrations:/docker-entrypoint-initdb.d');
   });
 
   it('mounts the host backup directory into the application container', () => {
@@ -94,8 +103,17 @@ describe('docker-compose.yml', () => {
     // application reaches the database on the private one.
     const networks = section(compose, ['services', 'via', 'networks']);
     expect(networks).toContain('- default');
-    expect(networks).toContain('- via_internal');
+    expect(networks).toContain('via_internal:');
     expect(section(compose, ['networks', 'via_internal'])).not.toBeNull();
+  });
+
+  it('answers to a name of its own on the private network, which is where the bot reaches it', () => {
+    // The service name is resolved on the shared network too, where another
+    // stack could one day run a service called via, which is the collision
+    // that forced the via-db alias on the database.
+    const networks = section(compose, ['services', 'via', 'networks']);
+    expect(networks).toContain('- via-platform');
+    expect(section(compose, ['services', 'via-bot', 'environment'])).toContain('VIA_INTERNAL_URL: http://via-platform:3001');
   });
 });
 
@@ -139,5 +157,175 @@ describe('container resource limits', () => {
     // The default is sized against the host's 10 GB rather than against the
     // container's 2 GB, which gets the container killed rather than slowed.
     expect(section(compose, ['services', 'db'])).toContain('--innodb-buffer-pool-size=1G');
+  });
+});
+
+/**
+ * The entries declared in a block, one per line, with comments dropped and a
+ * leading list dash removed.
+ */
+function keysOf(block) {
+  return (block ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'))
+    .map((line) => line.replace(/^- /, ''));
+}
+
+/**
+ * The Discord bot is a third container in this stack rather than a deployment
+ * of its own. It is built from a checkout of its repository beside this one,
+ * at the tag pinned in deploy/bot-release, and one cutover deploys both.
+ */
+describe('the via-bot service', () => {
+  const bot = section(compose, ['services', 'via-bot']);
+  const environment = section(compose, ['services', 'via-bot', 'environment']);
+
+  it('is built from the sibling checkout the cutover pins', () => {
+    expect(bot).not.toBeNull();
+    // The same setting the cutover reads, so moving the checkout moves it for
+    // both. The cutover exports it, and compose falls back to the same default.
+    expect(section(compose, ['services', 'via-bot', 'build'])).toContain(
+      'context: ${BOT_CHECKOUT:-../viaillinois-bot}',
+    );
+  });
+
+  it('is on both networks', () => {
+    // It reaches the database on the private network, and it reaches the web
+    // platform's internal service API by service name on the shared one.
+    const networks = section(compose, ['services', 'via-bot', 'networks']);
+    expect(networks).toContain('- default');
+    expect(networks).toContain('- via_internal');
+  });
+
+  it('caps what it may take and comes back after a restart', () => {
+    expect(bot).toContain('mem_limit: 512m');
+    expect(bot).toContain('cpus: 1.0');
+    expect(bot).toContain('restart: unless-stopped');
+  });
+
+  it('runs on campus time', () => {
+    expect(environment).toContain('TZ: America/Chicago');
+  });
+
+  it('waits for the database to be healthy and for the web platform to start', () => {
+    // Its own health answer is unavailable until the web platform answers, so
+    // starting it first only means starting it into a failing health check.
+    const dependsOn = section(compose, ['services', 'via-bot', 'depends_on']);
+    expect(section(compose, ['services', 'via-bot', 'depends_on', 'db'])).toContain(
+      'condition: service_healthy',
+    );
+    expect(dependsOn).toContain('via:');
+    expect(section(compose, ['services', 'via-bot', 'depends_on', 'via'])).toContain(
+      'condition: service_started',
+    );
+  });
+
+  it('publishes one port, which is the health endpoint the cutover gates on', () => {
+    const ports = keysOf(section(compose, ['services', 'via-bot', 'ports']));
+    expect(ports).toEqual(['"${BOT_HEALTH_PORT:-3002}:3002"']);
+  });
+
+  it('reaches the web platform inside the stack and links to it outside', () => {
+    expect(environment).toContain('VIA_INTERNAL_URL: http://via-platform:3001');
+    expect(environment).toContain('VIA_PUBLIC_URL: ${CLIENT_URL}');
+  });
+
+  it('is given every variable the bot refuses to start without', () => {
+    for (const name of [
+      'DISCORD_TOKEN',
+      'DISCORD_APPLICATION_ID',
+      'DISCORD_PUBLIC_KEY',
+      'VIA_INTERNAL_URL',
+      'BOT_SERVICE_TOKEN',
+      'DB_HOST',
+      'DB_PORT',
+      'BOT_DB_USER',
+      'BOT_DB_PASSWORD',
+      'BOT_DB_NAME',
+    ]) {
+      expect(keysOf(environment).some((line) => line.startsWith(`${name}:`))).toBe(true);
+    }
+    expect(environment).toContain('DB_HOST: via-db');
+  });
+
+  it('never carries the credentials belonging to the web platform', () => {
+    // The bot has its own account on its own database, and it reads and writes
+    // everything belonging to the web platform through the internal service
+    // API. An account or a signing secret in this container would be a way
+    // around that boundary, and a leak of this container would be a leak of
+    // the web platform.
+    const names = keysOf(environment).map((line) => line.split(':')[0]);
+    expect(names).not.toContain('DB_USER');
+    expect(names).not.toContain('DB_PASSWORD');
+    expect(names).not.toContain('DB_ADMIN_USER');
+    expect(names).not.toContain('DB_ADMIN_PASSWORD');
+    expect(names).not.toContain('JWT_SECRET');
+    expect(names).not.toContain('SESSION_SECRET');
+    expect(environment).not.toContain('${DB_PASSWORD}');
+    expect(environment).not.toContain('${JWT_SECRET}');
+  });
+});
+
+/**
+ * The web platform's side of the bot: the token that lets the bot through the
+ * internal service API door, and the Discord application the link flow uses.
+ */
+describe('the web platform service and the bot', () => {
+  const environment = section(compose, ['services', 'via', 'environment']);
+
+  it('is given the bot service token and the Discord link settings', () => {
+    for (const name of [
+      'BOT_SERVICE_TOKEN',
+      'DISCORD_CLIENT_ID',
+      'DISCORD_CLIENT_SECRET',
+      'DISCORD_LINK_KEY',
+      'DISCORD_INTEREST_SALT',
+    ]) {
+      expect(keysOf(environment).some((line) => line.startsWith(`${name}:`))).toBe(true);
+    }
+  });
+});
+
+/**
+ * MySQL runs the initialisation directory only on an empty data directory, so
+ * this creates the bot's database and account on a host that is starting from
+ * nothing. A database that already exists gets the same statements by hand,
+ * once, and docs/deployment.md carries them.
+ */
+describe('the bot database', () => {
+  it('is created on first start by a script the database service mounts', () => {
+    const volumes = section(compose, ['services', 'db', 'volumes']);
+    expect(volumes).toContain('./server/db/init:/docker-entrypoint-initdb.d:ro');
+  });
+
+  it('gives that script the account it has to create', () => {
+    const environment = section(compose, ['services', 'db', 'environment']);
+    expect(environment).toContain('BOT_DB_USER: ${BOT_DB_USER:-via_bot}');
+    expect(environment).toContain('BOT_DB_PASSWORD: ${BOT_DB_PASSWORD:-}');
+    expect(environment).toContain('BOT_DB_NAME: ${BOT_DB_NAME:-via_bot}');
+  });
+});
+
+/**
+ * The gate's database job runs the same initialisation script the production
+ * database runs, against the throwaway container, so a script that does not
+ * work stops a pull request rather than a deploy. The container keeps its data
+ * in tmpfs, so the script runs on every start rather than once.
+ */
+describe('docker-compose.test.yml', () => {
+  const testCompose = readFileSync(join(root, 'docker-compose.test.yml'), 'utf8');
+
+  it('mounts the initialisation script the same way production does', () => {
+    expect(section(testCompose, ['services', 'test-db', 'volumes'])).toContain(
+      './server/db/init:/docker-entrypoint-initdb.d:ro',
+    );
+  });
+
+  it('gives it the account that tests then check the reach of', () => {
+    const environment = section(testCompose, ['services', 'test-db', 'environment']);
+    expect(environment).toContain('BOT_DB_USER: via_bot');
+    expect(environment).toContain('BOT_DB_PASSWORD: test_bot_pw');
+    expect(environment).toContain('BOT_DB_NAME: via_bot');
   });
 });
