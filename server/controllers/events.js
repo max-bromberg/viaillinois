@@ -8,6 +8,7 @@ import { checkConflict } from '../services/conflictDetector.js';
 import { timeOfDay, durationMinutes, addMinutes, toWallClock } from '../lib/recurrence.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 import { recordDenial } from '../services/denialRecorder.js';
+import * as outbox from '../db/queries/outbox.ts';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
@@ -301,6 +302,10 @@ export async function updateEvent(req, res, next) {
       // A week that was edited on its own stays where the organizer put it when
       // the rest of the series is edited later.
       if (event.series_id) await seriesDb.detachEvent(eventId);
+      // The entry follows the change, because this path has no transaction to
+      // join, and it names what changed by comparing the event as it stood
+      // with the event as it now is.
+      await outbox.recordEventUpdated(event);
       return res.json({ ok: true, updated: 1 });
     }
 
@@ -344,12 +349,14 @@ export async function updateEvent(req, res, next) {
       durationMinutes: minutes,
     });
 
-    if (tags) {
-      await seriesDb.setTagsForEvents(
-        covered.filter(occurrence => !occurrence.detached).map(occurrence => occurrence.event_id),
-        tags
-      );
-    }
+    const reached = covered.filter(occurrence => !occurrence.detached).map(occurrence => occurrence.event_id);
+    if (tags) await seriesDb.setTagsForEvents(reached, tags);
+
+    // One entry for the repeat rather than one per week, because a repeat is
+    // one thing to the people reading about it. The event the request named is
+    // one of the weeks the edit reached, so comparing it with itself afterwards
+    // is what names the fields that changed.
+    await outbox.recordSeriesUpdated(event.series_id, { affectedEventIds: reached, sample: event });
 
     res.json({ ok: true, updated: result.affectedRows });
   } catch (err) { next(err); }
@@ -366,17 +373,33 @@ export async function deleteEvent(req, res, next) {
     const scope = readScope(req);
     if (!scope) return res.status(400).json({ error: `scope must be one of: ${SCOPES.join(', ')}` });
 
+    // What the entry has to say about a deletion cannot be read after it, so
+    // the rule and the occurrences it covers are read first.
     if (scope === 'all' && event.series_id) {
+      const series = await outbox.seriesSnapshot(event.series_id);
+      const removed = await outbox.seriesEventIds(event.series_id);
       await seriesDb.deleteSeries(event.series_id);
+      if (series) await outbox.recordSeriesDeleted(series, removed);
       return res.json({ ok: true, deleted: 'series' });
     }
 
     if (scope === 'following' && event.series_id) {
+      const series = await outbox.seriesSnapshot(event.series_id);
+      const covered = await seriesDb.occurrencesOfSeries(event.series_id, { from: String(event.start_time) });
+      const removed = covered.map(occurrence => occurrence.event_id);
       const result = await seriesDb.deleteOccurrencesFrom(event.series_id, String(event.start_time));
+      // A repeat with nothing left is a rule for nothing, and the query above
+      // has already taken it away with the last of its weeks.
+      if (result.remaining === 0) {
+        if (series) await outbox.recordSeriesDeleted(series, removed);
+      } else {
+        await outbox.recordSeriesUpdated(event.series_id, { affectedEventIds: removed });
+      }
       return res.json({ ok: true, deleted: result.affectedRows });
     }
 
     await eventsDb.deleteEvent(eventId);
+    await outbox.recordEventDeleted(event);
     // The rule still says which dates the series covers, and one of them has
     // just gone.
     if (event.series_id) await seriesDb.syncSeriesEnd(event.series_id);
@@ -403,6 +426,11 @@ async function setCancelled(req, res, next, cancelled) {
 
     const cancelled_at = cancelled ? campusNow() : null;
     await eventsDb.updateEvent(eventId, { cancelled_at });
+    // A cancellation is its own kind, because the bot says something different
+    // about it. Putting an event back is an ordinary update whose one changed
+    // field is the time it was cancelled at.
+    if (cancelled) await outbox.recordEventCancelled(eventId);
+    else await outbox.recordEventUpdated(event);
     res.json({ ok: true, cancelled_at });
   } catch (err) { next(err); }
 }

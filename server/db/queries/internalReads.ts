@@ -3,6 +3,7 @@ import db from '../client.ts';
 import {
   courseSections, courses, eventSeries, events, locations, midterms, rsOs, rsoMemberships, users,
 } from '../schema/schema.ts';
+import { EVENT_COLUMNS, withEventJoins } from './eventColumns.ts';
 import { campusStartOfToday } from '../../lib/timezone.js';
 
 /**
@@ -16,30 +17,6 @@ import { campusStartOfToday } from '../../lib/timezone.js';
  * question exactly, the route calls that query rather than a copy of it, and
  * what is here is what is genuinely new.
  */
-
-/** The shape every event leaves the internal service API in. */
-const EVENT_COLUMNS = {
-  event_id:       events.eventId,
-  rso_id:         events.rsoId,
-  rso_name:       rsOs.name,
-  title:          events.title,
-  description:    events.description,
-  start_time:     events.startTime,
-  end_time:       events.endTime,
-  is_private:     events.isPrivate,
-  cancelled_at:   events.cancelledAt,
-  location_id:    events.locationId,
-  building:       locations.building,
-  room_number:    locations.roomNumber,
-  location_text:  events.locationText,
-  location_note:  events.locationNote,
-  series_id:      events.seriesId,
-  series_frequency:      eventSeries.frequency,
-  series_interval_weeks: eventSeries.intervalWeeks,
-  series_days_of_week:   eventSeries.daysOfWeek,
-  series_ends_on:        eventSeries.endsOn,
-  interest_count: sql<number>`(SELECT COUNT(*) FROM Event_Interest i WHERE i.event_id = ${events.eventId})`.mapWith(Number),
-};
 
 export type EventFilters = {
   rsoIds?: number[],
@@ -86,12 +63,7 @@ function eventConditions(filters: EventFilters) {
 /** Events matching the feed's filters, in the order that timeframe reads in. */
 export async function listEvents(filters: EventFilters = {}) {
   const { timeframe = 'upcoming', limit = 50, offset = 0 } = filters;
-  return db
-    .select(EVENT_COLUMNS)
-    .from(events)
-    .innerJoin(rsOs, eq(rsOs.rsoId, events.rsoId))
-    .leftJoin(locations, eq(locations.locationId, events.locationId))
-    .leftJoin(eventSeries, eq(eventSeries.seriesId, events.seriesId))
+  return withEventJoins(db.select(EVENT_COLUMNS).from(events))
     .where(eventConditions(filters))
     .orderBy(timeframe === 'archived' ? desc(events.startTime) : asc(events.startTime))
     .limit(limit)

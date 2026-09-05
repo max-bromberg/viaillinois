@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 
+vi.mock('../../db/queries/outbox.ts', async () =>
+  (await import('../support/outboxMock.js')).outboxMock());
+
 vi.mock('../../db/queries/events.js', () => ({
   getPublicEvents: vi.fn().mockResolvedValue([]), getAllEvents: vi.fn().mockResolvedValue([]),
   getVisibleEvents: vi.fn().mockResolvedValue([]),

@@ -3,6 +3,9 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { campusStartOfToday } from '../../lib/timezone.js';
 
+vi.mock('../../db/queries/outbox.ts', async () =>
+  (await import('../support/outboxMock.js')).outboxMock());
+
 const midtermRows = vi.hoisted(() => ({ value: [{ midterm_id: 1, title: 'ECE 110 Midterm 1' }] }));
 
 vi.mock('../../db/queries/midterms.js', () => ({

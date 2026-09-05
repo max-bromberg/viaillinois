@@ -4,6 +4,7 @@ import { campusStartOfToday } from '../lib/timezone.js';
 import { checkAnyRsoBoard } from '../middleware/auth.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 import { recordDenial } from '../services/denialRecorder.js';
+import * as outbox from '../db/queries/outbox.ts';
 
 export async function getCourses(req, res, next) {
   try {
@@ -56,6 +57,7 @@ export async function createMidterm(req, res, next) {
     const result = await midtermsDb.createMidterm({
       course_code, submitted_by: req.user.net_id, location_id, title, start_time, end_time,
     });
+    await outbox.recordMidtermChanged(result.insertId);
     res.status(201).json({ midterm_id: result.insertId });
   } catch (err) { next(err); }
 }
@@ -100,8 +102,12 @@ export async function deleteMidterm(req, res, next) {
     if (!permitted) return res.status(403).json({ error: 'Global admin or RSO board access required' });
     const midtermId = parseInt(req.params.id);
     if (isNaN(midtermId)) return res.status(400).json({ error: 'id must be an integer' });
+    // Read before the delete, because afterwards there is nothing left to say
+    // what went.
+    const before = await outbox.midtermSnapshot(midtermId);
     const result = await midtermsDb.deleteMidterm(midtermId);
     if (!result.affectedRows) return res.status(404).json({ error: 'Midterm not found' });
+    if (before) await outbox.recordMidtermDeleted(before);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -115,7 +121,9 @@ export async function updateMidtermStatus(req, res, next) {
     if (!['Pending', 'Confirmed', 'Cancelled'].includes(status)) {
       return res.status(400).json({ error: 'status must be Pending, Confirmed, or Cancelled' });
     }
+    const before = await outbox.midtermSnapshot(midtermId);
     await midtermsDb.setMidtermStatus(midtermId, status);
+    await outbox.recordMidtermChanged(midtermId, before);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }

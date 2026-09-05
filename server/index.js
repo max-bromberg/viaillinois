@@ -6,6 +6,7 @@ import coursesPoller from './services/coursesPoller.js';
 import astraPoller from './services/astraPoller.js';
 import { pollersEnabled } from './lib/pollerConfig.js';
 import { startDenialRecorder, stopDenialRecorder } from './services/denialRecorder.js';
+import { startOutboxPruner, stopOutboxPruner } from './services/outboxPruner.js';
 
 if (process.env.NODE_ENV === 'production') {
   const required = ['JWT_SECRET', 'SESSION_SECRET', 'DB_PASSWORD', 'DB_USER'];
@@ -28,6 +29,7 @@ const server = app.listen(PORT, () => {
     console.log('pollers disabled by POLLERS_ENABLED');
   }
   startDenialRecorder();
+  startOutboxPruner();
 });
 
 // Node's defaults let a connection hold a socket open for a long time saying
@@ -45,6 +47,7 @@ async function shutdown() {
   server.close(async () => {
     await Promise.all([
       facilitiesPoller.stop(), coursesPoller.stop(), astraPoller.stop(), stopDenialRecorder(),
+      stopOutboxPruner(),
     ]);
     pool.end().then(() => process.exit(0)).catch(() => process.exit(1));
   });

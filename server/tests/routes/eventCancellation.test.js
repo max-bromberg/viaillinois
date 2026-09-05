@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 
+vi.mock('../../db/queries/outbox.ts', async () =>
+  (await import('../support/outboxMock.js')).outboxMock());
+
 const eventsDb = vi.hoisted(() => ({
   getEventById: vi.fn(), updateEvent: vi.fn().mockResolvedValue({ affectedRows: 1 }),
   deleteEvent: vi.fn(), setEventTags: vi.fn(), findEventsByUid: vi.fn(), createEvent: vi.fn(),

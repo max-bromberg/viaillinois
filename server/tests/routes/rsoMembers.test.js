@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 
+vi.mock('../../db/queries/outbox.ts', async () =>
+  (await import('../support/outboxMock.js')).outboxMock());
+
 const addMember = vi.fn();
 const inviteUser = vi.fn();
 const getUserByNetId = vi.fn();

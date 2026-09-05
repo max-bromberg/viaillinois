@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../db/queries/outbox.ts', async () =>
+  (await import('../support/outboxMock.js')).outboxMock());
+
 const rooms = [
   { location_id: 1, building: 'Electrical & Computer Eng Bldg', room_number: '1002', max_capacity: 240 },
 ];

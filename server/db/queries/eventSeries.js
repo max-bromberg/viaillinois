@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, gte, isNull, lt, ne, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../client.ts';
 import { eventSeries, events, eventTags, tags, facilityReservations } from '../schema/schema.ts';
+import { recordSeriesCreated } from './outbox.ts';
 
 /**
  * The data layer for repeating events.
@@ -96,6 +97,11 @@ export async function createSeriesWithOccurrences({ series, occurrences, event, 
         eventIds.flatMap(eventId => unique.map(tagName => ({ eventId, tagName })))
       );
     }
+
+    // The Discord bot hears about the repeat from the outbox, and the entry is
+    // written inside this transaction, so it exists exactly when the series and
+    // its occurrences do.
+    await recordSeriesCreated(seriesId, tx);
 
     return { seriesId, eventIds };
   }, { isolationLevel: 'serializable' });

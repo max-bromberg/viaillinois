@@ -1,4 +1,5 @@
 import pool, { query } from '../pool.js'
+import { recordEventCreatedOnConnection } from './outbox.ts'
 
 /**
  * Call GetRSOStats stored procedure.
@@ -78,6 +79,11 @@ export async function createEventTransactional(eventData, tagNames = [], isGloba
         [uniqueTags.map(t => [eventId, t])]
       )
     }
+
+    // The Discord bot hears about the event from the outbox, and the entry is
+    // written here, on this connection, so that it commits with the event it
+    // describes and rolls back with it.
+    await recordEventCreatedOnConnection(conn, eventId)
 
     await conn.commit()
     return { eventId }

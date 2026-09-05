@@ -53,10 +53,17 @@ vi.mock('../../services/conflictDetector.js', () => ({
   occupiedLocationIds, checkConflict: vi.fn(),
 }));
 
+const readOutbox = vi.hoisted(() => vi.fn());
+vi.mock('../../db/queries/outbox.ts', async () => ({
+  ...(await import('../support/outboxMock.js')).outboxMock(),
+  readOutbox,
+}));
+
 const TOKEN = 'e'.repeat(64);
 process.env.BOT_SERVICE_TOKEN = TOKEN;
 
 const app = (await import('../../app.js')).default;
+const { presentEvent } = await import('../../lib/eventShape.js');
 
 /**
  * The answer shapes of the internal service API, written down.
@@ -105,6 +112,54 @@ const SECTION = {
   building: 'Electrical & Computer Eng Bldg', room_number: '1002',
 };
 
+/**
+ * One outbox entry of every kind the first release writes.
+ *
+ * The event a change carries is built with the same presenter the reading
+ * endpoints use, so an entry and an answer cannot come to hold two different
+ * shapes of the same event without this file changing.
+ */
+const SERIES = {
+  series_id: 4, rso_id: 1, frequency: 'weekly', interval_weeks: 1, days_of_week: 'MO,WE',
+  starts_on: '2026-09-07', ends_on: '2026-12-09', start_of_day: '18:00:00', duration_minutes: 60,
+};
+
+const MIDTERM = {
+  midterm_id: 20, course_code: 'ECE 385', course_title: 'Digital Systems Laboratory',
+  title: 'Midterm 1', start_time: '2026-10-01 19:00:00', end_time: '2026-10-01 21:00:00',
+  status: 'Confirmed', location_text: null, building: 'Everitt Laboratory', room_number: '151',
+};
+
+const WRITTEN_AT = '2026-09-05 12:00:00';
+
+function outboxEntry(outbox_id, kind, subject_type, subject_id, rso_id, payload) {
+  return { outbox_id, kind, subject_type, subject_id, rso_id, payload, created_at: WRITTEN_AT };
+}
+
+function outboxEntries() {
+  const event = presentEvent(EVENT_ROW);
+  return [
+    outboxEntry(1, 'event.created', 'event', '10', 1, { event }),
+    outboxEntry(2, 'event.updated', 'event', '10', 1,
+      { event, changed: ['start_time', 'end_time'] }),
+    outboxEntry(3, 'event.cancelled', 'event', '10', 1,
+      { event: { ...event, cancelled_at: WRITTEN_AT } }),
+    outboxEntry(4, 'event.deleted', 'event', '10', 1, { event }),
+    outboxEntry(5, 'series.created', 'series', '4', 1,
+      { series: SERIES, event_ids: [10, 11, 12] }),
+    outboxEntry(6, 'series.updated', 'series', '4', 1,
+      { series: SERIES, event_ids: [10, 11, 12], affected_event_ids: [11, 12], changed: ['title'] }),
+    outboxEntry(7, 'series.deleted', 'series', '4', 1,
+      { series: SERIES, event_ids: [], affected_event_ids: [10, 11, 12] }),
+    outboxEntry(8, 'midterm.confirmed', 'midterm', '20', null, { midterm: MIDTERM }),
+    outboxEntry(9, 'midterm.updated', 'midterm', '20', null, { midterm: MIDTERM }),
+    outboxEntry(10, 'midterm.cancelled', 'midterm', '20', null,
+      { midterm: { ...MIDTERM, status: 'Cancelled' }, deleted: true }),
+    outboxEntry(11, 'membership.changed', 'membership', 'alice:1', 1,
+      { net_id: 'alice', rso_id: 1, role: 'Board' }),
+  ];
+}
+
 const asBot = path => request(app).get(path).set('Authorization', `Bearer ${TOKEN}`);
 const acting = path => asBot(path).set('X-Via-Acting-Discord-User', '123456789012345678');
 
@@ -136,6 +191,7 @@ beforeEach(() => {
   searchLocations.mockResolvedValue([ROOM]);
   getSectionsForCourses.mockResolvedValue([SECTION]);
   occupiedLocationIds.mockResolvedValue(new Set());
+  readOutbox.mockResolvedValue(outboxEntries().slice(0, 2));
 });
 
 describe('the answer shapes the Discord bot depends on', () => {
@@ -203,6 +259,20 @@ describe('the answer shapes the Discord bot depends on', () => {
     const res = await asBot('/internal/v1/buildings/ECEB');
     expect(res.status).toBe(200);
     fixture('building', res.body);
+  });
+
+  it('the outbox', async () => {
+    const res = await asBot('/internal/v1/outbox?after=0');
+    expect(res.status).toBe(200);
+    fixture('outbox', res.body);
+  });
+
+  it('one outbox entry of every kind', async () => {
+    readOutbox.mockResolvedValue(outboxEntries());
+    const res = await asBot('/internal/v1/outbox?after=0');
+    expect(res.status).toBe(200);
+    expect(res.body.entries).toHaveLength(11);
+    fixture('outboxEntries', res.body);
   });
 
   it('a refusal', async () => {

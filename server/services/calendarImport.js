@@ -10,6 +10,10 @@ import {
 } from '../db/queries/eventSeries.js';
 import { findMidtermsByUid, createMidterm, updateMidterm } from '../db/queries/midterms.js';
 import { getCourseCodes } from '../db/queries/courses.js';
+import {
+  eventSnapshot, midtermSnapshot, recordEventCreated, recordEventUpdated, recordEventDeleted,
+  recordMidtermChanged, recordSeriesUpdated,
+} from '../db/queries/outbox.ts';
 
 /**
  * Import events from an iCalendar file.
@@ -295,25 +299,34 @@ export async function applyEventImport({ ics, rsoId, createdBy }) {
 
     if (entry.kind !== 'series') {
       if (entry.action === 'update') {
+        // Read before the change and compared with the result, so the entry
+        // the bot reads names what an import actually altered rather than
+        // every field the file happens to carry.
+        const before = await eventSnapshot(entry.event_id);
         await updateEvent(entry.event_id, row);
+        if (before) await recordEventUpdated(before);
         updated += 1;
       } else {
-        await createEvent({
+        const result = await createEvent({
           ...row,
           rso_id: rsoId,
           created_by: createdBy,
           external_uid: entry.external_uid,
           is_private: false,
         });
+        await recordEventCreated(result.insertId);
         created += 1;
       }
       continue;
     }
 
     // The single event an earlier import made for this entry goes, so that the
-    // week it stood for is not shown twice.
+    // week it stood for is not shown twice. It was announced on its own, so it
+    // leaves an entry of its own.
     for (const eventId of entry.replaces) {
+      const before = await eventSnapshot(eventId);
       await deleteEvent(eventId);
+      if (before) await recordEventDeleted(before);
       removed += 1;
     }
 
@@ -332,13 +345,18 @@ export async function applyEventImport({ ics, rsoId, createdBy }) {
       continue;
     }
 
+    // A repeat is one thing to the people reading about it, so the weeks this
+    // import wrote, changed or removed are gathered and reported together
+    // rather than one entry at a time.
+    const affected = [];
     for (const occurrence of entry.occurrence_rows) {
       const times = { ...row, start_time: occurrence.start, end_time: occurrence.end };
       if (occurrence.action === 'update') {
         await updateEvent(occurrence.event_id, times);
+        affected.push(occurrence.event_id);
         updated += 1;
       } else {
-        await createEvent({
+        const result = await createEvent({
           ...times,
           rso_id: rsoId,
           created_by: createdBy,
@@ -346,6 +364,7 @@ export async function applyEventImport({ ics, rsoId, createdBy }) {
           series_id: entry.series_id,
           is_private: false,
         });
+        affected.push(result.insertId);
         created += 1;
       }
     }
@@ -353,10 +372,12 @@ export async function applyEventImport({ ics, rsoId, createdBy }) {
     // A week the rule no longer holds is a week the organizer removed.
     for (const eventId of entry.remove_ids) {
       await deleteEvent(eventId);
+      affected.push(eventId);
       removed += 1;
     }
 
     await updateSeriesRule(entry.series_id, entry.recurrence);
+    await recordSeriesUpdated(entry.series_id, { affectedEventIds: affected });
     seriesUpdated += 1;
   }
 
@@ -464,12 +485,15 @@ export async function applyMidtermImport({ ics }) {
     if (entry.action === 'update') {
       // Status is deliberately absent. An admin may have cancelled this
       // midterm, and re-importing the same file should not quietly undo that.
+      const before = await midtermSnapshot(entry.midterm_id);
       await updateMidterm(entry.midterm_id, row);
+      await recordMidtermChanged(entry.midterm_id, before);
       updated += 1;
     } else {
-      await createMidterm({
+      const result = await createMidterm({
         ...row, status: 'Confirmed', submitted_by: null, external_uid: entry.external_uid,
       });
+      await recordMidtermChanged(result.insertId);
       created += 1;
     }
   }

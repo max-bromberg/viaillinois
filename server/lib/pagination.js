@@ -53,6 +53,12 @@ export const PAGING_LIMITS = {
   // already narrow, since it returns only confirmed exams that have not
   // finished, and there is nothing to page through.
   confirmedMidterms: { defaultLimit: 500, maxLimit: 500, maxOffset: 0 },
+  // The Discord bot reads the outbox every few seconds and pages with a
+  // cursor rather than an offset, so the ceiling is here to bound one answer
+  // rather than to bound how far a reader can go. A default of a hundred
+  // carries an ordinary few seconds of changes many times over, and the
+  // ceiling is what a reader coming back from an outage asks for.
+  outbox:   { defaultLimit: 100, maxLimit: 500, maxOffset: 0 },
 };
 
 /**
