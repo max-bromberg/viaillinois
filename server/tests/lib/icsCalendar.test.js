@@ -30,6 +30,44 @@ describe('buildCalendar()', () => {
     expect(text.endsWith('END:VCALENDAR\r\n')).toBe(true);
   });
 
+  /**
+   * TZID names a zone, and a strict reader wants the file to say what that
+   * zone is rather than trusting it to know. Without the component, some
+   * calendar applications refuse the file and others fall back to their own
+   * idea of the zone, which puts the event an hour or several out.
+   */
+  it('describes the campus zone the events refer to', () => {
+    const text = buildCalendar([EVENT], { stamp: '2026-09-05 12:00:00' });
+    const out = lines(text);
+
+    expect(text).toContain('BEGIN:VTIMEZONE');
+    expect(text).toContain('TZID:America/Chicago');
+    expect(text).toContain('BEGIN:STANDARD');
+    expect(text).toContain('BEGIN:DAYLIGHT');
+    expect(text).toContain('END:VTIMEZONE');
+
+    // The current United States rules: forward on the second Sunday in March,
+    // back on the first Sunday in November.
+    expect(text).toContain('TZOFFSETFROM:-0600');
+    expect(text).toContain('TZOFFSETTO:-0500');
+    expect(text).toContain('TZNAME:CDT');
+    expect(text).toContain('TZNAME:CST');
+    expect(text).toContain('RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU');
+    expect(text).toContain('RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU');
+
+    // The zone is described before anything refers to it, and it is closed
+    // before the first event begins.
+    expect(out.indexOf('BEGIN:VTIMEZONE')).toBeLessThan(out.indexOf('BEGIN:VEVENT'));
+    expect(out.indexOf('END:VTIMEZONE')).toBeLessThan(out.indexOf('BEGIN:VEVENT'));
+    expect(out.filter(line => line === 'BEGIN:VTIMEZONE')).toHaveLength(1);
+  });
+
+  it('describes the zone even in a calendar that holds no events', () => {
+    const text = buildCalendar([], { stamp: '2026-09-05 12:00:00' });
+    expect(text).toContain('BEGIN:VTIMEZONE');
+    expect(text).toContain('END:VTIMEZONE');
+  });
+
   it('names the campus zone on both ends of the event', () => {
     const text = buildCalendar([EVENT], { stamp: '2026-09-05 12:00:00' });
     expect(text).toContain('DTSTART;TZID=America/Chicago:20260910T180000');

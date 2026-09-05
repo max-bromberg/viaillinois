@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
 import { writable } from 'svelte/store';
+import { rememberAfterSignIn } from '../src/lib/afterSignIn.js';
 
 const getMe = vi.hoisted(() => vi.fn());
 const getEvents = vi.hoisted(() => vi.fn());
@@ -84,7 +85,7 @@ describe('App, before it knows who is looking', () => {
  */
 describe('App, once it knows who is looking', () => {
   it('sends the person on to the address they were headed for', async () => {
-    window.localStorage.setItem('via_after_sign_in', '/link/discord/abc');
+    rememberAfterSignIn('/link/discord/abc');
     getMe.mockResolvedValue({ user: { net_id: 'jdoe2', memberships: [] } });
     render(App);
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/link/discord/abc'));
@@ -99,7 +100,7 @@ describe('App, once it knows who is looking', () => {
   });
 
   it('goes nowhere when nobody signed in', async () => {
-    window.localStorage.setItem('via_after_sign_in', '/link/discord/abc');
+    rememberAfterSignIn('/link/discord/abc');
     getMe.mockRejectedValue(new Error('Authentication required'));
     render(App);
     await waitFor(() => expect(getEvents).toHaveBeenCalled());

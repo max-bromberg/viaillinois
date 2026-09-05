@@ -3,6 +3,8 @@ import { Router } from 'express';
 import { requireAuth, requireRSOEditor } from '../../middleware/auth.js';
 import { sendApiError, ERROR_CODES, codeForStatus, withErrorCode } from '../../lib/apiError.js';
 import { presentEvent } from '../../lib/eventShape.js';
+import { maySeeEvent } from '../../lib/eventVisibility.js';
+import { identifier, isSnowflake } from '../../lib/identifiers.js';
 import { toWallClock } from '../../lib/recurrence.js';
 import { updateEvent, cancelEvent, restoreEvent, createEventSeries } from '../../controllers/events.js';
 import { recommendSchedule } from '../scheduler.js';
@@ -54,11 +56,6 @@ const PATCHABLE = {
   location_note: value => value === null || typeof value === 'string',
 };
 
-/** A path segment that has to be a positive whole number, or null. */
-function identifier(raw) {
-  return /^\d+$/.test(String(raw ?? '')) ? Number(raw) : null;
-}
-
 /**
  * Run one of the website's controllers as the answer to an internal request.
  *
@@ -105,8 +102,13 @@ function scopedToOneEvent(req) {
  * Read before the controller runs, because the controller writes every column
  * it is given and the bot sends only the few it means to change. What the rest
  * of the event holds has to be read to be handed back unchanged.
+ *
+ * @param {{ visibleOnly?: boolean }} [options] whether an internal event the
+ *   acting person may not see is answered as though it were not there, which
+ *   is what interest and feedback need because they are open to people who
+ *   are not on any board
  */
-async function readEvent(req, res) {
+async function readEvent(req, res, { visibleOnly = false } = {}) {
   const eventId = identifier(req.params.id);
   if (eventId === null) {
     sendApiError(res, 400, ERROR_CODES.INVALID, 'An event identifier has to be a whole number.');
@@ -114,6 +116,12 @@ async function readEvent(req, res) {
   }
   const event = await getEventById(eventId);
   if (!event) {
+    sendApiError(res, 404, ERROR_CODES.NOT_FOUND, 'There is no event with that identifier.');
+    return null;
+  }
+  if (visibleOnly && !(await maySeeEvent(req, event))) {
+    // The same answer as an event that does not exist, on purpose. A refusal
+    // that said "you may not see this one" would say that it exists.
     sendApiError(res, 404, ERROR_CODES.NOT_FOUND, 'There is no event with that identifier.');
     return null;
   }
@@ -173,9 +181,6 @@ function hashedSubject(discordUserId) {
   // characters and a hexadecimal digest plus its prefix would not fit.
   return `h:${createHash('sha256').update(`${salt}:${discordUserId}`).digest('base64url')}`;
 }
-
-/** A Discord snowflake is a decimal string, and never a JavaScript number. */
-const SNOWFLAKE = /^\d{1,32}$/;
 
 export function createActingRouter() {
   const router = Router();
@@ -274,7 +279,7 @@ export function createActingRouter() {
    */
   router.put('/events/:id/interest', async (req, res, next) => {
     try {
-      const event = await readEvent(req, res);
+      const event = await readEvent(req, res, { visibleOnly: true });
       if (!event) return;
 
       const interested = req.body?.interested;
@@ -290,14 +295,19 @@ export function createActingRouter() {
       let subject = req.user?.net_id ?? null;
       if (!subject) {
         const discordUserId = req.body?.discord_user_id;
-        if (typeof discordUserId !== 'string' || !SNOWFLAKE.test(discordUserId)) {
+        if (!isSnowflake(discordUserId)) {
           return sendApiError(res, 400, ERROR_CODES.INVALID,
             'Interest needs either the acting person or the Discord user identifier it is for.');
         }
         subject = hashedSubject(discordUserId);
         if (!subject) {
-          return sendApiError(res, 503, ERROR_CODES.BUSY,
-            'This deployment cannot record interest from somebody who has not linked their account.');
+          // Not busy, which would tell the bot to try again and have it try
+          // for ever. This deployment cannot do this at all until somebody
+          // changes its settings, so the sentence names the setting.
+          return sendApiError(res, 500, ERROR_CODES.INVALID,
+            'This deployment of VIA cannot record interest from somebody who has not linked their '
+            + 'account, because DISCORD_INTEREST_SALT is not set on the web platform. Set it in the '
+            + 'environment and restart.');
         }
       }
 
@@ -326,7 +336,7 @@ export function createActingRouter() {
         return sendApiError(res, 400, ERROR_CODES.INVALID,
           `A comment has to be ${COMMENT_MAX} characters or fewer.`);
       }
-      const event = await readEvent(req, res);
+      const event = await readEvent(req, res, { visibleOnly: true });
       if (!event) return;
 
       await saveFeedback({

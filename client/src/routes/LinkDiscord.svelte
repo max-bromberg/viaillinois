@@ -4,6 +4,7 @@
   import { currentUser, authResolved } from '../stores/auth.js';
   import { rememberAfterSignIn } from '../lib/afterSignIn.js';
   import { getLinkSession } from '../api/link.js';
+  import { campusTime } from '../lib/campusTime.js';
 
   /** The session identifier out of the address the bot sent. */
   export let session = '';
@@ -13,6 +14,7 @@
   let wantsRoles = true;
   let reason = null;
   let sentToSignIn = false;
+  let askedAboutSession = false;
 
   const card = 'rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3';
   const body = 'text-sm text-muted-foreground leading-relaxed';
@@ -31,22 +33,35 @@
     unknown: 'That link request is not one VIA opened. Please run the link command on Discord again.',
     discord: 'Discord could not confirm who you are just now. Please try again in a moment.',
     declined: 'You did not finish the authorization on Discord, so nothing was linked. You can try again whenever you are ready.',
+    signedout: 'You were signed out of VIA while you were on Discord, so nothing was linked. Please sign in again and press the button once more.',
   };
 
   $: startAddress = `/auth/discord/start?session=${encodeURIComponent(session)}&roles=${wantsRoles ? 1 : 0}`;
   $: canContinue = status === 'open';
 
-  onMount(async () => {
+  onMount(() => {
     reason = new URLSearchParams(window.location.search).get('reason');
+  });
 
-    // Somebody who is not signed in signs in first, and comes back here.
-    if ($authResolved && !$currentUser) {
-      sentToSignIn = true;
-      rememberAfterSignIn(`/link/discord/${session}`);
-      navigate('/login');
-      return;
-    }
+  // Whether somebody is signed in is the answer to a request of its own, and
+  // this page is drawn before that answer arrives. Both of these wait for the
+  // answer rather than reading whatever was there on mount, because reading it
+  // on mount sent a signed in person to sign in again.
 
+  // Somebody who is not signed in signs in first, and comes back here.
+  $: if ($authResolved && !$currentUser && !sentToSignIn) {
+    sentToSignIn = true;
+    rememberAfterSignIn(`/link/discord/${session}`);
+    navigate('/login');
+  }
+
+  $: if ($authResolved && $currentUser && !askedAboutSession) {
+    askedAboutSession = true;
+    loadSession();
+  }
+
+  /** What the server says about this session, which decides what the page offers. */
+  async function loadSession() {
     try {
       const answer = await getLinkSession(session);
       status = answer.status;
@@ -54,16 +69,14 @@
     } catch {
       status = 'unknown';
     }
-  });
-
-  /** The expiry, as a time somebody can read. */
-  function readableTime(value) {
-    if (!value) return '';
-    const at = new Date(value);
-    return Number.isNaN(at.getTime())
-      ? ''
-      : at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
+
+  /**
+   * The expiry, as a time somebody can read, on the campus clock. Rendered in
+   * the reader's own zone, it named an hour that this request does not run out
+   * at for anybody who is not on campus.
+   */
+  const readableTime = value => campusTime(value);
 </script>
 
 <svelte:head>

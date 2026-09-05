@@ -75,6 +75,13 @@ wait_for_health() {
   done
 }
 
+# Put this checkout back on the tag it was found on. Used by the failures that
+# happen after the release tag is checked out and before anything is built, so
+# a refusal leaves the host exactly as it was.
+undo_checkout() {
+  [ "$PREVIOUS_TAG" = "none" ] || git checkout "$PREVIOUS_TAG" --quiet || true
+}
+
 rollback() {
   log "rolling back to ${PREVIOUS_TAG}, bot to ${BOT_PREVIOUS_TAG}"
   if [ -n "$BACKUP_PATH" ]; then
@@ -96,7 +103,14 @@ rollback() {
   else
     log "WARNING: no previous bot tag to check out, leaving that checkout where it is"
   fi
-  docker compose up -d --build via via-bot || log "WARNING: could not restart previous images"
+  # Two commands rather than one naming both services. A previous compose file
+  # with no via-bot service, which is every compose file before the release
+  # that introduced it, makes one command fail as a whole and leaves the
+  # website down, which is the one thing the rollback exists to prevent.
+  docker compose up -d --build via \
+    || log "WARNING: could not restart the previous web platform image"
+  docker compose up -d --build via-bot \
+    || log "WARNING: could not restart the previous bot image"
   log "rollback complete"
 }
 
@@ -115,16 +129,21 @@ log "checked out ${RELEASE_TAG}, previous was ${PREVIOUS_TAG}"
 
 # The pin is read after the checkout, because which bot a release runs is part
 # of the release rather than of the checkout that deploys it.
-[ -f "$BOT_RELEASE_FILE" ] || fail "no bot tag pinned in ${BOT_RELEASE_FILE}"
+if [ ! -f "$BOT_RELEASE_FILE" ]; then
+  undo_checkout
+  fail "no bot tag pinned in ${BOT_RELEASE_FILE}"
+fi
 BOT_TAG="$(head -n 1 "$BOT_RELEASE_FILE" | tr -d '[:space:]')"
-[[ "$BOT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
-  || fail "${BOT_RELEASE_FILE} does not name a version tag: ${BOT_TAG}"
+if [[ ! "$BOT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  undo_checkout
+  fail "${BOT_RELEASE_FILE} does not name a version tag: ${BOT_TAG}"
+fi
 
 git -C "$BOT_CHECKOUT" fetch --tags --quiet
 if ! git -C "$BOT_CHECKOUT" checkout "$BOT_TAG" --quiet; then
   # Nothing has been built and no container has been touched, so putting this
   # tree back where it was leaves the host exactly as it was found.
-  [ "$PREVIOUS_TAG" = "none" ] || git checkout "$PREVIOUS_TAG" --quiet || true
+  undo_checkout
   fail "no such bot tag: ${BOT_TAG} in ${BOT_CHECKOUT}"
 fi
 log "checked out bot ${BOT_TAG}, previous was ${BOT_PREVIOUS_TAG}"

@@ -72,7 +72,14 @@ export async function recommend(params) {
   const midtermEndStr = wallClock(midtermEnd);
 
   const [allEvents, targetMidterms, allReservations, allLocations, allSections] = await Promise.all([
-    getPublicEvents({ startDate: dateRange.start, endDate: searchEnd, limit: 1000 }),
+    // Only the events that are still going ahead. A cancelled event stays on
+    // the feed so that somebody who planned to attend is told, but it holds
+    // no room, and leaving it in the way means the board that called the
+    // meeting off cannot book the room it gave up and neither can anybody
+    // else.
+    getPublicEvents({
+      startDate: dateRange.start, endDate: searchEnd, limit: 1000, excludeCancelled: true,
+    }),
     getConfirmedMidtermsForScheduler({
       startDate: dateRange.start,
       endDate: midtermEndStr,

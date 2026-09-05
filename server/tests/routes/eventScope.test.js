@@ -85,6 +85,60 @@ describe('PUT /api/v1/events/:id with a scope', () => {
     expect(seriesDb.applyToSeries).not.toHaveBeenCalled();
   });
 
+  /**
+   * Detaching a week is the statement that this one moved on its own, and it
+   * is what stops a later series wide edit moving it back. A change to what
+   * the event says, or to the note at the door, is not a move, and detaching
+   * for one severed a week from its repeat every time a board edited it from
+   * Discord.
+   */
+  it('leaves the week attached when nothing about its time changed', async () => {
+    const res = await put(5, '', {
+      title: 'IEEE Weekly Meeting',
+      description: 'Bring a laptop.',
+      start_time: OCCURRENCE.start_time,
+      end_time: OCCURRENCE.end_time,
+    });
+    expect(res.status).toBe(200);
+    expect(eventsDb.updateEvent).toHaveBeenCalled();
+    expect(seriesDb.detachEvent).not.toHaveBeenCalled();
+  });
+
+  it('leaves the week attached when only the location note changed', async () => {
+    await put(5, '', {
+      title: 'IEEE Weekly Meeting',
+      start_time: OCCURRENCE.start_time,
+      end_time: OCCURRENCE.end_time,
+      location_note: 'Side door tonight.',
+    });
+    expect(seriesDb.detachEvent).not.toHaveBeenCalled();
+  });
+
+  it('leaves the week attached when the request names no times at all', async () => {
+    await put(5, '', { title: 'IEEE Weekly Meeting', description: 'A new description.' });
+    expect(seriesDb.detachEvent).not.toHaveBeenCalled();
+  });
+
+  it('detaches the week when only its end time moved', async () => {
+    await put(5, '', {
+      title: 'IEEE Weekly Meeting',
+      start_time: OCCURRENCE.start_time,
+      end_time: '2026-09-15 20:30:00',
+    });
+    expect(seriesDb.detachEvent).toHaveBeenCalledWith(5);
+  });
+
+  it('detaches the week when the same time arrives in the browser form', async () => {
+    // The edit form posts a T where the database writes a space and no
+    // seconds, so the comparison has to read both as the same reading.
+    await put(5, '', {
+      title: 'IEEE Weekly Meeting',
+      start_time: '2026-09-15T18:00',
+      end_time: '2026-09-15T19:30',
+    });
+    expect(seriesDb.detachEvent).not.toHaveBeenCalled();
+  });
+
   it('changes this week and the later ones', async () => {
     const res = await put(5, '?scope=following', EDIT);
     expect(res.status).toBe(200);
@@ -131,6 +185,30 @@ describe('PUT /api/v1/events/:id with a scope', () => {
     expect(options.fields).toMatchObject({
       title: 'Moved to seven', description: 'New room this term', is_private: true,
     });
+  });
+
+  it('carries the location note into every week of the series', async () => {
+    await put(5, '?scope=all', { ...EDIT, location_note: 'Side door this term.' });
+    const [, options] = seriesDb.applyToSeries.mock.calls[0];
+    expect(options.fields).toMatchObject({ location_note: 'Side door this term.' });
+  });
+
+  it('carries the location note into this week and the later ones', async () => {
+    await put(5, '?scope=following', { ...EDIT, location_note: 'Side door from now on.' });
+    const [, options] = seriesDb.applyToSeries.mock.calls[0];
+    expect(options.fields).toMatchObject({ location_note: 'Side door from now on.' });
+  });
+
+  it('leaves the note alone when the request does not mention it', async () => {
+    await put(5, '?scope=all', EDIT);
+    const [, options] = seriesDb.applyToSeries.mock.calls[0];
+    expect('location_note' in options.fields).toBe(false);
+  });
+
+  it('refuses a note longer than the column holds rather than editing the series', async () => {
+    const res = await put(5, '?scope=all', { ...EDIT, location_note: 'x'.repeat(501) });
+    expect(res.status).toBe(400);
+    expect(seriesDb.applyToSeries).not.toHaveBeenCalled();
   });
 
   it('retags the occurrences an edit covers, and leaves the detached ones alone', async () => {
@@ -221,8 +299,45 @@ describe('DELETE /api/v1/events/:id with a scope', () => {
   });
 
   it('keeps the rule honest when the week it deletes was the last one', async () => {
+    seriesDb.syncSeriesEnd.mockResolvedValue({ affectedRows: 1, removed: false });
     await del(5, '');
     expect(seriesDb.syncSeriesEnd).toHaveBeenCalledWith(3);
+  });
+
+  /**
+   * Deleting the last week of a repeat takes the repeat with it, whatever
+   * scope the request named. The bot is told about the week, and has to be
+   * told about the repeat as well, or it goes on showing a repeat that no
+   * longer exists.
+   */
+  it('says the series was deleted when the last week of it goes', async () => {
+    const outbox = await import('../../db/queries/outbox.ts');
+    outbox.seriesSnapshot.mockResolvedValue({ series_id: 3, rso_id: 1 });
+    seriesDb.syncSeriesEnd.mockResolvedValue({ affectedRows: 1, removed: true });
+
+    const res = await del(5, '');
+    expect(res.status).toBe(200);
+    expect(outbox.recordEventDeleted).toHaveBeenCalled();
+    expect(outbox.recordSeriesDeleted).toHaveBeenCalledWith(
+      { series_id: 3, rso_id: 1 }, [5],
+    );
+  });
+
+  it('says nothing about the series when weeks of it are left', async () => {
+    const outbox = await import('../../db/queries/outbox.ts');
+    outbox.seriesSnapshot.mockResolvedValue({ series_id: 3, rso_id: 1 });
+    seriesDb.syncSeriesEnd.mockResolvedValue({ affectedRows: 1, removed: false });
+
+    await del(5, '');
+    expect(outbox.recordSeriesDeleted).not.toHaveBeenCalled();
+  });
+
+  it('says nothing about a series for an event that never had one', async () => {
+    const outbox = await import('../../db/queries/outbox.ts');
+    eventsDb.getEventById.mockResolvedValue(ONE_OFF);
+    await del(8, '');
+    expect(seriesDb.syncSeriesEnd).not.toHaveBeenCalled();
+    expect(outbox.recordSeriesDeleted).not.toHaveBeenCalled();
   });
 
   it('rejects a scope it does not recognise', async () => {

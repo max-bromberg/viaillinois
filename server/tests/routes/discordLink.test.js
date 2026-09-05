@@ -22,9 +22,10 @@ vi.mock('../../db/queries/users.js', () => ({
 }));
 
 const recordLinkCompleted = vi.hoisted(() => vi.fn());
+const recordLinkRevoked = vi.hoisted(() => vi.fn());
 vi.mock('../../db/queries/outbox.ts', async () => ({
   ...(await import('../support/outboxMock.js')).outboxMock(),
-  recordLinkCompleted,
+  recordLinkCompleted, recordLinkRevoked,
 }));
 
 const pushFacts = vi.hoisted(() => vi.fn());
@@ -47,6 +48,7 @@ const DISCORD_USER = '204255221017214977';
 const PAGE = `https://viaillinois.com/link/discord/${SESSION}`;
 
 const asRosa = req => req.set('Cookie', [`via_token=${signToken({ net_id: 'rgarcia7', is_global_admin: false })}`]);
+const asMarcus = req => req.set('Cookie', [`via_token=${signToken({ net_id: 'mmurphy2', is_global_admin: false })}`]);
 
 /** A fetch that answers the token exchange and then the identity call. */
 function fakeDiscord({ token = {}, identity = {}, tokenOk = true, identityOk = true } = {}) {
@@ -74,8 +76,8 @@ function fakeDiscord({ token = {}, identity = {}, tokenOk = true, identityOk = t
 }
 
 /** The state the start route signs, rebuilt so the callback can be called on its own. */
-const state = (session = SESSION, roles = false) =>
-  jwt.sign({ session, roles }, 'a-test-secret', { expiresIn: '15m' });
+const state = (session = SESSION, roles = false, netId = 'rgarcia7') =>
+  jwt.sign({ session, roles, net_id: netId, typ: 'discord_state' }, 'a-test-secret', { expiresIn: '15m' });
 
 const OPEN_SESSION = {
   sessionId: SESSION, discordUserId: DISCORD_USER,
@@ -88,6 +90,7 @@ beforeEach(() => {
   process.env.DISCORD_CLIENT_SECRET = 'a-client-secret';
   process.env.DISCORD_LINK_KEY = KEY_HEX;
   linksDb.getLinkSession.mockResolvedValue({ ...OPEN_SESSION });
+  linksDb.linkAccount.mockResolvedValue([]);
   vi.stubGlobal('fetch', fakeDiscord());
 });
 
@@ -121,6 +124,13 @@ describe('GET /auth/discord/start', () => {
     const to = new URL(res.headers.location);
     expect(to.searchParams.get('scope')).toBe('identify role_connections.write');
     expect(jwt.verify(to.searchParams.get('state'), 'a-test-secret')).toMatchObject({ roles: true });
+  });
+
+  it('names the person who started the flow in the state, so the callback can insist on them', async () => {
+    const res = await asRosa(request(app).get(`/auth/discord/start?session=${SESSION}`));
+    const to = new URL(res.headers.location);
+    const carried = jwt.verify(to.searchParams.get('state'), 'a-test-secret');
+    expect(carried).toMatchObject({ session: SESSION, net_id: 'rgarcia7', typ: 'discord_state' });
   });
 
   it('needs somebody signed in', async () => {
@@ -258,10 +268,76 @@ describe('GET /auth/discord/callback', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it('needs somebody signed in, because the link is to the person signing in', async () => {
+  /**
+   * The sign in cookie can lapse while somebody is on Discord, and it is not
+   * their fault that it did. Answering the raw shape of a refusal leaves them
+   * looking at a page of JSON, so they are sent back to the page they came
+   * from, which says what happened and offers the button again.
+   */
+  it('sends somebody whose sign in lapsed back to the link page', async () => {
     const res = await request(app).get(`/auth/discord/callback?code=a-code&state=${state()}`);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`${PAGE}?reason=signedout`);
+    expect(res.headers['content-type']).not.toMatch(/json/);
     expect(linksDb.linkAccount).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a state it did not sign when nobody is signed in', async () => {
+    const res = await request(app)
+      .get('/auth/discord/callback?code=a-code&state=not-a-token');
+    expect(res.headers.location).toBe('https://viaillinois.com/link/discord/unknown?reason=state');
+  });
+
+  it('refuses a callback replayed with another person\'s cookie', async () => {
+    const started = await asRosa(request(app).get(`/auth/discord/start?session=${SESSION}`));
+    const carried = new URL(started.headers.location).searchParams.get('state');
+
+    const res = await asMarcus(
+      request(app).get(`/auth/discord/callback?code=a-code&state=${encodeURIComponent(carried)}`));
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`${PAGE}?reason=mismatch`);
+    expect(linksDb.linkAccount).not.toHaveBeenCalled();
+    expect(recordLinkCompleted).not.toHaveBeenCalled();
+  });
+
+  it('refuses a state signed for something other than starting this flow', async () => {
+    const wrongPurpose = jwt.sign(
+      { session: SESSION, roles: false, net_id: 'rgarcia7' }, 'a-test-secret', { expiresIn: '15m' });
+    const res = await asRosa(
+      request(app).get(`/auth/discord/callback?code=a-code&state=${encodeURIComponent(wrongPurpose)}`));
+    expect(res.headers.location).toBe('https://viaillinois.com/link/discord/unknown?reason=state');
+    expect(linksDb.linkAccount).not.toHaveBeenCalled();
+  });
+
+  /**
+   * One person has one Discord account and one Discord account belongs to one
+   * person, so writing a link takes away whatever stood on either side of it.
+   * The bot has to hear about each one it took away, or it goes on holding an
+   * account link that no longer exists and acting for the wrong person from
+   * the Discord account that was displaced.
+   */
+  it('says the links it displaced were revoked, before it says this one was made', async () => {
+    linksDb.linkAccount.mockResolvedValue([
+      { discordUserId: '111111111111111111', netId: 'rgarcia7' },
+      { discordUserId: DISCORD_USER, netId: 'jchen4' },
+    ]);
+    const res = await callback({ code: 'a-code', state: state() });
+    expect(res.headers.location).toBe(`${PAGE}/done`);
+
+    expect(recordLinkRevoked).toHaveBeenCalledWith({
+      discordUserId: '111111111111111111', netId: 'rgarcia7',
+    });
+    expect(recordLinkRevoked).toHaveBeenCalledWith({
+      discordUserId: DISCORD_USER, netId: 'jchen4',
+    });
+    expect(recordLinkRevoked.mock.invocationCallOrder[0])
+      .toBeLessThan(recordLinkCompleted.mock.invocationCallOrder[0]);
+  });
+
+  it('writes no revocation when the link displaced nothing', async () => {
+    await callback({ code: 'a-code', state: state() });
+    expect(recordLinkRevoked).not.toHaveBeenCalled();
+    expect(recordLinkCompleted).toHaveBeenCalled();
   });
 
   it('links anyway when pushing the facts to Discord fails', async () => {
@@ -310,5 +386,126 @@ describe('GET /api/v1/link/discord/{session}', () => {
     const res = await request(app).get('/api/v1/link/discord/not-a-session');
     expect(res.body).toEqual({ status: 'unknown' });
     expect(linksDb.getLinkSession).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A token VIA signed for one purpose is not a sign in.
+ *
+ * The state the start route hands to Discord travels through the browser, so
+ * somebody can put it back where the sign in cookie goes. It carries a NetID,
+ * because the callback insists on the person who started the flow, and that is
+ * exactly why it has to be refused as a sign in.
+ */
+describe('a state token presented as the sign in cookie', () => {
+  it('does not authenticate anybody', async () => {
+    const started = await asRosa(request(app).get(`/auth/discord/start?session=${SESSION}`));
+    const carried = new URL(started.headers.location).searchParams.get('state');
+
+    const res = await request(app)
+      .get(`/auth/discord/start?session=${SESSION}`)
+      .set('Cookie', [`via_token=${carried}`]);
+    expect(res.status).toBe(401);
+  });
+});
+
+/**
+ * Adding the linked roles step to a link that already exists.
+ *
+ * The step is optional at linking time, and the account page offers it again
+ * afterwards. There is no link session for this: the link is already made, and
+ * what is being asked for is the one thing it did not carry, so the person is
+ * sent to Discord with no session and the authorization Discord returns is
+ * stored on the link they already hold.
+ */
+describe('the linked roles step, from the account page', () => {
+  const ACCOUNT = 'https://viaillinois.com/account';
+
+  beforeEach(() => {
+    linksDb.getLinkByNetId.mockResolvedValue({
+      discordUserId: DISCORD_USER, netId: 'rgarcia7',
+      linkedAt: '2026-09-04 18:32:11', authorization: null,
+    });
+  });
+
+  it('sends a linked person to Discord for the roles scope with no session', async () => {
+    const res = await asRosa(request(app).get('/auth/discord/start?roles=1'));
+    expect(res.status).toBe(302);
+    const to = new URL(res.headers.location);
+    expect(to.searchParams.get('scope')).toBe('identify role_connections.write');
+    expect(jwt.verify(to.searchParams.get('state'), 'a-test-secret'))
+      .toMatchObject({ session: null, roles: true, net_id: 'rgarcia7', typ: 'discord_state' });
+    expect(linksDb.getLinkSession).not.toHaveBeenCalled();
+  });
+
+  it('sends somebody with no link at all back to their account page', async () => {
+    linksDb.getLinkByNetId.mockResolvedValue(null);
+    const res = await asRosa(request(app).get('/auth/discord/start?roles=1'));
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=unlinked`);
+  });
+
+  const back = (params) =>
+    asRosa(request(app).get(`/auth/discord/callback?${new URLSearchParams(params).toString()}`));
+
+  /** The state the start route signs for this flow, which names no session. */
+  const rolesState = (netId = 'rgarcia7') =>
+    jwt.sign({ session: null, roles: true, net_id: netId, typ: 'discord_state' },
+      'a-test-secret', { expiresIn: '15m' });
+
+  it('stores the authorization, pushes the facts and says so on the account page', async () => {
+    vi.stubGlobal('fetch', fakeDiscord({ token: { scope: 'identify role_connections.write' } }));
+    const res = await back({ code: 'a-code', state: rolesState() });
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=on`);
+
+    const [netId, authorization] = linksDb.setLinkAuthorization.mock.calls[0];
+    expect(netId).toBe('rgarcia7');
+    expect(open(authorization, keyFromHex(KEY_HEX))).toBe('a-refresh-token');
+    expect(pushFacts).toHaveBeenCalledWith('rgarcia7');
+    // Nothing about the link itself changed, so nothing says it did.
+    expect(linksDb.linkAccount).not.toHaveBeenCalled();
+    expect(recordLinkCompleted).not.toHaveBeenCalled();
+  });
+
+  it('refuses an authorization from a different Discord account', async () => {
+    vi.stubGlobal('fetch', fakeDiscord({
+      identity: { id: '999999999999999999' }, token: { scope: 'identify role_connections.write' },
+    }));
+    const res = await back({ code: 'a-code', state: rolesState() });
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=mismatch`);
+    expect(linksDb.setLinkAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('says so when the person pressed cancel on Discord', async () => {
+    const res = await back({ error: 'access_denied', state: rolesState() });
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=declined`);
+    expect(linksDb.setLinkAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('says so when Discord did not grant the roles scope', async () => {
+    vi.stubGlobal('fetch', fakeDiscord({ token: { scope: 'identify' } }));
+    const res = await back({ code: 'a-code', state: rolesState() });
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=declined`);
+    expect(linksDb.setLinkAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('says so when Discord will not confirm who the person is', async () => {
+    vi.stubGlobal('fetch', fakeDiscord({ identityOk: false }));
+    const res = await back({ code: 'a-code', state: rolesState() });
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=failed`);
+  });
+
+  it('refuses a state that names somebody else', async () => {
+    const res = await asMarcus(
+      request(app).get(`/auth/discord/callback?code=a-code&state=${rolesState('rgarcia7')}`));
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=mismatch`);
+    expect(linksDb.setLinkAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('sends somebody whose sign in lapsed back to their account page', async () => {
+    const res = await request(app)
+      .get(`/auth/discord/callback?code=a-code&state=${rolesState()}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`${ACCOUNT}?roles=signedout`);
+    expect(linksDb.setLinkAuthorization).not.toHaveBeenCalled();
   });
 });

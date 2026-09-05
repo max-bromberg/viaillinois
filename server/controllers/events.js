@@ -221,6 +221,8 @@ export async function createEventSeries(req, res, next) {
     if (plan.error) return res.status(400).json({ error: plan.error });
 
     const { location_id, location_text } = readLocation(req.body);
+    const note = readLocationNote(req.body);
+    if (note.error) return res.status(400).json({ error: note.error });
 
     let occurrences = plan.occurrences;
     let skipped = [];
@@ -238,7 +240,7 @@ export async function createEventSeries(req, res, next) {
       series: { ...plan.series, ends_on: occurrences.at(-1).date, rso_id: rsoId, created_by: req.user.net_id },
       occurrences,
       event: {
-        rso_id: rsoId, created_by: req.user.net_id, location_id, location_text,
+        rso_id: rsoId, created_by: req.user.net_id, location_id, location_text, ...note,
         title, description, is_private,
       },
       tagNames: tags,
@@ -251,6 +253,31 @@ export async function createEventSeries(req, res, next) {
       skipped,
     });
   } catch (err) { next(err); }
+}
+
+/**
+ * Whether an edit moved the event in time.
+ *
+ * The form posts what a browser date and time field holds, with a T where the
+ * database writes a space and no seconds, so both sides are read as wall clock
+ * readings before they are compared. A request that names no time at all has
+ * moved nothing.
+ *
+ * @param {{ start_time: unknown, end_time: unknown }} event the event as it stands
+ * @param {unknown} startTime what the request asks it to become
+ * @param {unknown} endTime
+ * @returns {boolean}
+ */
+function movedInTime(event, startTime, endTime) {
+  const moved = (asked, stored) => {
+    if (asked === undefined || asked === null || asked === '') return false;
+    const wanted = toWallClock(asked);
+    // A reading nothing can make sense of is refused further down rather than
+    // treated as a move here.
+    if (wanted === null) return false;
+    return wanted !== toWallClock(stored);
+  };
+  return moved(startTime, event.start_time) || moved(endTime, event.end_time);
 }
 
 /**
@@ -314,8 +341,14 @@ export async function updateEvent(req, res, next) {
       });
       if (tags) await eventsDb.setEventTags(eventId, tags);
       // A week that was edited on its own stays where the organizer put it when
-      // the rest of the series is edited later.
-      if (event.series_id) await seriesDb.detachEvent(eventId);
+      // the rest of the series is edited later. That is a statement about the
+      // week having moved, so it is made only when the week actually moved. A
+      // change to the description, or to the note at the door, is not a move,
+      // and detaching for one severed a week from its repeat every time a
+      // board edited it from Discord.
+      if (event.series_id && movedInTime(event, start_time, end_time)) {
+        await seriesDb.detachEvent(eventId);
+      }
       // The entry follows the change, because this path has no transaction to
       // join, and it names what changed by comparing the event as it stood
       // with the event as it now is.
@@ -358,7 +391,7 @@ export async function updateEvent(req, res, next) {
 
     const result = await seriesDb.applyToSeries(event.series_id, {
       from,
-      fields: { title, description, location_id, location_text, is_private },
+      fields: { title, description, location_id, location_text, is_private, ...note },
       startOfDay,
       durationMinutes: minutes,
     });
@@ -412,11 +445,20 @@ export async function deleteEvent(req, res, next) {
       return res.json({ ok: true, deleted: result.affectedRows });
     }
 
+    // Read before the deletion, because deleting the last week of a repeat
+    // takes the rule with it, and a rule that is gone cannot be described.
+    const series = event.series_id ? await outbox.seriesSnapshot(event.series_id) : null;
+
     await eventsDb.deleteEvent(eventId);
     await outbox.recordEventDeleted(event);
     // The rule still says which dates the series covers, and one of them has
-    // just gone.
-    if (event.series_id) await seriesDb.syncSeriesEnd(event.series_id);
+    // just gone. When that was the last of them the rule goes too, whatever
+    // scope the request named, and the bot has to be told about the repeat as
+    // well as about the week.
+    if (event.series_id) {
+      const synced = await seriesDb.syncSeriesEnd(event.series_id);
+      if (synced?.removed && series) await outbox.recordSeriesDeleted(series, [eventId]);
+    }
     res.json({ ok: true, deleted: 1 });
   } catch (err) { next(err); }
 }
@@ -427,6 +469,40 @@ export async function deleteEvent(req, res, next) {
  * if the cancellation was the mistake. Both are editor actions, like every
  * other change to an event.
  */
+/**
+ * Cancel or restore one event, and leave the entry the Discord bot reads.
+ *
+ * @param {object} before the event as it stands
+ * @param {boolean} cancelled what it is being set to
+ * @param {string|null} cancelledAt the time to write, shared by every week of
+ *   a series so that they all say they were called off at the same moment
+ * @returns {Promise<boolean>} whether anything was changed
+ */
+async function applyCancellation(before, cancelled, cancelledAt) {
+  if (!before || Boolean(before.cancelled_at) === cancelled) return false;
+  await eventsDb.updateEvent(before.event_id, { cancelled_at: cancelledAt });
+  // A cancellation is its own kind, because the bot says something different
+  // about it. Putting an event back is an ordinary update whose one changed
+  // field is the time it was cancelled at.
+  if (cancelled) await outbox.recordEventCancelled(before.event_id);
+  else await outbox.recordEventUpdated(before);
+  return true;
+}
+
+/**
+ * Cancelling and restoring, for one week or for a whole repeat.
+ *
+ * The scope is read exactly as the update and the delete read it, because a
+ * board cancelling a repeating meeting is answering the same question there:
+ * this week, this week onwards, or the whole repeat. Without it, cancelling a
+ * term of meetings was fifteen clicks and cancelling the wrong week was the
+ * likely outcome.
+ *
+ * A whole repeat leaves one event.cancelled entry per occurrence rather than
+ * one entry for the series. That is deliberate: the bot announced each week as
+ * its own event and posts about each week on its own, so an entry per week is
+ * what it needs to correct what it already said.
+ */
 async function setCancelled(req, res, next, cancelled) {
   try {
     const eventId = parseInt(req.params.id);
@@ -435,16 +511,29 @@ async function setCancelled(req, res, next, cancelled) {
     const isAdmin = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, event.rso_id);
     if (!isAdmin) return res.status(403).json({ error: 'RSO editor access required' });
 
-    const already = Boolean(event.cancelled_at) === cancelled;
-    if (already) return res.json({ ok: true, cancelled_at: event.cancelled_at ?? null });
+    const scope = readScope(req);
+    if (!scope) return res.status(400).json({ error: `scope must be one of: ${SCOPES.join(', ')}` });
 
     const cancelled_at = cancelled ? campusNow() : null;
-    await eventsDb.updateEvent(eventId, { cancelled_at });
-    // A cancellation is its own kind, because the bot says something different
-    // about it. Putting an event back is an ordinary update whose one changed
-    // field is the time it was cancelled at.
-    if (cancelled) await outbox.recordEventCancelled(eventId);
-    else await outbox.recordEventUpdated(event);
+
+    if (scope === 'one' || !event.series_id) {
+      const already = Boolean(event.cancelled_at) === cancelled;
+      if (already) return res.json({ ok: true, cancelled_at: event.cancelled_at ?? null });
+      await applyCancellation(event, cancelled, cancelled_at);
+      return res.json({ ok: true, cancelled_at });
+    }
+
+    // Every occurrence the scope covers, including the weeks that were edited
+    // on their own. A week that moved is still a week of this meeting, and a
+    // board that called the term off did not mean to leave one of them running.
+    const from = scope === 'following' ? String(event.start_time) : null;
+    const covered = await seriesDb.occurrencesOfSeries(event.series_id, { from });
+    for (const occurrence of covered) {
+      const before = occurrence.event_id === eventId
+        ? event
+        : await eventsDb.getEventById(occurrence.event_id);
+      await applyCancellation(before, cancelled, cancelled_at);
+    }
     res.json({ ok: true, cancelled_at });
   } catch (err) { next(err); }
 }

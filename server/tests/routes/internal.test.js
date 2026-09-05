@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 
 const recordDenial = vi.hoisted(() => vi.fn());
 vi.mock('../../services/denialRecorder.js', () => ({
@@ -49,6 +50,18 @@ describe('/internal/v1, through the real app', () => {
     expect(res.status).toBe(404);
   });
 
+  it('tells an unauthenticated probe nothing, not even which version it is', async () => {
+    const res = await request(app).get('/internal/v1/events');
+    expect(res.status).toBe(401);
+    expect(res.headers['x-via-internal-api-version']).toBeUndefined();
+  });
+
+  it('tells a request that came through the proxy nothing either', async () => {
+    const res = await request(app).get('/internal/v1/events')
+      .set('Authorization', `Bearer ${TOKEN}`).set('X-Forwarded-For', '203.0.113.7');
+    expect(res.headers['x-via-internal-api-version']).toBeUndefined();
+  });
+
   it('answers an unknown path with the error shape and the version header', async () => {
     const res = await asBot('/internal/v1/nothing-here');
     expect(res.status).toBe(404);
@@ -69,6 +82,21 @@ describe('/internal/v1, through the real app', () => {
     const res = await asBot('/internal/v1/nothing-here').set('X-Via-Acting-Discord-User', '123456789012345678');
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('not_found');
+  });
+
+  it('never acts for a sign in cookie that happened to arrive with the request', async () => {
+    // The internal API says who it acts for in one place, the acting header,
+    // resolved through the link table. A cookie reaching it would be a second
+    // way to be somebody, decided by whoever could put a cookie on the request
+    // rather than by the link the person made.
+    const cookie = `via_token=${jwt.sign({ net_id: 'rgarcia7', is_global_admin: true }, 'dev_secret')}`;
+    const res = await request(app)
+      .post('/internal/v1/calendars/personal')
+      .set('Authorization', `Bearer ${TOKEN}`)
+      .set('Cookie', cookie)
+      .send({});
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('unauthorized');
   });
 
   it('is not counted against the public budget', async () => {

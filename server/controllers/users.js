@@ -6,10 +6,11 @@ import { unlinkByNetId } from '../services/accountLinking.js';
 /**
  * Whether this person has a Discord account linked.
  *
- * The account area shows the state and offers to undo it, and that is all it
- * needs, so the Discord identifier itself is deliberately left out of the
- * answer: the person already knows which account it is, and the browser has
- * no use for the identifier.
+ * The account area shows the state, offers to undo it, and offers the optional
+ * linked roles step to somebody who did not take it, and that is all it needs,
+ * so the Discord identifier itself is deliberately left out of the answer: the
+ * person already knows which account it is, and the browser has no use for the
+ * identifier.
  *
  * A failure to read the link is not a failure to answer who somebody is. The
  * account page is where a board member goes to work, and it should not stop
@@ -18,10 +19,18 @@ import { unlinkByNetId } from '../services/accountLinking.js';
 async function discordState(netId) {
   try {
     const link = await getLinkByNetId(netId);
-    return { linked: Boolean(link), linked_at: link?.linkedAt ?? null };
+    return {
+      linked: Boolean(link),
+      linked_at: link?.linkedAt ?? null,
+      // Whether the optional linked roles step was taken, which the account
+      // page needs so that it can offer to take it now. What is held is a
+      // sealed Discord authorization, and the browser is told only that one
+      // exists, never what it is.
+      roles_published: Boolean(link?.authorization),
+    };
   } catch (err) {
     console.error(`reading the Discord link for ${netId} failed:`, err.message);
-    return { linked: false, linked_at: null };
+    return { linked: false, linked_at: null, roles_published: false };
   }
 }
 

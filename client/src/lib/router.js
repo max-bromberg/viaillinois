@@ -7,7 +7,9 @@ const ROUTES = [
   // which is forty three characters, and the shape is checked here so that a
   // stray address never becomes a request.
   { name: 'link-discord',      pattern: /^\/link\/discord\/([A-Za-z0-9_-]{43})$/,      paramNames: ['session'] },
-  { name: 'link-discord-done', pattern: /^\/link\/discord\/([A-Za-z0-9_-]{43})\/done$/, paramNames: ['session'] },
+  // The page shown once the link is made says the same thing to everybody and
+  // asks the server nothing, so nothing is captured out of its address.
+  { name: 'link-discord-done', pattern: /^\/link\/discord\/[A-Za-z0-9_-]{43}\/done$/, paramNames: [] },
 ];
 
 export function matchRoute(path) {

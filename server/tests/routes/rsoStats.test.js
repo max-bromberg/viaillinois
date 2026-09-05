@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 
@@ -15,8 +15,9 @@ vi.mock('../../db/queries/eventInterest.ts', () => ({ getInterestByRso: vi.fn().
 const getFeedbackByRso = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 vi.mock('../../db/queries/eventFeedback.ts', () => ({ getFeedbackByRso, saveFeedback: vi.fn() }));
 
+const getMembership = vi.hoisted(() => vi.fn());
 vi.mock('../../db/queries/rso.js', () => ({
-  getMembership: vi.fn().mockResolvedValue({ role: 'Admin' }),
+  getMembership,
   getAllRsos: vi.fn().mockResolvedValue([]),
   getRsoById: vi.fn().mockResolvedValue(null),
   getUserMemberships: vi.fn().mockResolvedValue([]),
@@ -26,6 +27,10 @@ vi.mock('../../db/queries/users.js', () => ({
 }));
 
 const app = (await import('../../app.js')).default;
+
+beforeEach(() => {
+  getMembership.mockResolvedValue({ role: 'Board' });
+});
 
 // Sign a fake token with the dev secret so requireAuth passes in tests
 const fakeToken = jwt.sign(
@@ -93,6 +98,23 @@ describe('GET /api/v1/rsos/:id/stats', () => {
   it('returns 401 without auth token', async () => {
     const res = await request(app).get('/api/v1/rsos/1/stats');
     expect(res.status).toBe(401);
+  });
+
+  it('refuses somebody who is signed in but is not on the board of this organization', async () => {
+    getMembership.mockResolvedValue({ role: 'Member' });
+    const res = await request(app)
+      .get('/api/v1/rsos/1/stats')
+      .set('Cookie', `via_token=${fakeToken}`);
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain('Free Food');
+  });
+
+  it('refuses somebody with no membership of this organization at all', async () => {
+    getMembership.mockResolvedValue(null);
+    const res = await request(app)
+      .get('/api/v1/rsos/1/stats')
+      .set('Cookie', `via_token=${fakeToken}`);
+    expect(res.status).toBe(403);
   });
 
   it('returns 400 for a non-numeric id', async () => {

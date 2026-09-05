@@ -35,18 +35,23 @@ router.get('/:file', async (req, res, next) => {
     const calendar = await getCalendarByTokenHash(hashCalendarToken(token));
     if (!calendar) return res.status(404).type('text/plain').send('Not found');
 
-    // An empty list of RSOs is the feed's way of saying no filter, which is
-    // what a calendar that follows every organization wants.
-    const events = await listEvents({
-      rsoIds: calendar.rsoIds ?? [],
-      timeframe: 'upcoming',
-      // Nobody's internal events, whoever the address belongs to. An address
-      // travels, and a file a phone caches is not the place to put an event
-      // that only members may read.
-      privateRsoIds: [],
-      limit: PAGING_LIMITS.events.maxLimit,
-      offset: 0,
-    });
+    // Null is every organization, which is what somebody who has not chosen
+    // means, and the feed reads an empty filter as exactly that. An empty list
+    // is the other thing: a person who unticked every organization, whose
+    // calendar holds nothing, so it is answered without asking the feed at all.
+    const follows = calendar.rsoIds;
+    const events = Array.isArray(follows) && follows.length === 0
+      ? []
+      : await listEvents({
+        rsoIds: follows ?? [],
+        timeframe: 'upcoming',
+        // Nobody's internal events, whoever the address belongs to. An address
+        // travels, and a file a phone caches is not the place to put an event
+        // that only members may read.
+        privateRsoIds: [],
+        limit: PAGING_LIMITS.events.maxLimit,
+        offset: 0,
+      });
 
     res.set('Cache-Control', `private, max-age=${CACHE_SECONDS}`);
     res.type('text/calendar; charset=utf-8');

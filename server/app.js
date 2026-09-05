@@ -9,8 +9,10 @@ import { passport, attachUser } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createProductionLoadShed } from './middleware/loadShed.js';
 import { clientIp, trustedProxyHops } from './lib/clientIdentity.js';
+import { redactedUrl } from './lib/accessLogPath.js';
 import { recordDenial } from './services/denialRecorder.js';
 import { createProductionPublicApiBudget } from './middleware/publicApiBudget.js';
+import { rateLimit } from './middleware/rateLimit.js';
 import { campusTimeJson } from './middleware/campusTime.js';
 import { privateByDefault, publicFor, cacheControlForStaticFile } from './middleware/caching.js';
 import authRouter     from './routes/auth.js';
@@ -69,6 +71,11 @@ app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', creden
 // The coloured development format is for a terminal somebody is watching. In
 // production the log is read by a machine, and a request for a hashed asset,
 // which the CDN answers without asking us anyway, is not worth a line.
+// Three of VIA's addresses carry a credential in the address itself, and an
+// access log outlives the credential and is read by more people than the
+// person it belongs to. The default url token is replaced here, once, so that
+// every format string this application ever uses is redacted.
+morgan.token('url', req => redactedUrl(req.originalUrl || req.url));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
   skip: (req, res) => process.env.NODE_ENV === 'production'
     && res.statusCode < 400
@@ -160,7 +167,16 @@ app.use('/api/v1/semester',   publicFor({ browserSeconds: 300, edgeSeconds: 3600
 // which has no cookie and no service token and holds only the address. Off the
 // /api/v1 prefix because it is a file somebody subscribes to rather than part
 // of the API, and it sets its own private caching, so no shared cache keeps it.
-app.use('/calendar/personal', personalCalendarRouter);
+// Outside the public API budget on purpose, and therefore in need of a ceiling
+// of its own. A phone asks for one calendar every few hours, so a few hundred
+// requests an hour from one address is generous for every real subscriber and
+// still turns guessing at forty three character tokens into something that
+// takes longer than anybody has.
+app.use('/calendar/personal', rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.PERSONAL_CALENDAR_REQUESTS_PER_HOUR || '240', 10),
+  message: 'This calendar address has been asked for too often. Please try again later.',
+}), personalCalendarRouter);
 
 app.use(errorHandler);
 

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import db from '../client.ts';
 import { discordLinks, linkSessions, rsOs, rsoMemberships, users } from '../schema/schema.ts';
 import { campusNow } from '../../lib/timezone.js';
@@ -172,14 +172,29 @@ export async function completeLinkSession(sessionId: string) {
  * person has no link because the old one was removed and the new one has not
  * arrived.
  *
+ * What it displaced is answered rather than dropped, because the Discord bot
+ * holds a link of its own and has to be told that one it holds is gone. Told
+ * nothing, it goes on acting for the person the displaced Discord account used
+ * to be.
+ *
  * @param authorization the sealed Discord refresh token, when the person
  *   accepted the linked roles step
+ * @returns the links this one displaced, which is at most one on each side and
+ *   never the link being written
  */
 export async function linkAccount(
   { discordUserId, netId, authorization = null }:
   { discordUserId: string, netId: string, authorization?: Buffer | null },
 ) {
-  await db.transaction(async tx => {
+  return db.transaction(async tx => {
+    const standing = await tx
+      .select({ discordUserId: discordLinks.discordUserId, netId: discordLinks.netId })
+      .from(discordLinks)
+      .where(or(
+        eq(discordLinks.discordUserId, discordUserId),
+        eq(discordLinks.netId, netId),
+      ));
+
     await tx.delete(discordLinks).where(eq(discordLinks.discordUserId, discordUserId));
     await tx.delete(discordLinks).where(eq(discordLinks.netId, netId));
     await tx.insert(discordLinks).values({
@@ -188,6 +203,11 @@ export async function linkAccount(
       linkedAt: campusNow(),
       discordAuthorization: authorization,
     });
+
+    // Linking the same two accounts again displaces nothing, because what it
+    // replaced was the same statement it is making.
+    return standing.filter(link =>
+      !(link.discordUserId === discordUserId && link.netId === netId));
   });
 }
 
@@ -216,4 +236,30 @@ export async function deleteLinkByNetId(netId: string) {
   if (!existing) return null;
   await db.delete(discordLinks).where(eq(discordLinks.netId, netId));
   return { discordUserId: existing.discordUserId, netId: existing.netId };
+}
+
+/** How long a session is kept after it has run out, so a support question can still be answered. */
+export const SESSION_GRACE_DAYS = 1;
+
+/**
+ * Remove the sessions that are done with.
+ *
+ * A session lasts ten minutes and is then finished, whether it was used or
+ * abandoned, but every row holds a Discord identifier and the time somebody
+ * asked to link. Left alone the table becomes a list of exactly that, growing
+ * for ever and answering a question nobody needs answered. A day of grace past
+ * the expiry is kept so that a person asking why their link did not work can
+ * still be told.
+ *
+ * @returns the number of rows removed
+ */
+export async function pruneLinkSessions(graceDays: number = SESSION_GRACE_DAYS) {
+  // Written into the statement rather than bound, because it is an interval
+  // rather than a value, and forced to a whole number first so that nothing
+  // else can reach the statement.
+  const days = Math.max(1, Math.floor(Number(graceDays) || 0));
+  const [result] = await db
+    .delete(linkSessions)
+    .where(lt(linkSessions.expiresAt, sql`DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)`));
+  return result.affectedRows;
 }

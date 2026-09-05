@@ -20,10 +20,10 @@ const MAX_RSO_SET = 200;
 /**
  * The RSOs a request says the calendar follows.
  *
- * Null is every RSO, which is what somebody who has not chosen means, and an
- * empty list is the same thing said differently rather than a calendar with
- * nothing in it, because a subscription that answers nothing is not worth
- * making.
+ * Null is every RSO, which is what somebody who has not chosen means. An empty
+ * list is a different thing said clearly: no organization at all, which is
+ * what somebody who unticked every one of them asked for. Reading the two as
+ * the same thing handed a person who wanted nothing every event on campus.
  *
  * @returns {{ rsoIds?: number[]|null, error?: string }}
  */
@@ -38,7 +38,7 @@ function readRsoSet(body) {
   if (asked.some(id => !Number.isInteger(id) || id < 1)) {
     return { error: 'Every entry in rso_ids has to be the whole number that identifies an organization.' };
   }
-  return { rsoIds: asked.length ? asked : null };
+  return { rsoIds: asked };
 }
 
 export function createCalendarsRouter() {

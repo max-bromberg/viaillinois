@@ -57,6 +57,16 @@ function scoped(id, scope) {
     : `/api/v1/events/${id}`;
 }
 
+/**
+ * An action on an event, with the weeks of a repeat it is meant to reach. The
+ * server reads this the same way it reads the scope on an edit or a delete.
+ */
+function scopedAction(id, action, scope) {
+  return scope && scope !== 'one'
+    ? `/api/v1/events/${id}/${action}?scope=${scope}`
+    : `/api/v1/events/${id}/${action}`;
+}
+
 export function updateEvent(id, data, scope = 'one') {
   return apiFetch(scoped(id, scope), { method: 'PUT', body: data });
 }
@@ -69,12 +79,12 @@ export function deleteEvent(id, scope = 'one') {
  * Cancelling is a state rather than a delete: the event keeps its page so the
  * people who planned to go can be told, and a board can put it back.
  */
-export function cancelEvent(id) {
-  return apiFetch(`/api/v1/events/${id}/cancel`, { method: 'POST' });
+export function cancelEvent(id, scope = 'one') {
+  return apiFetch(scopedAction(id, 'cancel', scope), { method: 'POST' });
 }
 
-export function restoreEvent(id) {
-  return apiFetch(`/api/v1/events/${id}/restore`, { method: 'POST' });
+export function restoreEvent(id, scope = 'one') {
+  return apiFetch(scopedAction(id, 'restore', scope), { method: 'POST' });
 }
 
 export function getKioskEvents(limit = 10) {

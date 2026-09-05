@@ -5,6 +5,7 @@ import { getRso } from '../../db/queries/internalReads.ts';
 import { unlinkByDiscordUserId } from '../../services/accountLinking.js';
 import { openLinkSession, getLinkWithMemberships } from '../../db/queries/discordLinks.ts';
 import { rsoFromBody } from './rsoFromBody.js';
+import { snowflake } from '../../lib/identifiers.js';
 
 /**
  * Linking, unlinking, and the question the bot asks about who somebody is.
@@ -19,13 +20,6 @@ import { rsoFromBody } from './rsoFromBody.js';
  * the person asking may speak for that organization, decided by the same
  * middleware the dashboard applies.
  */
-
-/** A Discord snowflake is a decimal string, and never a JavaScript number. */
-const SNOWFLAKE = /^\d{1,32}$/;
-
-function snowflake(value) {
-  return typeof value === 'string' && SNOWFLAKE.test(value) ? value : null;
-}
 
 /** Where the person is sent to finish the link. */
 function linkAddress(sessionId) {

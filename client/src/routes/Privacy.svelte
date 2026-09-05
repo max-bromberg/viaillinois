@@ -14,7 +14,7 @@
 
   <div class="{card}">
     <h1 class="text-3xl font-bold tracking-tight">Privacy Policy</h1>
-    <p class="text-xs text-muted-foreground">Effective September 1, 2026. Last updated September 1, 2026.</p>
+    <p class="text-xs text-muted-foreground">Effective September 1, 2026. Last updated September 5, 2026.</p>
     <p class="{body}">
       This policy explains what VIA stores about you, why it is stored, who can see it, how
       long it is kept, and how to have it removed. It applies to viaillinois.com and to
@@ -98,7 +98,53 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">3. Cookies</h2>
+    <h2 class="text-lg font-semibold">3. The Discord link</h2>
+    <p class="{body}">
+      VIA has a companion bot on Discord, so that the same events and the same organizations
+      are present in the servers where those organizations actually run. You can use the bot
+      without linking anything. Linking is what lets it act on VIA as you, and this section
+      says what that stores.
+    </p>
+
+    <h3 class="text-sm font-medium">What is stored when you link</h3>
+    <ul class="{list}">
+      <li><strong class="text-foreground">The link itself.</strong> Your NetID and the Discord user identifier of the account you linked, with the date you linked. That pair is what lets the bot act as you, and it is stored in the clear because both halves have to be read back.</li>
+      <li><strong class="text-foreground">A Discord authorization, only if you chose the linked roles step.</strong> That step is optional, and it is what lets VIA publish three facts to Discord: that you are verified, whether you are on the board of an organization, and the day you linked. Publishing them needs a token from Discord, which is stored encrypted and is used for nothing else. If you declined the step, no token is stored, and you can add it later from your account page.</li>
+      <li><strong class="text-foreground">Interest in an event.</strong> When you press an interest button as a linked person, that interest is recorded under your NetID. When you press it without having linked, it is recorded under a salted one way hash of your Discord user identifier instead, which cannot be turned back into the identifier and cannot be matched against a list of identifiers by anybody who does not hold the salt. Boards see a count and never a list of people.</li>
+      <li><strong class="text-foreground">Feedback on an event.</strong> A rating from one to five and an optional comment, stored with your NetID so that saying it again replaces what you said before. The board of the organization sees the average, how many people rated the event, and the comments, and it is never told who gave which rating.</li>
+      <li><strong class="text-foreground">A personal calendar address.</strong> If you ask the bot for a calendar to subscribe to, VIA stores a one way hash of the address and the organizations the calendar follows, never the address itself. The address is the whole of the credential for that calendar, so treat it as private and ask for a new one if you have shared it by accident, which makes the old one stop working.</li>
+    </ul>
+
+    <h3 class="text-sm font-medium mt-3">What the bot never does</h3>
+    <p class="{body}">
+      The bot never reads your messages. It does not ask Discord for permission to see message
+      content anywhere, and it stores no message text. Text reaches it only inside a command or
+      a form you deliberately filled in, and it is used for that and then discarded. Nothing you
+      do on this website is posted to Discord as you.
+    </p>
+
+    <h3 class="text-sm font-medium mt-3">How long it is kept</h3>
+    <ul class="{list}">
+      <li><strong class="text-foreground">The link and any stored authorization.</strong> Until you unlink, or until you ask us to delete your account.</li>
+      <li><strong class="text-foreground">A link request.</strong> The short lived record created when you start linking lasts ten minutes and is deleted a day after it runs out, whether it was used or not.</li>
+      <li><strong class="text-foreground">Interest and feedback.</strong> Kept with the event they are about, as the rest of an organization's record of what it has run.</li>
+      <li><strong class="text-foreground">The calendar address hash.</strong> Until you ask for a new address, which replaces it, or until your account is deleted.</li>
+    </ul>
+
+    <h3 class="text-sm font-medium mt-3">How to remove it</h3>
+    <p class="{body}">
+      You can unlink at any time, from either side: use the unlink button on your
+      <a href="/account" class="{link}">account page</a> here, or run the unlink command on
+      Discord. Either one deletes the link and any stored Discord authorization, and clears the
+      linked roles facts VIA published about you, so a server that gave you a role for them can
+      take it away. Interest recorded under a hash cannot be traced back to you and so cannot be
+      found and removed on request. If you would like your feedback removed as well, write to us
+      and say so.
+    </p>
+  </div>
+
+  <div class="{card}">
+    <h2 class="text-lg font-semibold">4. Cookies</h2>
     <p class="{body}">
       VIA sets one cookie of its own, named
       <code class="font-mono text-xs bg-muted px-1 py-0.5 rounded">via_token</code>. It holds
@@ -116,7 +162,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">4. Why VIA holds this information</h2>
+    <h2 class="text-lg font-semibold">5. Why VIA holds this information</h2>
     <ul class="{list}">
       <li>To sign you in and keep you signed in.</li>
       <li>To show which organizations you belong to, and to let their boards manage events.</li>
@@ -132,7 +178,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">5. What other people can see</h2>
+    <h2 class="text-lg font-semibold">6. What other people can see</h2>
     <ul class="{list}">
       <li><strong class="text-foreground">Anyone, including people who are not signed in.</strong> Public events, with their title, description, time, location and the organization holding them. These pages are indexed by search engines and can be read by the crawlers behind search assistants, so treat anything you put in an event as public and permanent.</li>
       <li><strong class="text-foreground">Any signed in user.</strong> The names and roles of an organization's members, and events an organization has marked internal if you belong to that organization.</li>
@@ -147,7 +193,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">6. Who else processes your information</h2>
+    <h2 class="text-lg font-semibold">7. Who else processes your information</h2>
     <p class="{body}">
       VIA does not sell, rent, or trade personal information, and it shares it only with the
       following, each of which is necessary to run the service.
@@ -164,7 +210,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">7. How long it is kept</h2>
+    <h2 class="text-lg font-semibold">8. How long it is kept</h2>
     <ul class="{list}">
       <li><strong class="text-foreground">Account records.</strong> Until you ask for deletion, or until the platform stops operating.</li>
       <li><strong class="text-foreground">Placeholder records for people who never signed in.</strong> Until the organization removes them or you ask for deletion.</li>
@@ -175,7 +221,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">8. How it is protected</h2>
+    <h2 class="text-lg font-semibold">9. How it is protected</h2>
     <p class="{body}">
       Traffic is encrypted in transit. Passwords for local accounts are stored only as
       hashes. The session cookie cannot be read by scripts. Access to the database and to the
@@ -192,7 +238,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">9. Your choices and rights</h2>
+    <h2 class="text-lg font-semibold">10. Your choices and rights</h2>
     <p class="{body}">
       You may ask us to tell you what VIA holds about you, to correct it, or to delete it.
       Write to <a href="mailto:mzainab2@illinois.edu" class="{link}">mzainab2@illinois.edu</a>, and we aim to respond within thirty days. We may need to confirm that the request comes from
@@ -212,7 +258,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">10. Children</h2>
+    <h2 class="text-lg font-semibold">11. Children</h2>
     <p class="{body}">
       VIA is intended for members of the University community and is not directed at children
       under thirteen. We do not knowingly collect information from them. If you believe a
@@ -221,7 +267,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">11. Changes to this policy</h2>
+    <h2 class="text-lg font-semibold">12. Changes to this policy</h2>
     <p class="{body}">
       This policy may change as the platform changes. The effective date above records the
       current version. If a change materially reduces the protection given to information
@@ -231,7 +277,7 @@
   </div>
 
   <div class="{card}">
-    <h2 class="text-lg font-semibold">12. Contact</h2>
+    <h2 class="text-lg font-semibold">13. Contact</h2>
     <p class="{body}">
       Questions about this policy, and requests about your information, should be sent to
       <a href="mailto:mzainab2@illinois.edu" class="{link}">mzainab2@illinois.edu</a>. The <a href="/terms" class="{link}">Terms of Use</a> govern your use of the

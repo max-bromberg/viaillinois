@@ -12,11 +12,23 @@ vi.mock('../../src/lib/router.js', () => ({
   matchRoute: () => null,
 }));
 
-let user = { net_id: 'rgarcia7', memberships: [] };
-vi.mock('../../src/stores/auth.js', () => ({
-  currentUser: { subscribe: fn => { fn(user); return () => {}; }, set: vi.fn() },
-  authResolved: { subscribe: fn => { fn(true); return () => {}; } },
-}));
+/**
+ * The two stores the page reads, as stores rather than as fixed values, so a
+ * test can do what the application does: draw the page before the account has
+ * been read, then answer.
+ */
+const auth = vi.hoisted(() => {
+  const make = initial => {
+    let value = initial;
+    const listeners = new Set();
+    return {
+      subscribe(run) { listeners.add(run); run(value); return () => listeners.delete(run); },
+      set(next) { value = next; for (const run of listeners) run(value); },
+    };
+  };
+  return { currentUser: make(null), authResolved: make(false) };
+});
+vi.mock('../../src/stores/auth.js', () => auth);
 
 const SESSION = 'hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT';
 const LinkDiscord = (await import('../../src/routes/LinkDiscord.svelte')).default;
@@ -25,7 +37,8 @@ const show = (props = {}) => render(LinkDiscord, { session: SESSION, ...props })
 
 beforeEach(() => {
   vi.clearAllMocks();
-  user = { net_id: 'rgarcia7', memberships: [] };
+  auth.currentUser.set({ net_id: 'rgarcia7', memberships: [] });
+  auth.authResolved.set(true);
   window.localStorage.clear();
   window.history.replaceState({}, '', `/link/discord/${SESSION}`);
   getLinkSession.mockResolvedValue({ status: 'open', expires_at: '2026-09-04T18:40:00-05:00' });
@@ -40,10 +53,11 @@ beforeEach(() => {
  */
 describe('the Discord link page', () => {
   it('sends somebody who is not signed in to sign in, and remembers where to come back to', async () => {
-    user = null;
+    auth.currentUser.set(null);
     show();
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/login'));
-    expect(window.localStorage.getItem('via_after_sign_in')).toBe(`/link/discord/${SESSION}`);
+    expect(JSON.parse(window.localStorage.getItem('via_after_sign_in')).path)
+      .toBe(`/link/discord/${SESSION}`);
     expect(getLinkSession).not.toHaveBeenCalled();
   });
 
@@ -94,6 +108,58 @@ describe('the Discord link page', () => {
     window.history.replaceState({}, '', `/link/discord/${SESSION}?reason=mismatch`);
     show();
     await waitFor(() => expect(document.body.textContent).toMatch(/different Discord account/i));
+  });
+
+  /**
+   * Whether somebody is signed in is the answer to a request of its own, and
+   * the page is drawn before that answer arrives. Reading it once, on mount,
+   * meant a signed in person who opened the address was sent to sign in again
+   * whenever their account had not been read yet.
+   */
+  it('waits for the account to be read before deciding anybody is signed out', async () => {
+    auth.authResolved.set(false);
+    auth.currentUser.set(null);
+    show();
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(getLinkSession).not.toHaveBeenCalled();
+
+    auth.currentUser.set({ net_id: 'rgarcia7', memberships: [] });
+    auth.authResolved.set(true);
+
+    await screen.findByRole('link', { name: /continue to discord/i });
+    expect(navigate).not.toHaveBeenCalled();
+    expect(getLinkSession).toHaveBeenCalledWith(SESSION);
+  });
+
+  it('sends the person to sign in once the account has been read and there is nobody', async () => {
+    auth.authResolved.set(false);
+    auth.currentUser.set(null);
+    show();
+    expect(navigate).not.toHaveBeenCalled();
+
+    auth.authResolved.set(true);
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/login'));
+    expect(JSON.parse(window.localStorage.getItem('via_after_sign_in')).path)
+      .toBe(`/link/discord/${SESSION}`);
+  });
+
+  /**
+   * VIA serves one campus, so every time it shows is that campus's time. Read
+   * in the browser's own zone, the expiry on this page told a student reading
+   * it from another zone an hour that was not the hour it runs out at.
+   */
+  it('shows the expiry on the campus clock, whatever zone the reader is in', async () => {
+    getLinkSession.mockResolvedValue({ status: 'open', expires_at: '2026-09-04T18:40:00-05:00' });
+    show();
+    await screen.findByRole('link', { name: /continue to discord/i });
+    expect(document.body.textContent).toMatch(/6:40 PM/);
+  });
+
+  it('says when the sign in lapsed while the person was on Discord', async () => {
+    window.history.replaceState({}, '', `/link/discord/${SESSION}?reason=signedout`);
+    show();
+    await waitFor(() => expect(document.body.textContent).toMatch(/signed out/i));
   });
 
   it('says when the person cancelled on Discord, and offers the button again', async () => {

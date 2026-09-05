@@ -74,14 +74,41 @@ describe('GET /api/v1/users/me', () => {
     const res = await asRosa(request(app).get('/api/v1/users/me'));
     expect(res.status).toBe(200);
     expect(res.body.user.discord).toEqual({
-      linked: true, linked_at: '2026-09-04T18:32:11-05:00',
+      linked: true, linked_at: '2026-09-04T18:32:11-05:00', roles_published: false,
     });
   });
 
   it('says so plainly when no Discord account is linked', async () => {
     linksDb.getLinkByNetId.mockResolvedValue(null);
     const res = await asRosa(request(app).get('/api/v1/users/me'));
-    expect(res.body.user.discord).toEqual({ linked: false, linked_at: null });
+    expect(res.body.user.discord).toEqual({
+      linked: false, linked_at: null, roles_published: false,
+    });
+  });
+
+  /**
+   * The linked roles step is optional and can be added later, so the account
+   * page has to be able to tell whether it was taken. What is held is the
+   * sealed Discord authorization, and the browser is told only that one exists.
+   */
+  it('says the linked roles facts are published when an authorization is held', async () => {
+    linksDb.getLinkByNetId.mockResolvedValue({
+      discordUserId: '204255221017214977', netId: 'rgarcia7',
+      linkedAt: '2026-09-04 18:32:11', authorization: Buffer.from([1, 2, 3]),
+    });
+    const res = await asRosa(request(app).get('/api/v1/users/me'));
+    expect(res.body.user.discord.roles_published).toBe(true);
+  });
+
+  it('never publishes the authorization itself to the browser', async () => {
+    linksDb.getLinkByNetId.mockResolvedValue({
+      discordUserId: '204255221017214977', netId: 'rgarcia7',
+      linkedAt: '2026-09-04 18:32:11', authorization: Buffer.from('a-refresh-token'),
+    });
+    const res = await asRosa(request(app).get('/api/v1/users/me'));
+    expect(JSON.stringify(res.body)).not.toContain('refresh');
+    expect(Object.keys(res.body.user.discord).sort())
+      .toEqual(['linked', 'linked_at', 'roles_published']);
   });
 
   it('does not publish the Discord identifier to the browser', async () => {
@@ -93,7 +120,9 @@ describe('GET /api/v1/users/me', () => {
     linksDb.getLinkByNetId.mockRejectedValue(new Error('the database is away'));
     const res = await asRosa(request(app).get('/api/v1/users/me'));
     expect(res.status).toBe(200);
-    expect(res.body.user.discord).toEqual({ linked: false, linked_at: null });
+    expect(res.body.user.discord).toEqual({
+      linked: false, linked_at: null, roles_published: false,
+    });
   });
 });
 

@@ -22,6 +22,14 @@ export function adminConfigFromEnv(overrides = {}) {
 }
 
 /**
+ * What a database may be called: letters, digits, the underscore and the
+ * dollar sign, up to the sixty four characters MySQL allows. Anything else is
+ * not a database name, and the name a command line gives reaches restore.js,
+ * which writes it into DROP DATABASE and CREATE DATABASE.
+ */
+const DATABASE_NAME = /^[A-Za-z0-9_$]{1,64}$/;
+
+/**
  * The database a command line names with --database, or null when it names
  * none and the environment decides.
  *
@@ -40,6 +48,12 @@ export function databaseArgument(args) {
   const value = args[index + 1];
   if (!value || value.startsWith('--')) {
     throw new Error('--database needs the name of a database after it');
+  }
+  if (!DATABASE_NAME.test(value)) {
+    throw new Error(
+      `${value} is not a database name. A database name is letters, digits, underscores and `
+      + 'dollar signs, up to sixty four characters.',
+    );
   }
   return value;
 }

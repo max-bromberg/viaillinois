@@ -128,22 +128,6 @@ describe('createPublicApiBudget', () => {
     }
   });
 
-  /**
-   * A phone's calendar application fetches one person's subscription every few
-   * hours forever, from an address that is the whole of its credential. It is
-   * exempt for the reason the term calendar is: what it takes is the student's
-   * own calendar rather than the corpus.
-   */
-  it('exempts a personal calendar subscription', async () => {
-    const app = express();
-    app.use(createPublicApiBudget(base()));
-    app.get('/calendar/personal/:file', (_req, res) => res.json({ events: [{}, {}, {}] }));
-    for (let i = 0; i < 20; i++) {
-      expect((await request(app).get('/calendar/personal/anything.ics')).status).toBe(200);
-    }
-    expect(onDenied).not.toHaveBeenCalled();
-  });
-
   it('names the whole path in the denial, not the part after the mount', async () => {
     const app = express();
     app.use('/api/v1', createPublicApiBudget(base()));

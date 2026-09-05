@@ -38,6 +38,20 @@ describe('Personal_Calendars', () => {
     expect(ids).toEqual([1, 4, 9]);
   });
 
+  /**
+   * An empty list is a calendar somebody emptied on purpose, and it has to
+   * survive the round trip as an empty list rather than come back as the null
+   * that means every organization.
+   */
+  it('tells an empty set apart from no set at all', async () => {
+    const calendars = await import('../../db/queries/personalCalendars.ts');
+    await calendars.rotateCalendar({ netId: 'alice', tokenHash: HASH, rsoIds: [] });
+    expect((await calendars.getCalendarByTokenHash(HASH)).rsoIds).toEqual([]);
+
+    await calendars.setCalendarRsos({ netId: 'alice', rsoIds: null });
+    expect((await calendars.getCalendarByTokenHash(HASH)).rsoIds).toBeNull();
+  });
+
   it('is one calendar per person', async () => {
     await calendar('alice', null);
     await expect(calendar('alice', [1])).rejects.toMatchObject({ code: 'ER_DUP_ENTRY' });

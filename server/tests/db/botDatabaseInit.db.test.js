@@ -14,7 +14,13 @@ const VALUES = {
   BOT_DB_NAME: 'via_bot',
   BOT_DB_USER: 'via_bot',
   BOT_DB_PASSWORD: 'test_bot_pw',
+  // What the script computes for the GRANT, where the database name is a
+  // pattern and an underscore in a pattern matches any one character.
+  BOT_DB_GRANT_PATTERN: 'via\\_bot',
 };
+
+/** A name that the unescaped pattern `via_bot` would also match. */
+const LOOKALIKE = 'viaXbot';
 
 /**
  * The statements the script sends, with the shell's expansion done the way the
@@ -62,13 +68,16 @@ describe('the bot database initialisation script', () => {
       multipleStatements: true,
     });
     await root.query(`DROP DATABASE IF EXISTS ${VALUES.BOT_DB_NAME}`);
+    await root.query(`DROP DATABASE IF EXISTS ${LOOKALIKE}`);
     await root.query(`DROP USER IF EXISTS '${VALUES.BOT_DB_USER}'@'%'`);
     await root.query(statementsFromScript());
+    await root.query(`CREATE DATABASE ${LOOKALIKE}`);
   }, 180_000);
 
   afterAll(async () => {
     if (!root) return;
     await root.query(`DROP DATABASE IF EXISTS ${VALUES.BOT_DB_NAME}`);
+    await root.query(`DROP DATABASE IF EXISTS ${LOOKALIKE}`);
     await root.query(`DROP USER IF EXISTS '${VALUES.BOT_DB_USER}'@'%'`);
     await root.end();
   });
@@ -84,7 +93,10 @@ describe('the bot database initialisation script', () => {
   }
 
   it('creates the database the bot migrates', async () => {
-    const [rows] = await root.query('SHOW DATABASES LIKE ?', [VALUES.BOT_DB_NAME]);
+    const [rows] = await root.query(
+      'SELECT schema_name AS s FROM information_schema.schemata WHERE schema_name = ?',
+      [VALUES.BOT_DB_NAME],
+    );
     expect(rows).toHaveLength(1);
   });
 
@@ -117,6 +129,19 @@ describe('the bot database initialisation script', () => {
     const names = databases.map((row) => Object.values(row)[0]);
     expect(names).toContain(VALUES.BOT_DB_NAME);
     expect(names).not.toContain(testDbConfig.database);
+    await bot.end();
+  });
+
+  it('does not let the bot account reach a database whose name merely looks like its own', async () => {
+    // The database name in a GRANT is a pattern, and an underscore in a
+    // pattern matches any one character, so an unescaped `via_bot` also grants
+    // everything on a database called viaXbot. Any stack on this host could
+    // create one and have the bot's account handed to it.
+    const bot = await asBot(undefined);
+    await expect(bot.query(`USE ${LOOKALIKE}`)).rejects.toThrow(/denied/i);
+    const [databases] = await bot.query('SHOW DATABASES');
+    const names = databases.map((row) => Object.values(row)[0]);
+    expect(names).not.toContain(LOOKALIKE);
     await bot.end();
   });
 

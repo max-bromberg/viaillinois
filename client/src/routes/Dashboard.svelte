@@ -186,12 +186,26 @@
    * people who planned to go can be told, and the same row offers to put it
    * back if the cancellation was the mistake.
    */
-  async function setCancelled(event, cancelled) {
+  function setCancelled(event, cancelled) {
+    // An occurrence of a repeat could mean this week, this week onwards, or
+    // every week, which is the same question an edit and a delete ask.
+    if (event.series_id) {
+      pendingScope = { kind: cancelled ? 'cancel' : 'restore', event };
+      return;
+    }
+    applyCancellation(event, cancelled, 'one');
+  }
+
+  async function applyCancellation(event, cancelled, scope) {
     loading = true;
     try {
-      if (cancelled) await cancelEvent(event.event_id);
-      else await restoreEvent(event.event_id);
-      showToast(cancelled ? 'Event cancelled' : 'Event restored');
+      if (cancelled) await cancelEvent(event.event_id, scope);
+      else await restoreEvent(event.event_id, scope);
+      showToast(
+        scope === 'one'
+          ? (cancelled ? 'Event cancelled' : 'Event restored')
+          : (cancelled ? 'Events cancelled' : 'Events restored'),
+      );
       await loadRso(selectedRso.rso_id);
     } catch (err) {
       showToast(err.message, 'error');
@@ -200,11 +214,21 @@
     }
   }
 
+  /** What the prompt says it is about to do, in the board's own words. */
+  const SCOPE_TITLES = {
+    delete: 'Delete a repeating event',
+    update: 'Change a repeating event',
+    cancel: 'Cancel a repeating event',
+    restore: 'Restore a repeating event',
+  };
+
   async function chooseScope(scope) {
     const asked = pendingScope;
     pendingScope = null;
     if (!asked) return;
     if (asked.kind === 'delete') return applyDelete(asked.event.event_id, scope);
+    if (asked.kind === 'cancel') return applyCancellation(asked.event, true, scope);
+    if (asked.kind === 'restore') return applyCancellation(asked.event, false, scope);
     return applyUpdate(asked.event.event_id, asked.payload, scope);
   }
 
@@ -492,7 +516,7 @@
         <div class="w-full max-w-md rounded-xl border bg-card p-6 space-y-4 shadow-lg">
           <div class="space-y-1">
             <h2 class="text-base font-semibold">
-              {pendingScope.kind === 'delete' ? 'Delete a repeating event' : 'Change a repeating event'}
+              {SCOPE_TITLES[pendingScope.kind] ?? SCOPE_TITLES.update}
             </h2>
             <p class="text-sm text-muted-foreground">{recurrenceLabel(pendingScope.event)}.</p>
           </div>
@@ -567,6 +591,46 @@
                         <span class="text-xs text-muted-foreground ml-2">{fmtDate(row.start_time)}</span>
                       </span>
                       <span class="tabular-nums text-muted-foreground shrink-0">{row.interest_count} interested</span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+
+            <!-- Feedback: the average, the count and the comments, and never a rater -->
+            <div class="border rounded-lg p-5 bg-card shadow-sm space-y-3 sm:col-span-2">
+              <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">What people thought</h3>
+              <p class="text-xs text-muted-foreground">
+                Ratings and comments are anonymous. VIA never tells you who gave which rating.
+              </p>
+              {#if !insights.feedback || insights.feedback.length === 0}
+                <p class="text-sm text-muted-foreground">Nobody has rated an event yet.</p>
+              {:else}
+                <ul class="space-y-3">
+                  {#each insights.feedback as row (row.event_id)}
+                    <li class="border rounded-md p-3 space-y-2">
+                      <div class="flex items-baseline justify-between gap-3">
+                        <span class="min-w-0">
+                          <span class="font-medium text-sm">{row.title}</span>
+                          <span class="text-xs text-muted-foreground ml-2">{fmtDate(row.start_time)}</span>
+                        </span>
+                        {#if row.rating_count > 0}
+                          <span class="tabular-nums text-sm text-muted-foreground shrink-0">
+                            {row.average_rating} out of 5, from {row.rating_count} rating{row.rating_count === 1 ? '' : 's'}
+                          </span>
+                        {/if}
+                      </div>
+                      {#if row.rating_count === 0}
+                        <p class="text-sm text-muted-foreground">Nobody has rated this event yet.</p>
+                      {:else if row.comments.length === 0}
+                        <p class="text-sm text-muted-foreground">Nobody left a comment on this event.</p>
+                      {:else}
+                        <ul class="space-y-1">
+                          {#each row.comments as comment, index (index)}
+                            <li class="text-sm text-muted-foreground border-l-2 pl-3">{comment}</li>
+                          {/each}
+                        </ul>
+                      {/if}
                     </li>
                   {/each}
                 </ul>

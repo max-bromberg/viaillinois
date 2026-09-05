@@ -50,10 +50,15 @@ function timeframeBound(name) {
  * An empty selection means no filter rather than nothing selected, which is
  * what the panel means when nobody has picked an RSO.
  *
- * @param {{ rsoIds?: number[], excludePrivate?: boolean }} filters
+ * A caller may also ask for the events that are still going ahead. The feed
+ * shows a cancelled event on purpose, so that somebody who planned to attend
+ * is told rather than left wondering, but a caller that is asking what
+ * occupies a room wants only what actually will.
+ *
+ * @param {{ rsoIds?: number[], excludePrivate?: boolean, excludeCancelled?: boolean }} filters
  * @returns {{ clause: string, params: Array }}
  */
-function panelFilters({ rsoIds = [], excludePrivate = false } = {}) {
+function panelFilters({ rsoIds = [], excludePrivate = false, excludeCancelled = false } = {}) {
   const clauses = [];
   const params = [];
   if (Array.isArray(rsoIds) && rsoIds.length) {
@@ -61,6 +66,7 @@ function panelFilters({ rsoIds = [], excludePrivate = false } = {}) {
     params.push(...rsoIds);
   }
   if (excludePrivate) clauses.push('AND e.is_private = FALSE');
+  if (excludeCancelled) clauses.push('AND e.cancelled_at IS NULL');
   return { clause: clauses.join('\n      '), params };
 }
 
@@ -343,6 +349,10 @@ export async function getEventsByRso(rsoId) {
         `SELECT
             e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, e.cancelled_at,
             e.series_id, e.detached, e.location_id,
+            -- The dashboard fills its edit form from this row and posts every
+            -- column back, so a column missing here is a column cleared by a
+            -- save that changed nothing else.
+            e.location_note,
             r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
             s.frequency AS series_frequency,
             s.interval_weeks AS series_interval_weeks,

@@ -17,7 +17,11 @@ vi.mock('../../db/queries/events.js', () => eventsDb);
 const getMembership = vi.hoisted(() => vi.fn());
 vi.mock('../../db/queries/rso.js', () => ({ getMembership, getUserMemberships: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../db/queries/users.js', () => ({ getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn() }));
-vi.mock('../../db/queries/eventSeries.js', () => ({ detachEvent: vi.fn(), syncSeriesEnd: vi.fn() }));
+const seriesDb = vi.hoisted(() => ({
+  detachEvent: vi.fn(), syncSeriesEnd: vi.fn(),
+  occurrencesOfSeries: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../../db/queries/eventSeries.js', () => seriesDb);
 vi.mock('../../db/queries/advanced.js', () => ({
   createEventTransactional: vi.fn().mockResolvedValue({ eventId: 42 }), callGetRSOStats: vi.fn(),
 }));
@@ -25,15 +29,25 @@ vi.mock('../../db/queries/advanced.js', () => ({
 const app = (await import('../../app.js')).default;
 const { signToken } = await import('../../middleware/auth.js');
 const { createEventTransactional } = await import('../../db/queries/advanced.js');
+const outbox = await import('../../db/queries/outbox.ts');
 
 const editor = `via_token=${signToken({ net_id: 'ed' })}`;
 const EVENT = { event_id: 10, rso_id: 1, title: 'General meeting', series_id: null, cancelled_at: null,
   start_time: '2026-09-10 18:00:00', end_time: '2026-09-10 19:00:00' };
 
+const OCCURRENCE = { ...EVENT, event_id: 20, series_id: 3 };
+const WEEKS = [
+  { event_id: 20, start_time: '2026-09-10 18:00:00', end_time: '2026-09-10 19:00:00', detached: 0, cancelled_at: null },
+  { event_id: 21, start_time: '2026-09-17 18:00:00', end_time: '2026-09-17 19:00:00', detached: 0, cancelled_at: null },
+  { event_id: 22, start_time: '2026-09-24 18:00:00', end_time: '2026-09-24 19:00:00', detached: 1, cancelled_at: null },
+];
+
 beforeEach(() => {
-  eventsDb.updateEvent.mockClear();
+  vi.clearAllMocks();
+  eventsDb.updateEvent.mockResolvedValue({ affectedRows: 1 });
   eventsDb.getEventById.mockResolvedValue({ ...EVENT });
   getMembership.mockResolvedValue({ role: 'Editor' });
+  seriesDb.occurrencesOfSeries.mockResolvedValue(WEEKS);
 });
 
 /**
@@ -128,5 +142,91 @@ describe('the location note', () => {
       .send({ rso_id: 1, title: 'New', start_time: '2026-09-10 18:00:00', end_time: '2026-09-10 19:00:00',
               location_note: 'Ask at the front desk.' });
     expect(createEventTransactional.mock.calls.at(-1)[0]).toMatchObject({ location_note: 'Ask at the front desk.' });
+  });
+});
+
+/**
+ * A repeating event is cancelled a week at a time or a term at a time, and
+ * only the board knows which. The scope is read here exactly as the update and
+ * the delete read it, so the three answer the same question the same way.
+ */
+describe('cancelling a repeating event with a scope', () => {
+  /** The occurrence the request names, and the rows behind each week. */
+  function seriesOf(weeks = WEEKS, cancelledAt = null) {
+    eventsDb.getEventById.mockImplementation(async id => {
+      if (id === 20) return { ...OCCURRENCE, cancelled_at: cancelledAt };
+      const week = weeks.find(w => w.event_id === id);
+      return week ? { ...OCCURRENCE, ...week } : null;
+    });
+  }
+
+  const cancel = query =>
+    request(app).post(`/api/v1/events/20/cancel${query}`).set('Cookie', editor);
+
+  it('cancels only the week the request names when no scope is given', async () => {
+    seriesOf();
+    const res = await cancel('');
+    expect(res.status).toBe(200);
+    expect(eventsDb.updateEvent).toHaveBeenCalledTimes(1);
+    expect(eventsDb.updateEvent).toHaveBeenCalledWith(20, expect.objectContaining({
+      cancelled_at: expect.any(String),
+    }));
+    expect(seriesDb.occurrencesOfSeries).not.toHaveBeenCalled();
+  });
+
+  it('cancels every week of the series when the scope is all', async () => {
+    seriesOf();
+    const res = await cancel('?scope=all');
+    expect(res.status).toBe(200);
+    expect(seriesDb.occurrencesOfSeries).toHaveBeenCalledWith(3, { from: null });
+    expect(eventsDb.updateEvent.mock.calls.map(([id]) => id)).toEqual([20, 21, 22]);
+    expect(outbox.recordEventCancelled.mock.calls.map(([id]) => id)).toEqual([20, 21, 22]);
+  });
+
+  it('cancels this week and the later ones when the scope is following', async () => {
+    seriesOf();
+    const res = await cancel('?scope=following');
+    expect(res.status).toBe(200);
+    expect(seriesDb.occurrencesOfSeries)
+      .toHaveBeenCalledWith(3, { from: '2026-09-10 18:00:00' });
+  });
+
+  it('gives every week the same cancellation time', async () => {
+    seriesOf();
+    await cancel('?scope=all');
+    const times = eventsDb.updateEvent.mock.calls.map(([, fields]) => fields.cancelled_at);
+    expect(new Set(times).size).toBe(1);
+  });
+
+  it('leaves a week that was already cancelled where it was', async () => {
+    seriesOf([
+      { ...WEEKS[0] },
+      { ...WEEKS[1], cancelled_at: '2026-09-01 08:00:00' },
+      { ...WEEKS[2] },
+    ]);
+    await cancel('?scope=all');
+    expect(eventsDb.updateEvent.mock.calls.map(([id]) => id)).toEqual([20, 22]);
+  });
+
+  it('puts every week back when a restore names the whole series', async () => {
+    seriesOf(WEEKS.map(week => ({ ...week, cancelled_at: '2026-09-01 08:00:00' })), '2026-09-01 08:00:00');
+    const res = await request(app).post('/api/v1/events/20/restore?scope=all').set('Cookie', editor);
+    expect(res.status).toBe(200);
+    expect(eventsDb.updateEvent.mock.calls.map(([id, fields]) => [id, fields.cancelled_at]))
+      .toEqual([[20, null], [21, null], [22, null]]);
+  });
+
+  it('rejects a scope it does not recognise', async () => {
+    seriesOf();
+    const res = await cancel('?scope=everything');
+    expect(res.status).toBe(400);
+    expect(eventsDb.updateEvent).not.toHaveBeenCalled();
+  });
+
+  it('ignores the scope for an event that does not repeat', async () => {
+    const res = await request(app).post('/api/v1/events/10/cancel?scope=all').set('Cookie', editor);
+    expect(res.status).toBe(200);
+    expect(seriesDb.occurrencesOfSeries).not.toHaveBeenCalled();
+    expect(eventsDb.updateEvent).toHaveBeenCalledTimes(1);
   });
 });

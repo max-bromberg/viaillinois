@@ -473,6 +473,40 @@ describe('PUT /internal/v1/events/{id}/interest', () => {
     expect(res.body.code).toBe('not_found');
   });
 
+  it('answers not found for an internal event the acting person may not see', async () => {
+    // An interest count on an event somebody cannot see is a way of learning
+    // that the event exists, and of being counted at a meeting they were never
+    // shown. The reading endpoints already refuse this, so the acting ones do
+    // the same, with the same answer.
+    eventsDb.getEventById.mockResolvedValue({ ...EVENT, rso_id: 9, is_private: 1 });
+    const res = await acting('put', '/internal/v1/events/10/interest').send({ interested: true });
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe('not_found');
+    expect(interestDb.setInterest).not.toHaveBeenCalled();
+  });
+
+  it('answers not found for an internal event when nobody has linked to see it', async () => {
+    eventsDb.getEventById.mockResolvedValue({ ...EVENT, rso_id: 9, is_private: 1 });
+    const res = await asBot('put', '/internal/v1/events/10/interest')
+      .send({ interested: true, discord_user_id: '204255221017214977' });
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe('not_found');
+    expect(interestDb.setInterest).not.toHaveBeenCalled();
+  });
+
+  it('records interest on an internal event for a member of that organization', async () => {
+    eventsDb.getEventById.mockResolvedValue({ ...EVENT, is_private: 1 });
+    const res = await acting('put', '/internal/v1/events/10/interest').send({ interested: true });
+    expect(res.status).toBe(200);
+    expect(interestDb.setInterest).toHaveBeenCalled();
+  });
+
+  /**
+   * A deployment with no salt cannot record this at all, and it will not be
+   * able to a moment later either. Answering busy told the bot to try again,
+   * which it does for ever. This is a misconfiguration of the web platform, so
+   * it is answered as one and the sentence names the setting.
+   */
   it('refuses to hash with no salt rather than hashing with an empty one', async () => {
     const salt = process.env.DISCORD_INTEREST_SALT;
     delete process.env.DISCORD_INTEREST_SALT;
@@ -480,8 +514,9 @@ describe('PUT /internal/v1/events/{id}/interest', () => {
     try {
       const res = await asBot('put', '/internal/v1/events/10/interest')
         .send({ interested: true, discord_user_id: '204255221017214977' });
-      expect(res.status).toBe(503);
-      expect(res.body.code).toBe('busy');
+      expect(res.status).toBe(500);
+      expect(res.body.code).toBe('invalid');
+      expect(res.body.error).toContain('DISCORD_INTEREST_SALT');
       expect(interestDb.setInterest).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('DISCORD_INTEREST_SALT'));
     } finally {
@@ -554,5 +589,20 @@ describe('POST /internal/v1/events/{id}/feedback', () => {
     const res = await send(EDITOR);
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('not_found');
+  });
+
+  it('answers not found for an internal event the acting person may not see', async () => {
+    eventsDb.getEventById.mockResolvedValue({ ...EVENT, rso_id: 9, is_private: 1 });
+    const res = await send(EDITOR);
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe('not_found');
+    expect(feedbackDb.saveFeedback).not.toHaveBeenCalled();
+  });
+
+  it('records feedback on an internal event for a member of that organization', async () => {
+    eventsDb.getEventById.mockResolvedValue({ ...EVENT, is_private: 1 });
+    const res = await send(EDITOR);
+    expect(res.status).toBe(200);
+    expect(feedbackDb.saveFeedback).toHaveBeenCalled();
   });
 });

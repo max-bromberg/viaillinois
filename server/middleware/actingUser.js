@@ -1,5 +1,6 @@
 import { sendApiError, ERROR_CODES } from '../lib/apiError.js';
 import { getLinkByDiscordUserId } from '../db/queries/discordLinks.ts';
+import { isSnowflake } from '../lib/identifiers.js';
 
 /**
  * Acting as a person, from Discord.
@@ -18,9 +19,6 @@ import { getLinkByDiscordUserId } from '../db/queries/discordLinks.ts';
 
 export const ACTING_HEADER = 'x-via-acting-discord-user';
 
-/** A Discord snowflake is a decimal string. Anything else never reaches the database. */
-const SNOWFLAKE = /^\d{1,32}$/;
-
 /**
  * @param {{ resolveLink?: (discordUserId: string) => Promise<{ netId: string, isGlobalAdmin: number|boolean }|null> }} [options]
  * @returns {import('express').RequestHandler}
@@ -29,7 +27,7 @@ export function createActingUser({ resolveLink = getLinkByDiscordUserId } = {}) 
   return async function actingUser(req, res, next) {
     const discordUserId = req.headers?.[ACTING_HEADER];
     if (discordUserId === undefined) return next();
-    if (typeof discordUserId !== 'string' || !SNOWFLAKE.test(discordUserId)) {
+    if (!isSnowflake(discordUserId)) {
       return sendApiError(res, 400, ERROR_CODES.INVALID, 'The acting Discord user identifier is not valid.');
     }
     try {

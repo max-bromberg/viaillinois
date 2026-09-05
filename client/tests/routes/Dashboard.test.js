@@ -183,7 +183,7 @@ describe('Dashboard, cancelling an event', () => {
     const { findAllByRole } = render(Dashboard);
     const cancels = await findAllByRole('button', { name: 'Cancel event' });
     await fireEvent.click(cancels[0]);
-    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(8));
+    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(8, 'one'));
     await waitFor(() => expect(getRso).toHaveBeenCalledTimes(2));
     expect(showToast).toHaveBeenCalledWith('Event cancelled');
   });
@@ -196,8 +196,47 @@ describe('Dashboard, cancelling an event', () => {
     const restore = await findByRole('button', { name: 'Restore event' });
     expect(queryByRole('button', { name: 'Cancel event' })).toBeNull();
     await fireEvent.click(restore);
-    await waitFor(() => expect(restoreEvent).toHaveBeenCalledWith(8));
+    await waitFor(() => expect(restoreEvent).toHaveBeenCalledWith(8, 'one'));
     expect(showToast).toHaveBeenCalledWith('Event restored');
+  });
+
+  /**
+   * A repeating event is cancelled a week at a time or a term at a time, and
+   * only the board knows which. Without the question, cancelling a term of
+   * meetings was one click per week and cancelling the wrong week was the
+   * likely outcome.
+   */
+  it('asks which weeks a cancellation means when the event repeats', async () => {
+    const { findAllByRole, findByRole } = render(Dashboard);
+    const cancels = await findAllByRole('button', { name: 'Cancel event' });
+    await fireEvent.click(cancels[1]);
+    expect(cancelEvent).not.toHaveBeenCalled();
+
+    await findByRole('heading', { name: /cancel a repeating event/i });
+    await fireEvent.click(await findByRole('button', { name: 'All events in the series' }));
+    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(5, 'all'));
+    expect(showToast).toHaveBeenCalledWith('Events cancelled');
+  });
+
+  it('cancels one week of a repeat when that is what the board chose', async () => {
+    const { findAllByRole, findByRole } = render(Dashboard);
+    const cancels = await findAllByRole('button', { name: 'Cancel event' });
+    await fireEvent.click(cancels[1]);
+    await fireEvent.click(await findByRole('button', { name: 'This event only' }));
+    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(5, 'one'));
+    expect(showToast).toHaveBeenCalledWith('Event cancelled');
+  });
+
+  it('asks the same question before putting a repeating event back', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, rso_name: 'IEEE', name: 'IEEE', members: [],
+      events: [{ ...OCCURRENCE, cancelled_at: '2026-09-04 09:00:00' }] } });
+    const { findByRole } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Restore event' }));
+    expect(restoreEvent).not.toHaveBeenCalled();
+
+    await findByRole('heading', { name: /restore a repeating event/i });
+    await fireEvent.click(await findByRole('button', { name: 'This and all later events' }));
+    await waitFor(() => expect(restoreEvent).toHaveBeenCalledWith(5, 'following'));
   });
 });
 
@@ -221,5 +260,66 @@ describe('Dashboard, interest on the insights tab', () => {
     const { findByRole, findByText } = render(Dashboard);
     await fireEvent.click(await findByRole('button', { name: 'Insights' }));
     expect(await findByText('Nobody has shown interest in an upcoming event yet.')).toBeTruthy();
+  });
+});
+
+/**
+ * What people thought of an event they went to. The board reads the average,
+ * how many said something, and what they wrote, and never who wrote which,
+ * because a board that can work that out is a board nobody tells the truth to.
+ */
+describe('Dashboard, feedback on the insights tab', () => {
+  const FEEDBACK = [
+    {
+      event_id: 8, title: 'Career fair', start_time: '2026-10-01T10:00:00-05:00',
+      average_rating: 4.5, rating_count: 2,
+      comments: ['The pizza arrived on time.', 'Too loud in the hallway.'],
+    },
+    {
+      event_id: 5, title: 'IEEE Weekly Meeting', start_time: '2026-09-15T18:00:00-05:00',
+      average_rating: null, rating_count: 0, comments: [],
+    },
+  ];
+
+  it('shows the average, the count and the comments for each event', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: FEEDBACK,
+    });
+    const { findByRole, findByText, getByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+
+    expect(await findByText('Career fair')).toBeTruthy();
+    expect(getByText('4.5 out of 5, from 2 ratings')).toBeTruthy();
+    expect(getByText('The pizza arrived on time.')).toBeTruthy();
+    expect(getByText('Too loud in the hallway.')).toBeTruthy();
+  });
+
+  it('says when an event has no ratings yet rather than showing an empty average', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: FEEDBACK,
+    });
+    const { findByRole, findByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    expect(await findByText('Nobody has rated this event yet.')).toBeTruthy();
+  });
+
+  it('never names anybody who rated an event', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: FEEDBACK,
+    });
+    const { findByRole, container } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    await findByRole('heading', { name: /what people thought/i });
+    expect(container.textContent).not.toMatch(/net_?id/i);
+    expect(container.textContent).not.toMatch(/rgarcia7|boardmember/);
+  });
+
+  it('says so when nobody has rated anything at all', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: [],
+    });
+    const { findByRole, findByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    expect(await findByText('Nobody has rated an event yet.')).toBeTruthy();
   });
 });

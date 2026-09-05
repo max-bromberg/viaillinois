@@ -107,6 +107,57 @@ describe('the link queries', () => {
       expect(rows.map(r => r.net_id)).toEqual(['bob']);
     });
 
+    /**
+     * A link displaces whatever stood on either side of it, and the Discord
+     * bot has to hear about each one it displaced. Silently, the bot goes on
+     * holding an account link that no longer exists, and a person who moved
+     * their VIA account to a second Discord account is still acted for as
+     * themselves from the first one.
+     */
+    it('says nothing was displaced when nothing was', async () => {
+      const displaced = await links.linkAccount({
+        discordUserId: '123456789012345678', netId: 'alice',
+      });
+      expect(displaced).toEqual([]);
+    });
+
+    it('says which link it displaced when the NetID had another Discord account', async () => {
+      await links.linkAccount({ discordUserId: '123456789012345678', netId: 'alice' });
+      const displaced = await links.linkAccount({
+        discordUserId: '223456789012345678', netId: 'alice',
+      });
+      expect(displaced).toEqual([{ discordUserId: '123456789012345678', netId: 'alice' }]);
+    });
+
+    it('says which link it displaced when the Discord account belonged to somebody else', async () => {
+      await links.linkAccount({ discordUserId: '123456789012345678', netId: 'alice' });
+      const displaced = await links.linkAccount({
+        discordUserId: '123456789012345678', netId: 'bob',
+      });
+      expect(displaced).toEqual([{ discordUserId: '123456789012345678', netId: 'alice' }]);
+    });
+
+    it('says both when a link displaces one on each side', async () => {
+      await links.linkAccount({ discordUserId: '123456789012345678', netId: 'alice' });
+      await links.linkAccount({ discordUserId: '223456789012345678', netId: 'bob' });
+      const displaced = await links.linkAccount({
+        discordUserId: '123456789012345678', netId: 'bob',
+      });
+      expect(displaced).toHaveLength(2);
+      expect(displaced).toEqual(expect.arrayContaining([
+        { discordUserId: '123456789012345678', netId: 'alice' },
+        { discordUserId: '223456789012345678', netId: 'bob' },
+      ]));
+    });
+
+    it('does not call the link it is writing a link it displaced', async () => {
+      await links.linkAccount({ discordUserId: '123456789012345678', netId: 'alice' });
+      const displaced = await links.linkAccount({
+        discordUserId: '123456789012345678', netId: 'alice',
+      });
+      expect(displaced).toEqual([]);
+    });
+
     it('keeps the sealed authorization as bytes when one is given', async () => {
       await links.linkAccount({
         discordUserId: '123456789012345678', netId: 'alice',
@@ -164,6 +215,44 @@ describe('the link queries', () => {
       const found = await links.getLinkWithMemberships('223456789012345678');
       expect(found.memberships).toEqual([]);
       expect(found.is_global_admin).toBe(true);
+    });
+  });
+
+  /**
+   * A link session is a handshake that lasts ten minutes, and every one of
+   * them, used or abandoned, stays in the table for ever unless something
+   * removes it. Each row holds a Discord identifier, so the table is a list of
+   * who asked to link and when, kept long after it can be used for anything.
+   */
+  describe('pruning the sessions that are done with', () => {
+    const at = offsetMinutes => {
+      const when = new Date(Date.now() + offsetMinutes * 60_000);
+      return when.toISOString().slice(0, 19).replace('T', ' ');
+    };
+    const session = async (id, expiresAt, completedAt = null) => query(
+      'INSERT INTO Link_Sessions (session_id, discord_user_id, created_at, expires_at, completed_at) VALUES (?, ?, ?, ?, ?)',
+      [id.padEnd(43, 'x'), '123456789012345678', at(-60 * 24 * 3), expiresAt, completedAt],
+    );
+
+    it('removes a session that expired more than a day ago', async () => {
+      await session('old', at(-60 * 30));
+      const removed = await links.pruneLinkSessions();
+      expect(removed).toBe(1);
+      expect(await query('SELECT session_id FROM Link_Sessions')).toEqual([]);
+    });
+
+    it('removes a completed session once it is past the same window', async () => {
+      await session('done', at(-60 * 30), at(-60 * 31));
+      await links.pruneLinkSessions();
+      expect(await query('SELECT session_id FROM Link_Sessions')).toEqual([]);
+    });
+
+    it('keeps a session that has only just expired, and one that is still open', async () => {
+      await session('recent', at(-5));
+      await session('live', at(5));
+      const removed = await links.pruneLinkSessions();
+      expect(removed).toBe(0);
+      expect(await query('SELECT session_id FROM Link_Sessions')).toHaveLength(2);
     });
   });
 

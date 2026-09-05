@@ -69,7 +69,13 @@ export function eventSchema(event, site) {
     startDate: toIsoWithOffset(event.start_time),
     endDate: toIsoWithOffset(event.end_time),
     description: event.description?.trim() || undefined,
-    eventStatus: 'https://schema.org/EventScheduled',
+    // A cancelled event stays on the site so that somebody who planned to go
+    // is told. Described here as still scheduled, it would go on being listed
+    // as happening everywhere the listing was syndicated, which is the
+    // opposite of telling them.
+    eventStatus: event.cancelled_at
+      ? 'https://schema.org/EventCancelled'
+      : 'https://schema.org/EventScheduled',
     eventAttendanceMode: online
       ? 'https://schema.org/OnlineEventAttendanceMode'
       : 'https://schema.org/OfflineEventAttendanceMode',

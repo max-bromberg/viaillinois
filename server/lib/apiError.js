@@ -60,18 +60,29 @@ export function codeForStatus(status) {
  * wrapper adds the machine readable code the bot reads and leaves everything
  * else exactly as it was.
  *
+ * What it replaced is put back as soon as the middleware has answered or has
+ * let the request through. Left in place, it would rewrite whatever the route
+ * behind it answered with, which is not the middleware's refusal and not this
+ * wrapper's business, and two of these on one request would nest one inside
+ * the other.
+ *
  * @param {import('express').RequestHandler} middleware
  * @returns {import('express').RequestHandler}
  */
 export function withErrorCode(middleware) {
   return function coded(req, res, next) {
-    const json = res.json.bind(res);
+    const original = res.json;
+    const json = original.bind(res);
+    // Put back what was there, not a copy of it, so that a caller comparing
+    // the two sees the same function it started with.
+    const restore = () => { res.json = original; };
     res.json = body => {
+      restore();
       if (body && typeof body === 'object' && typeof body.error === 'string' && body.code === undefined) {
         return json({ ...body, code: codeForStatus(res.statusCode) });
       }
       return json(body);
     };
-    middleware(req, res, next);
+    middleware(req, res, (...args) => { restore(); return next(...args); });
   };
 }

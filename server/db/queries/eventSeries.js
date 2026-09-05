@@ -78,6 +78,7 @@ export async function createSeriesWithOccurrences({ series, occurrences, event, 
         createdBy: event.created_by,
         locationId: event.location_id ?? null,
         locationText: event.location_text ?? null,
+        locationNote: event.location_note ?? null,
         title: event.title,
         description: event.description ?? null,
         startTime: occurrence.start,
@@ -172,6 +173,10 @@ export async function applyToSeries(seriesId, { from = null, fields = {}, startO
   if (fields.description !== undefined)   updates.description = fields.description;
   if (fields.location_id !== undefined)   updates.locationId = fields.location_id;
   if (fields.location_text !== undefined) updates.locationText = fields.location_text;
+  // The note at the door belongs to the repeat as much as the room does. A
+  // request that does not mention it leaves it alone, which is why this reads
+  // the key rather than the value.
+  if (fields.location_note !== undefined) updates.locationNote = fields.location_note;
   if (fields.is_private !== undefined)    updates.isPrivate = fields.is_private ? 1 : 0;
 
   if (startOfDay && durationMinutes != null) {
@@ -231,18 +236,26 @@ export async function deleteOccurrencesFrom(seriesId, from) {
  * Deleting one week of a series can leave the stored end date naming a week
  * that no longer exists, and a series with nothing left is a rule for nothing.
  *
+ * A series with nothing left is taken away here rather than by the caller, so
+ * the answer says whether that happened. The caller has an entry to write for
+ * the Discord bot when it did, and the rule cannot be read once it is gone.
+ *
  * @param {number} seriesId
+ * @returns {Promise<{ affectedRows: number, removed: boolean }>}
  */
 export async function syncSeriesEnd(seriesId) {
   const remaining = await occurrencesOfSeries(seriesId);
-  if (remaining.length === 0) return deleteSeries(seriesId);
+  if (remaining.length === 0) {
+    const { affectedRows } = await deleteSeries(seriesId);
+    return { affectedRows, removed: true };
+  }
   const [result] = await db.update(eventSeries)
     .set({
       startsOn: String(remaining[0].start_time).slice(0, 10),
       endsOn: String(remaining.at(-1).start_time).slice(0, 10),
     })
     .where(eq(eventSeries.seriesId, seriesId));
-  return { affectedRows: result.affectedRows };
+  return { affectedRows: result.affectedRows, removed: false };
 }
 
 /**

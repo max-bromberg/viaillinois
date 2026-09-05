@@ -122,6 +122,66 @@ describe('event series', () => {
     ]);
   });
 
+  /**
+   * The note at the door belongs to the whole repeat as much as the room does,
+   * and a board that writes one when it creates a term of meetings expects to
+   * see it on every week.
+   */
+  it('writes the location note onto every occurrence of a new series', async () => {
+    const { eventIds } = await create({
+      event: { ...EVENT, location_note: 'Use the north entrance.' },
+    });
+    const notes = await Promise.all(
+      eventIds.map(async id => (await events.getEventById(id)).location_note));
+    expect(notes).toEqual([
+      'Use the north entrance.', 'Use the north entrance.', 'Use the north entrance.',
+    ]);
+  });
+
+  it('changes the location note on every week when the whole series is edited', async () => {
+    const { seriesId, eventIds } = await create();
+    await series.applyToSeries(seriesId, { fields: { location_note: 'Side door this term.' } });
+    const notes = await Promise.all(
+      eventIds.map(async id => (await events.getEventById(id)).location_note));
+    expect(notes).toEqual(['Side door this term.', 'Side door this term.', 'Side door this term.']);
+  });
+
+  it('changes the location note from one week onwards when the edit starts there', async () => {
+    const { seriesId, eventIds } = await create({
+      event: { ...EVENT, location_note: 'Use the north entrance.' },
+    });
+    await series.applyToSeries(seriesId, {
+      from: '2027-09-14 00:00:00', fields: { location_note: 'Side door from now on.' },
+    });
+    const notes = await Promise.all(
+      eventIds.map(async id => (await events.getEventById(id)).location_note));
+    expect(notes).toEqual([
+      'Use the north entrance.', 'Side door from now on.', 'Side door from now on.',
+    ]);
+  });
+
+  it('leaves the note alone when an edit does not mention it', async () => {
+    const { seriesId, eventIds } = await create({
+      event: { ...EVENT, location_note: 'Use the north entrance.' },
+    });
+    await series.applyToSeries(seriesId, { fields: { title: 'Renamed' } });
+    const notes = await Promise.all(
+      eventIds.map(async id => (await events.getEventById(id)).location_note));
+    expect(notes).toEqual([
+      'Use the north entrance.', 'Use the north entrance.', 'Use the north entrance.',
+    ]);
+  });
+
+  it('clears the note on every week when an edit clears it', async () => {
+    const { seriesId, eventIds } = await create({
+      event: { ...EVENT, location_note: 'Use the north entrance.' },
+    });
+    await series.applyToSeries(seriesId, { fields: { location_note: null } });
+    const notes = await Promise.all(
+      eventIds.map(async id => (await events.getEventById(id)).location_note));
+    expect(notes).toEqual([null, null, null]);
+  });
+
   it('leaves an occurrence alone once it has been edited on its own', async () => {
     const { seriesId, eventIds } = await create();
     await series.detachEvent(eventIds[1]);

@@ -211,6 +211,14 @@ A release of the bot alone is therefore a change to this one line, merged to `ma
 the gate, followed by a cutover. A release of the website alone leaves the line as it is and
 redeploys the same bot. There is no way to deploy a bot tag that is not written down here.
 
+A tag is a mutable reference. Somebody with write access to the bot's repository can move
+`v0.1.0` to a different commit, and the next cutover would fetch and deploy that commit
+without anything here changing, so this pin says which tag to deploy rather than which
+code. Writing the commit hash beside the tag, and having the cutover check that the tag
+still resolves to it, would make the pin say the second thing as well. That is worth doing
+and is not done yet, so for now the protection is that the bot's tags are pushed only by a
+release and that both repositories are private to the same small group.
+
 ### Settings the bot needs
 
 These live in the same `.env` file beside `docker-compose.yml`. Every one of them is
@@ -248,10 +256,17 @@ once, before the first cutover that includes the bot:
 docker compose exec db mysql -uroot -p"$DB_PASSWORD" <<'SQL'
 CREATE DATABASE IF NOT EXISTS `via_bot` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS 'via_bot'@'%' IDENTIFIED BY 'the value of BOT_DB_PASSWORD';
-GRANT ALL PRIVILEGES ON `via_bot`.* TO 'via_bot'@'%';
+GRANT ALL PRIVILEGES ON `via\_bot`.* TO 'via_bot'@'%';
 FLUSH PRIVILEGES;
 SQL
 ```
+
+The backslash in the `GRANT` line is deliberate. The database name in a `GRANT` is a
+pattern, and an underscore in a pattern matches any one character, so `via_bot` there
+would also grant everything on a database called `viaXbot`. The host is shared with other
+stacks, any of which could create one, so the underscore is escaped and the grant names
+one database. The `CREATE DATABASE` line above it takes a name rather than a pattern, so
+it is written plainly.
 
 That is the one place this procedure asks for SQL by hand, and it is the one thing no
 migration can do for itself: the database and the account have to exist before there is
@@ -304,6 +319,20 @@ database at all, which is how it should have been from the start.
 
 A test in `scripts/tests/composeFile.test.js` holds this arrangement in place, and the
 gate runs it.
+
+## What the published ports are for
+
+Both the website and the bot publish one host port, and both are published on
+`127.0.0.1` rather than on every interface. They exist for the cutover, which runs on the
+host itself and gates on `HEALTH_URL` and `BOT_HEALTH_URL` before it declares a deploy
+finished. The reverse proxy does not use them: it reaches the website by service name on
+the shared `internal` network, which is why the website joins that network at all. A port
+published on every interface would put the website's port on the host's public address,
+and the internal service API is served on that same port, so the bot's service token would
+be the only thing standing between the internet and the endpoints that act for a person.
+On the loopback address, an attacker has to be on the host before the token matters at
+all. If you ever need to reach either port from another machine, use an SSH tunnel rather
+than widening the binding.
 
 ## Reading the deploy log
 

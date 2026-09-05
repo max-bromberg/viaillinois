@@ -6,6 +6,8 @@ import { BUILDING_CODES, lookupBuilding } from '../../lib/buildingCodes.js';
 import { expandQuery } from '../../lib/locationSearch.js';
 import { buildCalendar } from '../../lib/ics.js';
 import { presentEvent } from '../../lib/eventShape.js';
+import { maySeeEvent } from '../../lib/eventVisibility.js';
+import { identifier } from '../../lib/identifiers.js';
 import * as reads from '../../db/queries/internalReads.ts';
 import { getEventById } from '../../db/queries/events.js';
 import { getUserMemberships } from '../../db/queries/rso.js';
@@ -42,11 +44,6 @@ const MAX_FREE_ROOM_DAYS = 7;
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_AND_TIME = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/;
-
-/** A path segment that has to be a positive whole number, or null. */
-function identifier(raw) {
-  return /^\d+$/.test(String(raw ?? '')) ? Number(raw) : null;
-}
 
 /**
  * A campus wall clock date or date and time from the query string. A date on
@@ -93,15 +90,6 @@ async function visibleInternalRsos(req, asked) {
   if (req.user.is_global_admin) return null;
   const memberships = await getUserMemberships(req.user.net_id);
   return memberships.map(membership => membership.rso_id);
-}
-
-/** Whether the acting person, if there is one, may be shown this event. */
-async function maySeeEvent(req, event) {
-  if (!event.is_private) return true;
-  if (!req.user) return false;
-  if (req.user.is_global_admin) return true;
-  const memberships = await getUserMemberships(req.user.net_id);
-  return memberships.some(membership => membership.rso_id === event.rso_id);
 }
 
 /**
@@ -209,6 +197,10 @@ export function createReadingRouter() {
       const event = await readOneEvent(req, res);
       if (!event) return;
       res.type('text/calendar; charset=utf-8');
+      // The bot hands this file to a person. Without a name, a browser shown a
+      // calendar file either renders it as text or saves it under the name of
+      // the endpoint, and neither is a file anybody can open.
+      res.set('Content-Disposition', `attachment; filename="via-event-${event.event_id}.ics"`);
       res.send(buildCalendar([event]));
     } catch (err) { next(err); }
   });

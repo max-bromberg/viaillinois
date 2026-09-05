@@ -1,4 +1,5 @@
 import { pruneOutbox } from '../db/queries/outbox.ts';
+import { pruneLinkSessions } from '../db/queries/discordLinks.ts';
 
 /**
  * Forgetting what the Discord bot has had time to read.
@@ -32,11 +33,45 @@ export async function pruneOldEntries() {
   }
 }
 
-/** Begin pruning on an interval. Called once, from index.js. */
+/**
+ * Remove the link sessions that are done with.
+ *
+ * A link session lasts ten minutes and is finished after that, used or not,
+ * but every row holds a Discord identifier and the time somebody asked to
+ * link. Nothing else removes them, so the table would otherwise grow for ever
+ * as a list of exactly that. This runs beside the outbox prune because it is
+ * the same kind of work on the same schedule, and it is reported and left for
+ * the next run in the same way when it fails.
+ */
+export async function pruneExpiredLinkSessions() {
+  try {
+    await pruneLinkSessions();
+  } catch (err) {
+    console.error('link session prune failed, leaving the rows for the next one:', err.message);
+  }
+}
+
+/**
+ * Everything this service prunes, once. Each part reports its own failure and
+ * returns, so a database that refuses one delete does not stop the other.
+ */
+export async function pruneOnce() {
+  await pruneOldEntries();
+  await pruneExpiredLinkSessions();
+}
+
+/**
+ * Begin pruning on an interval. Called once, from index.js.
+ *
+ * The first prune runs immediately rather than after a full interval. The
+ * interval is an hour by default, and a process that is restarted more often
+ * than that would otherwise never prune anything at all.
+ */
 export function startOutboxPruner({ intervalMs } = {}) {
   const period = intervalMs
     || parseInt(process.env.OUTBOX_PRUNE_INTERVAL_MS || String(PRUNE_INTERVAL_MS), 10);
-  timer = setInterval(() => { pruneOldEntries(); }, period);
+  pruneOnce();
+  timer = setInterval(() => { pruneOnce(); }, period);
   timer.unref?.();
   return timer;
 }

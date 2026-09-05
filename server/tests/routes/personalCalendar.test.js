@@ -110,6 +110,19 @@ describe('POST /internal/v1/calendars/personal', () => {
     expect((await request(app).get(`/calendar/personal/${tokenIn(second.body.address)}.ics`)).status).toBe(200);
   });
 
+  /**
+   * An empty list is a choice, and it is not the same choice as having made
+   * none. Somebody who unticks every organization has asked for a calendar
+   * with nothing in it, and answering that with every event on campus is the
+   * opposite of what they asked for.
+   */
+  it('keeps an empty list as an empty list rather than reading it as every organization', async () => {
+    const res = await acting('post', '/internal/v1/calendars/personal').send({ rso_ids: [] });
+    expect(res.status).toBe(200);
+    expect(calendarsDb.rotateCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({ rsoIds: [] }));
+  });
+
   it('refuses an RSO set that is not a list of whole numbers', async () => {
     for (const rso_ids of [['four'], [0], [1.5], 4, {}]) {
       const res = await acting('post', '/internal/v1/calendars/personal').send({ rso_ids });
@@ -140,6 +153,13 @@ describe('PUT /internal/v1/calendars/personal/rsos', () => {
     expect(res.body).toEqual({ ok: true, rso_ids: [4] });
     expect(calendarsDb.setCalendarRsos).toHaveBeenCalledWith({ netId: 'rgarcia7', rsoIds: [4] });
     expect(calendarsDb.rotateCalendar).not.toHaveBeenCalled();
+  });
+
+  it('empties a calendar when the person unticked every organization', async () => {
+    const res = await acting('put', '/internal/v1/calendars/personal/rsos').send({ rso_ids: [] });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, rso_ids: [] });
+    expect(calendarsDb.setCalendarRsos).toHaveBeenCalledWith({ netId: 'rgarcia7', rsoIds: [] });
   });
 
   it('answers 404 for somebody who has no calendar yet', async () => {
@@ -179,6 +199,15 @@ describe('GET /calendar/personal/{token}.ics', () => {
     calendarsDb.getCalendarByTokenHash.mockResolvedValue({ netId: 'rgarcia7', rsoIds: null });
     await request(app).get(address(GOOD));
     expect(reads.listEvents).toHaveBeenCalledWith(expect.objectContaining({ rsoIds: [] }));
+  });
+
+  it('answers a calendar that follows nothing with a file that holds nothing', async () => {
+    calendarsDb.getCalendarByTokenHash.mockResolvedValue({ netId: 'rgarcia7', rsoIds: [] });
+    const res = await request(app).get(address(GOOD));
+    expect(res.status).toBe(200);
+    expect(reads.listEvents).not.toHaveBeenCalled();
+    expect(res.text).toContain('BEGIN:VCALENDAR');
+    expect(res.text).not.toContain('BEGIN:VEVENT');
   });
 
   it('is not for a shared cache to keep', async () => {

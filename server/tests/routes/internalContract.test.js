@@ -329,7 +329,11 @@ describe('the answer shapes the Discord bot depends on', () => {
   it('one event as a calendar file', async () => {
     const res = await asBot('/internal/v1/events/10/calendar');
     expect(res.status).toBe(200);
-    fixture('eventCalendar', { content_type: res.headers['content-type'], body: res.text });
+    fixture('eventCalendar', {
+      content_type: res.headers['content-type'],
+      content_disposition: res.headers['content-disposition'],
+      body: res.text,
+    });
   });
 
   it('the midterm schedule', async () => {

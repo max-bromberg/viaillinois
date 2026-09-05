@@ -223,7 +223,7 @@ describe('the via-bot service', () => {
 
   it('publishes one port, which is the health endpoint the cutover gates on', () => {
     const ports = keysOf(section(compose, ['services', 'via-bot', 'ports']));
-    expect(ports).toEqual(['"${BOT_HEALTH_PORT:-3002}:3002"']);
+    expect(ports).toEqual(['"127.0.0.1:${BOT_HEALTH_PORT:-3002}:3002"']);
   });
 
   it('reaches the web platform inside the stack and links to it outside', () => {
@@ -268,11 +268,43 @@ describe('the via-bot service', () => {
 });
 
 /**
+ * Both published ports are for the cutover's health checks, which run on the
+ * host itself. The reverse proxy reaches the website by service name on the
+ * shared network instead, so neither port needs an address the rest of the
+ * world can reach. A port published on every interface would put the internal
+ * service API, and the bot's health endpoint, on the host's public address.
+ */
+describe('the published ports', () => {
+  it('binds the website port to the loopback address only', () => {
+    const ports = keysOf(section(compose, ['services', 'via', 'ports']));
+    expect(ports).toEqual(['"127.0.0.1:${VIA_PORT:-3000}:3001"']);
+  });
+
+  it('binds every published port in the stack to the loopback address', () => {
+    const published = compose
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /^- "\d|^- "\$\{|^- "127\./.test(line) && /:\d+"$/.test(line));
+    expect(published.length).toBeGreaterThan(0);
+    for (const line of published) expect(line).toContain('"127.0.0.1:');
+  });
+});
+
+/**
  * The web platform's side of the bot: the token that lets the bot through the
  * internal service API door, and the Discord application the link flow uses.
  */
 describe('the web platform service and the bot', () => {
   const environment = section(compose, ['services', 'via', 'environment']);
+
+  it('is given the settings that decide how long the outbox is kept', () => {
+    // The pruner reads both from the environment. Absent from the compose
+    // file, they can only be changed by editing this repository, and the
+    // defaults compiled into the service are the only values production has.
+    expect(keysOf(environment)).toContain('OUTBOX_RETENTION_DAYS: ${OUTBOX_RETENTION_DAYS:-30}');
+    expect(keysOf(environment))
+      .toContain('OUTBOX_PRUNE_INTERVAL_MS: ${OUTBOX_PRUNE_INTERVAL_MS:-3600000}');
+  });
 
   it('is given the bot service token and the Discord link settings', () => {
     for (const name of [

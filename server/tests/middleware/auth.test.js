@@ -8,7 +8,8 @@ vi.mock('../../db/queries/users.js', () => ({
   getLocalAccount: vi.fn(),
 }));
 
-const { requireAuth, requireGlobalAdmin } = await import('../../middleware/auth.js');
+const { requireAuth, requireGlobalAdmin, attachUser, signToken } = await import('../../middleware/auth.js');
+const jwt = (await import('jsonwebtoken')).default;
 
 function makeReq(user = null) {
   return { user, cookies: {} };
@@ -42,5 +43,31 @@ describe('requireGlobalAdmin', () => {
     const res = makeRes();
     requireGlobalAdmin(makeReq({ net_id: 'a', is_global_admin: false }), res, vi.fn());
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+});
+
+/**
+ * The sign in cookie carries one kind of token. VIA signs others with the same
+ * secret, and none of them is a sign in.
+ */
+describe('attachUser', () => {
+  const secret = process.env.JWT_SECRET || 'dev_secret';
+  const run = token => {
+    const req = { cookies: { via_token: token } };
+    attachUser(req, makeRes(), vi.fn());
+    return req.user;
+  };
+
+  it('attaches the person a sign in token names', () => {
+    expect(run(signToken({ net_id: 'mbrom3', is_global_admin: false })))
+      .toMatchObject({ net_id: 'mbrom3' });
+  });
+
+  it('attaches nobody when the token carries no NetID', () => {
+    expect(run(jwt.sign({ is_global_admin: true }, secret))).toBeUndefined();
+  });
+
+  it('attaches nobody when the token was signed for another purpose', () => {
+    expect(run(jwt.sign({ net_id: 'mbrom3', typ: 'discord_state' }, secret))).toBeUndefined();
   });
 });

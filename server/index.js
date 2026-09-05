@@ -8,10 +8,10 @@ import { pollersEnabled } from './lib/pollerConfig.js';
 import { startDenialRecorder, stopDenialRecorder } from './services/denialRecorder.js';
 import { startOutboxPruner, stopOutboxPruner } from './services/outboxPruner.js';
 import { registerMetadata, isConfigured } from './services/linkedRoles.js';
+import { missingProductionSettings } from './lib/requiredSettings.js';
 
 if (process.env.NODE_ENV === 'production') {
-  const required = ['JWT_SECRET', 'SESSION_SECRET', 'DB_PASSWORD', 'DB_USER'];
-  const missing = required.filter(k => !process.env[k]);
+  const missing = missingProductionSettings(process.env);
   if (missing.length) {
     console.error(`FATAL: missing required env vars in production: ${missing.join(', ')}`);
     process.exit(1);

@@ -290,6 +290,41 @@ function locationLine(event) {
 }
 
 /**
+ * The campus zone, described in the file that refers to it.
+ *
+ * Every time in this file is written as a local time with TZID naming this
+ * zone, and TZID names a zone rather than describing one. A strict reader
+ * wants the description in the file: some refuse a file without it, and others
+ * fall back to their own idea of the zone, which puts an event an hour or
+ * several out for whoever opens it.
+ *
+ * These are the rules in force now, which is what RFC 5545 asks for: central
+ * time moves forward on the second Sunday in March and back on the first
+ * Sunday in November. The dates the rules start from are the ones those rules
+ * have applied since. If Congress changes them, this changes with them.
+ */
+const VTIMEZONE = [
+  'BEGIN:VTIMEZONE',
+  `TZID:${TIME_ZONE}`,
+  'X-LIC-LOCATION:America/Chicago',
+  'BEGIN:DAYLIGHT',
+  'TZOFFSETFROM:-0600',
+  'TZOFFSETTO:-0500',
+  'TZNAME:CDT',
+  'DTSTART:20070311T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
+  'END:DAYLIGHT',
+  'BEGIN:STANDARD',
+  'TZOFFSETFROM:-0500',
+  'TZOFFSETTO:-0600',
+  'TZNAME:CST',
+  'DTSTART:20071104T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
+  'END:STANDARD',
+  'END:VTIMEZONE',
+];
+
+/**
  * Write events as an iCalendar file.
  *
  * @param {Array<object>} events rows carrying event_id, title, description,
@@ -300,7 +335,12 @@ function locationLine(event) {
  */
 export function buildCalendar(events, { stamp = null, productId = '-//VIA//Virtually Integrated Agenda//EN' } = {}) {
   const written = asUtcStamp(stamp ?? campusNow()) ?? asUtcStamp(campusNow());
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:${productId}`, 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:${productId}`, 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    // Before the first event, because a reader meets the TZID references in
+    // the events and has to have been told what the zone is by then.
+    ...VTIMEZONE,
+  ];
 
   for (const event of events) {
     const start = asLocalStamp(event.start_time);

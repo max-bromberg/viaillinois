@@ -70,6 +70,22 @@ describe('naming the database to work on', () => {
     expect(databaseArgument(['--dir', '/backups'])).toBeNull();
   });
 
+  it('refuses a name that is not a database name', () => {
+    // The name reaches restore.js, which puts it into DROP DATABASE and CREATE
+    // DATABASE, so anything a database name cannot contain is refused here
+    // rather than quoted there.
+    expect(() => databaseArgument(['--database', 'via; DROP DATABASE via'])).toThrow(/database name/i);
+    expect(() => databaseArgument(['--database', 'via`bot'])).toThrow(/database name/i);
+    expect(() => databaseArgument(['--database', 'via bot'])).toThrow(/database name/i);
+    expect(() => databaseArgument(['--database', 'a'.repeat(65)])).toThrow(/database name/i);
+  });
+
+  it('accepts the names a database may actually have', () => {
+    expect(databaseArgument(['--database', 'via_bot'])).toBe('via_bot');
+    expect(databaseArgument(['--database', 'via$2'])).toBe('via$2');
+    expect(databaseArgument(['--database', 'a'.repeat(64)])).toBe('a'.repeat(64));
+  });
+
   it('refuses a flag with no name after it, rather than backing up the default', () => {
     // Silently falling back to DB_NAME here would take a backup of the web
     // platform, call it the bot's, and satisfy the cutover.

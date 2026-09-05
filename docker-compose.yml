@@ -65,7 +65,13 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "3000:3001"
+      # Published on the loopback address only. The cutover's health check runs
+      # on the host and reaches it here, and the reverse proxy reaches the
+      # website by service name on the shared network rather than through this
+      # port. Published on every interface, this port would put the internal
+      # service API on the host's public address, where only the service token
+      # stood between it and the world.
+      - "127.0.0.1:${VIA_PORT:-3000}:3001"
     networks:
       - default
       # On the stack's own network the website also answers to a name that
@@ -107,6 +113,12 @@ services:
       ASTRA_POLL_INTERVAL_MS: ${ASTRA_POLL_INTERVAL_MS:-14400000}
       COURSES_POLL_INTERVAL_MS: ${COURSES_POLL_INTERVAL_MS:-86400000}
       COURSES_REQUEST_DELAY_MS: ${COURSES_REQUEST_DELAY_MS:-200}
+      # How long the outbox keeps what it has told the bot, and how often it
+      # is pruned. Thirty days is the window the bot's own reconciliation is
+      # built around, and both are here so that they can be changed on the host
+      # rather than only by editing this repository.
+      OUTBOX_RETENTION_DAYS: ${OUTBOX_RETENTION_DAYS:-30}
+      OUTBOX_PRUNE_INTERVAL_MS: ${OUTBOX_PRUNE_INTERVAL_MS:-3600000}
       # The token the Discord bot presents at the internal service API. Both
       # containers read the same value, and with it unset that API answers 404
       # to everything.
@@ -149,8 +161,10 @@ services:
         condition: service_started
     ports:
       # The health endpoint the cutover gates on, and nothing else. The bot
-      # serves no public traffic, so the reverse proxy has no route to it.
-      - "${BOT_HEALTH_PORT:-3002}:3002"
+      # serves no public traffic, so the reverse proxy has no route to it, and
+      # the port is published on the loopback address only, where the cutover
+      # runs.
+      - "127.0.0.1:${BOT_HEALTH_PORT:-3002}:3002"
     networks:
       # The private network reaches the database, and the shared one reaches
       # the website's internal service API by service name.

@@ -308,6 +308,18 @@ describe('GET /internal/v1/events/:id', () => {
 });
 
 describe('GET /internal/v1/events/:id/calendar', () => {
+  /**
+   * The bot hands this file to a person, and a browser that is shown a
+   * calendar file with no name for it either renders it as text or saves it
+   * under the name of the endpoint. Naming it is what makes it arrive as a
+   * file somebody can open.
+   */
+  it('offers the file under a name of its own', async () => {
+    const res = await asBot('/internal/v1/events/10/calendar');
+    expect(res.headers['content-disposition'])
+      .toBe('attachment; filename="via-event-10.ics"');
+  });
+
   it('answers the event as a calendar file', async () => {
     const res = await asBot('/internal/v1/events/10/calendar');
     expect(res.status).toBe(200);

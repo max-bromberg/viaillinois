@@ -3,9 +3,19 @@ import { adminConfigFromEnv, databaseArgument } from './config.js';
 
 const args = process.argv.slice(2);
 const database = databaseArgument(args);
-// The dump path is the one argument that is not a flag or the value of one.
+
+/**
+ * The dump path is the one argument that is neither a flag nor the value of
+ * one. Written as a filter over the indices rather than as a search for the
+ * first argument that does not begin with two dashes, because a dump path
+ * could in principle begin with anything, and written against a flag index of
+ * null rather than the minus one that indexOf answers with, because minus one
+ * plus one is zero and the path is usually argument zero.
+ */
 const flagIndex = args.indexOf('--database');
-const path = args.filter((_, i) => i !== flagIndex && i !== flagIndex + 1)[0];
+const path = args
+  .filter((_value, index) => flagIndex === -1 || (index !== flagIndex && index !== flagIndex + 1))
+  .find(value => !value.startsWith('--'));
 
 if (!path) {
   console.error('usage: restoreCli.js <dump-path> [--database <name>]');

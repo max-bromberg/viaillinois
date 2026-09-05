@@ -18,6 +18,14 @@ import { sendApiError, ERROR_CODES } from '../lib/apiError.js';
  *   counted in the denial log, so a probe against this prefix shows up on the
  *   admin page under its own reason.
  *
+ * The token, and not the network, is the control here. The web platform sits on
+ * a container network shared with every other stack on the host, so anything on
+ * that network can reach this prefix, and the two 404 refusals above narrow who
+ * can try rather than proving who is asking. Only the service token says that
+ * the caller is the bot, so it is a long random secret, it is never logged, and
+ * it is rotated by changing BOT_SERVICE_TOKEN in the stack's environment and
+ * deploying both containers together.
+ *
  * The comparison hashes both sides first, so a token of the wrong length is
  * compared in the same time as a token of the right length, and the equality
  * itself is constant time.

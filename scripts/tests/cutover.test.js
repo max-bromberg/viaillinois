@@ -76,15 +76,13 @@ async function scratchRepo(dir, files, tags) {
 
 async function scratchStack({ pin = 'v0.1.0\n' } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'via-cutover-'));
-  await scratchRepo(
-    join(dir, 'platform'),
-    {
-      'scripts/cutover.sh': readFileSync(join(REPO, 'scripts', 'cutover.sh'), 'utf8'),
-      'deploy/bot-release': pin,
-      'docker-compose.yml': 'services: {}\n',
-    },
-    ['v0.9.0', 'v1.0.0'],
-  );
+  const files = {
+    'scripts/cutover.sh': readFileSync(join(REPO, 'scripts', 'cutover.sh'), 'utf8'),
+    'docker-compose.yml': 'services: {}\n',
+  };
+  // A pin of null is a release that carries no pin file at all.
+  if (pin !== null) files['deploy/bot-release'] = pin;
+  await scratchRepo(join(dir, 'platform'), files, ['v0.9.0', 'v1.0.0']);
   await scratchRepo(join(dir, 'bot'), { 'README.md': 'bot\n' }, ['v0.0.9', 'v0.1.0']);
   await mkdir(join(dir, 'bin'), { recursive: true });
   await writeFile(join(dir, 'bin', 'docker'), DOCKER_STUB, { mode: 0o755 });
@@ -167,6 +165,40 @@ describe('cutover.sh with the bot', () => {
       expect(`${result.stdout}${result.stderr}`).toMatch(/v9\.9\.9/);
       // Nothing was built, so nothing has to be undone.
       expect(other && result.calls.filter((line) => line.includes('build'))).toEqual([]);
+      expect(describedTag(join(other, 'platform'))).toBe('v0.9.0');
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  /**
+   * The pin is read after the release tag is checked out, so a pin that cannot
+   * be used leaves the tree on a tag that is not being deployed. Nothing has
+   * been built and no container has been touched at that point, so the tree
+   * goes back where it was found, exactly as it does when the pin names a tag
+   * the bot checkout does not have.
+   */
+  it('puts the tree back when there is no pin file at all', async () => {
+    const other = await scratchStack({ pin: null });
+    try {
+      const result = runCutover(other);
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}${result.stderr}`).toMatch(/no bot tag pinned/);
+      expect(describedTag(join(other, 'platform'))).toBe('v0.9.0');
+      expect(result.calls).toEqual([]);
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('puts the tree back when the pin does not name a version tag', async () => {
+    const other = await scratchStack({ pin: 'the-latest-one\n' });
+    try {
+      const result = runCutover(other);
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}${result.stderr}`).toMatch(/does not name a version tag/);
+      expect(describedTag(join(other, 'platform'))).toBe('v0.9.0');
+      expect(result.calls).toEqual([]);
     } finally {
       await rm(other, { recursive: true, force: true });
     }
@@ -248,6 +280,24 @@ describe('cutover.sh with the bot', () => {
     expect(result.stdout).toMatch(/migration failed/);
     expect(result.calls.filter((line) => line.includes('restoreCli.js'))).toHaveLength(2);
     expect(describedTag(join(dir, 'bot'))).toBe('v0.0.9');
+  }, 60_000);
+
+  /**
+   * The rollback's job is the website. A previous compose file with no bot
+   * service, which is every compose file before this release, makes one
+   * command naming both services fail as a whole, and the website that the
+   * rollback exists to bring back never starts.
+   */
+  it('starts the website in the rollback even when starting the bot fails', () => {
+    const result = runCutover(dir, {
+      CURL_UNHEALTHY: '3002',
+      DOCKER_FAIL_MATCH: 'up -d --build via-bot',
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.calls).toContain('docker compose up -d --build via');
+    expect(result.calls).toContain('docker compose up -d --build via-bot');
+    expect(result.stdout).toMatch(/could not restart the previous bot image/);
+    expect(result.stdout).toMatch(/rollback complete/);
   }, 60_000);
 
   it('logs the version of both services when it finishes', async () => {

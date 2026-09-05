@@ -110,4 +110,29 @@ describe('EventForm location note', () => {
     const { getByLabelText } = setUp();
     expect(getByLabelText(/Location note/).getAttribute('maxlength')).toBe('500');
   });
+
+  it('sends the note back unchanged when the form was filled from a listing row and nothing was touched', async () => {
+    // This is how the dashboard edits an event: the row out of the listing is
+    // handed to the form as it stands, and the form posts every column back.
+    // Anything the listing does not carry is therefore cleared by a save that
+    // changed nothing else, which is what happened to the note.
+    const listingRow = {
+      event_id: 10, rso_id: 1, title: 'General meeting', description: 'Bring a laptop.',
+      start_time: '2026-09-01 18:00:00', end_time: '2026-09-01 19:30:00',
+      is_private: 0, cancelled_at: null, series_id: null, detached: 0,
+      location_id: 5, location_text: null, location_note: 'Use the north entrance.',
+      rso_name: 'IEEE', building: 'Electrical & Computer Eng Bldg', room_number: '1002',
+      tags: '',
+    };
+    const submitted = vi.fn();
+    const { getByRole } = render(EventForm, {
+      props: { rsoId: 1, semester: SEMESTER, initial: listingRow },
+      events: { submit: event => submitted(event.detail) },
+    });
+
+    await fireEvent.click(getByRole('button', { name: /save|update|create/i }));
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ location_note: 'Use the north entrance.' }),
+    );
+  });
 });

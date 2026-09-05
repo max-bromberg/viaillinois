@@ -41,6 +41,19 @@ describe.each([
   });
 });
 
+describe.each([
+  ['getEventById', () => getEventById(1)],
+  ['getEventsByRso', () => getEventsByRso(1)],
+])('%s, on the location note', (_name, run) => {
+  it('brings the note along', async () => {
+    // The dashboard fills its edit form from the listing row and posts every
+    // column back. A listing that leaves the note out therefore posts an empty
+    // note, and saving an untouched event clears the note it was showing.
+    await run();
+    expect(lastStatement()).toContain('e.location_note');
+  });
+});
+
 describe('getEventById', () => {
   it('says whether this occurrence was edited on its own', async () => {
     await getEventById(1);

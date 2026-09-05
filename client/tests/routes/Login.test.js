@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { rememberAfterSignIn } from '../../src/lib/afterSignIn.js';
 
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock('../../src/api/base.js', () => ({ apiFetch }));
@@ -40,7 +41,7 @@ async function signInWithAPassword() {
  */
 describe('the login page', () => {
   it('goes on to the address the person was headed for', async () => {
-    window.localStorage.setItem('via_after_sign_in', '/link/discord/abc');
+    rememberAfterSignIn('/link/discord/abc');
     render(Login);
     await signInWithAPassword();
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/link/discord/abc'));

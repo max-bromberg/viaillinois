@@ -53,10 +53,15 @@ describe('matchRoute()', () => {
     });
   });
 
-  it('matches the page shown once the link is made', () => {
+  /**
+   * The page shown once the link is made says the same thing to everybody and
+   * asks the server nothing, so it is handed no session. Capturing one anyway
+   * put a credential from the address into a store for no reason.
+   */
+  it('matches the page shown once the link is made, and captures nothing from it', () => {
     expect(matchRoute('/link/discord/hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT/done')).toEqual({
       name: 'link-discord-done',
-      params: { session: 'hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT' },
+      params: {},
     });
   });
 

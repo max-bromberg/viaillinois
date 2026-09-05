@@ -81,4 +81,39 @@ describe('the backup and restore scripts on a named database', () => {
     await after.end();
     expect(Number(rows[0].n)).toBe(2);
   });
+
+  it('restores from the bare path form, which is how the rollback calls it', async () => {
+    const seed = await mysql.createConnection({ ...testDbConfig, database: undefined });
+    await seed.query(`DELETE FROM ${OTHER}.Deliveries`);
+    await seed.query(`INSERT INTO ${OTHER}.Deliveries VALUES (1), (2)`);
+    await seed.end();
+
+    // scripts/cutover.sh restores the web platform with the path alone and the
+    // bot with the path and --database. A script that reads the path only when
+    // the flag is there restores nothing on the rollback that matters most,
+    // and the website comes back on a database the new code has already
+    // migrated.
+    const { stdout } = await run(
+      'node',
+      ['db/backup/backupCli.js', '--dir', dir, '--retention', '10', '--database', OTHER],
+      { cwd: SERVER, env },
+    );
+    const path = stdout.trim();
+
+    const conn = await mysql.createConnection({ ...testDbConfig, database: undefined });
+    await conn.query(`DELETE FROM ${OTHER}.Deliveries`);
+    await conn.end();
+
+    await run('node', ['db/backup/restoreCli.js', path], {
+      cwd: SERVER,
+      // The environment names the database when the command line does not,
+      // which is the arrangement the rollback relies on.
+      env: { ...env, DB_NAME: OTHER },
+    });
+
+    const after = await mysql.createConnection({ ...testDbConfig, database: undefined });
+    const [rows] = await after.query(`SELECT COUNT(*) AS n FROM ${OTHER}.Deliveries`);
+    await after.end();
+    expect(Number(rows[0].n)).toBe(2);
+  });
 });
