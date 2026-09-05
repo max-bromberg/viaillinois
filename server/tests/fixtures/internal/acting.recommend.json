@@ -37,6 +37,38 @@
         ],
         "until": "2026-12-09"
       }
+    },
+    {
+      "start": "2026-09-17T19:00:00-05:00",
+      "end": "2026-09-17T20:00:00-05:00",
+      "location": {
+        "location_id": 6,
+        "building": "Campus Instructional Facility",
+        "room_number": "3025",
+        "max_capacity": 60
+      },
+      "score": 84,
+      "insights": [
+        {
+          "type": "positive",
+          "text": "This room is free for 13 of 13 weeks"
+        }
+      ],
+      "recurrence": {
+        "interval_weeks": 1,
+        "days_of_week": [
+          "Thu"
+        ],
+        "occurrences": [
+          "2026-09-17",
+          "2026-09-24",
+          "2026-10-01"
+        ],
+        "weeks_total": 13,
+        "weeks_clear": 13,
+        "conflicts": [],
+        "until": "2026-12-09"
+      }
     }
   ],
   "allOptions": [
@@ -75,6 +107,38 @@
         "conflicts": [
           "2026-10-21"
         ],
+        "until": "2026-12-09"
+      }
+    },
+    {
+      "start": "2026-09-17T19:00:00-05:00",
+      "end": "2026-09-17T20:00:00-05:00",
+      "location": {
+        "location_id": 6,
+        "building": "Campus Instructional Facility",
+        "room_number": "3025",
+        "max_capacity": 60
+      },
+      "score": 84,
+      "insights": [
+        {
+          "type": "positive",
+          "text": "This room is free for 13 of 13 weeks"
+        }
+      ],
+      "recurrence": {
+        "interval_weeks": 1,
+        "days_of_week": [
+          "Thu"
+        ],
+        "occurrences": [
+          "2026-09-17",
+          "2026-09-24",
+          "2026-10-01"
+        ],
+        "weeks_total": 13,
+        "weeks_clear": 13,
+        "conflicts": [],
         "until": "2026-12-09"
       }
     }

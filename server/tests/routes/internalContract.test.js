@@ -266,7 +266,15 @@ beforeEach(() => {
       weeks_total: 13, weeks_clear: 12, conflicts: ['2026-10-21'], until: '2026-12-09',
     },
   };
-  recommend.mockResolvedValue({ curatedPicks: [pick], allOptions: [pick] });
+  const second = {
+    ...pick,
+    start: '2026-09-17 19:00:00', end: '2026-09-17 20:00:00',
+    location: { location_id: 6, building: 'Campus Instructional Facility', room_number: '3025', max_capacity: 60 },
+    score: 84,
+    insights: [{ type: 'positive', text: 'This room is free for 13 of 13 weeks' }],
+    recurrence: { ...pick.recurrence, days_of_week: ['Thu'], occurrences: ['2026-09-17', '2026-09-24', '2026-10-01'], weeks_clear: 13, conflicts: [] },
+  };
+  recommend.mockResolvedValue({ curatedPicks: [pick, second], allOptions: [pick, second] });
   calendarsDb.rotateCalendar.mockResolvedValue({ rotatedAt: '2026-09-05 12:00:00' });
   calendarsDb.setCalendarRsos.mockResolvedValue(1);
   calendarsDb.getCalendarByTokenHash.mockResolvedValue({ netId: 'alice', rsoIds: [1] });
