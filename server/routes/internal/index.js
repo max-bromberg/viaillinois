@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createProductionInternalGuard } from '../../middleware/internalGuard.js';
 import { createActingUser } from '../../middleware/actingUser.js';
 import { sendApiError, ERROR_CODES } from '../../lib/apiError.js';
+import { createReadingRouter } from './reading.js';
 
 /**
  * The internal service API, served to the Discord bot on the private network.
@@ -26,6 +27,7 @@ export function createInternalRouter({ version, onDenied }) {
   router.use(createActingUser());
 
   // Endpoints are mounted here, ahead of the fallthrough, as they are built.
+  router.use(createReadingRouter());
 
   router.use((_req, res) => {
     sendApiError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.');

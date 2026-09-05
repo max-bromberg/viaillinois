@@ -204,6 +204,7 @@ export async function getEventById(eventId) {
       e.cancelled_at,
       e.location_note,
       e.rso_id,
+      e.location_id,
       e.series_id,
       e.detached,
       r.name AS rso_name,
