@@ -1,10 +1,11 @@
 <script>
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { currentPath, matchRoute } from './lib/router.js';
+  import { currentPath, matchRoute, navigate } from './lib/router.js';
   import { currentUser, authResolved } from './stores/auth.js';
   import { themeMode } from './stores/theme.js';
   import { getMe } from './api/users.js';
+  import { takeAfterSignIn } from './lib/afterSignIn.js';
   import NavBar      from './lib/NavBar.svelte';
   // The feed is what most visits are for, so it travels with the first
   // download. Every other page is its own file, fetched when somebody opens it,
@@ -30,7 +31,7 @@
    * whole screen, and the feed's own request, behind a round trip the reader
    * has no interest in.
    */
-  const NEEDS_ACCOUNT = ['/dashboard', '/admin', '/scheduler', '/poster'];
+  const NEEDS_ACCOUNT = ['/dashboard', '/admin', '/scheduler', '/poster', '/account'];
   $: waitingForAccount = authLoading && NEEDS_ACCOUNT.includes($currentPath);
 
   function applyTheme(mode, prefersDark) {
@@ -59,6 +60,11 @@
     try {
       const { user } = await getMe();
       currentUser.set(user);
+      // Somebody who followed a link address while signed out was sent to sign
+      // in, and signing in with a NetID ends up back at the front page, so
+      // they are put back on the address they were headed for.
+      const headedFor = takeAfterSignIn();
+      if (headedFor) navigate(headedFor);
     } catch {
       // Not logged in, which is fine for public routes
     } finally {
@@ -120,6 +126,15 @@
           load={() => import('./routes/EventDetail.svelte')}
           props={{ id: parseInt(dynamicRoute.params.id) }}
         />
+      {:else if $currentPath === '/account'}
+        <LazyRoute load={() => import('./routes/Account.svelte')} />
+      {:else if dynamicRoute?.name === 'link-discord'}
+        <LazyRoute
+          load={() => import('./routes/LinkDiscord.svelte')}
+          props={{ session: dynamicRoute.params.session }}
+        />
+      {:else if dynamicRoute?.name === 'link-discord-done'}
+        <LazyRoute load={() => import('./routes/LinkDiscordDone.svelte')} />
       {:else if $currentPath === '/terms'}
         <LazyRoute load={() => import('./routes/Terms.svelte')} />
       {:else if $currentPath === '/privacy'}

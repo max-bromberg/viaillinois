@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createProductionInternalGuard } from '../../middleware/internalGuard.js';
 import { createActingUser } from '../../middleware/actingUser.js';
 import { sendApiError, ERROR_CODES } from '../../lib/apiError.js';
+import { createLinksRouter } from './links.js';
 import { createReadingRouter } from './reading.js';
 import { createOutboxRouter } from './outbox.js';
 
@@ -28,6 +29,7 @@ export function createInternalRouter({ version, onDenied }) {
   router.use(createActingUser());
 
   // Endpoints are mounted here, ahead of the fallthrough, as they are built.
+  router.use(createLinksRouter());
   router.use(createReadingRouter());
   router.use(createOutboxRouter());
 

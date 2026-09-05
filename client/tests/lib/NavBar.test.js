@@ -40,3 +40,18 @@ describe('NavBar, before it knows who is looking', () => {
     expect(queryByRole('button', { name: 'Sign in' })).toBeNull();
   });
 });
+
+/**
+ * The account area used to be the reader's NetID and nothing else. It is now
+ * the way to the account page, which is where the Discord link is seen and
+ * undone.
+ */
+describe('NavBar, the account area', () => {
+  it('makes the name of the person signed in the way to their account page', async () => {
+    const { findByRole } = render(NavBar);
+    currentUser.set({ net_id: 'jdoe2', memberships: [] });
+    authResolved.set(true);
+    const link = await findByRole('link', { name: 'jdoe2' });
+    expect(link.getAttribute('href')).toBe('/account');
+  });
+});

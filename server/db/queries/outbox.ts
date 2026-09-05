@@ -412,3 +412,35 @@ export async function recordMembershipChanged(
     rsoId, payload: { net_id: netId, rso_id: rsoId, role: role ?? null },
   });
 }
+
+/**
+ * A Discord account was linked to a NetID.
+ *
+ * The bot learns who somebody is from this and stops asking them to link. The
+ * entry belongs to no RSO, because a link is between a person and the platform
+ * rather than between a person and one organization.
+ */
+export async function recordLinkCompleted(
+  { discordUserId, netId }: { discordUserId: string, netId: string },
+) {
+  return writeOutbox({
+    kind: 'link.completed', subjectType: 'link', subjectId: discordUserId,
+    payload: { discord_user_id: discordUserId, net_id: netId },
+  });
+}
+
+/**
+ * A link was removed, from Discord or from the account page.
+ *
+ * The bot forgets everything it holds for that account when it reads this,
+ * which is why the entry names both sides: the account it holds things under
+ * and the person whose data those things were.
+ */
+export async function recordLinkRevoked(
+  { discordUserId, netId }: { discordUserId: string, netId: string },
+) {
+  return writeOutbox({
+    kind: 'link.revoked', subjectType: 'link', subjectId: discordUserId,
+    payload: { discord_user_id: discordUserId, net_id: netId },
+  });
+}

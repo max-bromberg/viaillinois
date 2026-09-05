@@ -3,6 +3,7 @@
   import { currentUser } from '../stores/auth.js';
   import { apiFetch } from '../api/base.js';
   import { getMe } from '../api/users.js';
+  import { takeAfterSignIn } from '../lib/afterSignIn.js';
   import { showToast } from '../stores/ui.js';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
@@ -19,7 +20,9 @@
       await apiFetch('/auth/login', { method: 'POST', body: { netId, password } });
       const { user } = await getMe();
       currentUser.set(user);
-      navigate('/');
+      // Somebody sent here from a page that needed an account, such as the
+      // Discord link address, goes back to it rather than to the feed.
+      navigate(takeAfterSignIn() ?? '/');
     } catch (e) {
       showToast(e.message, 'error');
     } finally {

@@ -533,4 +533,28 @@ describe('the outbox writers', () => {
       expect(await entries()).toEqual([]);
     });
   });
+  /**
+   * A link is between a person and the platform rather than between a person
+   * and one organization, so an entry about one carries no RSO and the bot
+   * routes it to the person's own direct messages.
+   */
+  describe('linking and unlinking', () => {
+    it('writes link.completed naming both sides', async () => {
+      await outbox.recordLinkCompleted({ discordUserId: '204255221017214977', netId: 'alice' });
+      const [entry] = await entries();
+      expect(entry.kind).toBe('link.completed');
+      expect(entry.subject_type).toBe('link');
+      expect(entry.subject_id).toBe('204255221017214977');
+      expect(entry.rso_id).toBeNull();
+      expect(entry.payload).toEqual({ discord_user_id: '204255221017214977', net_id: 'alice' });
+    });
+
+    it('writes link.revoked naming both sides', async () => {
+      await outbox.recordLinkRevoked({ discordUserId: '204255221017214977', netId: 'alice' });
+      const [entry] = await entries();
+      expect(entry.kind).toBe('link.revoked');
+      expect(entry.subject_id).toBe('204255221017214977');
+      expect(entry.payload).toEqual({ discord_user_id: '204255221017214977', net_id: 'alice' });
+    });
+  });
 });

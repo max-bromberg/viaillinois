@@ -18,14 +18,12 @@ vi.mock('../src/api/semester.js', () => ({ getCurrentSemester: vi.fn().mockResol
 vi.mock('../src/lib/CircuitBackground.svelte', async () => ({
   default: (await import('./stubs/Empty.svelte')).default,
 }));
+const navigate = vi.hoisted(() => vi.fn());
+const matchRoute = vi.hoisted(() => vi.fn().mockReturnValue(null));
 vi.mock('../src/lib/router.js', async () => {
   const { writable } = await import('svelte/store');
   path.store = writable('/');
-  return {
-    currentPath: path.store,
-    navigate: vi.fn(),
-    matchRoute: vi.fn().mockReturnValue(null),
-  };
+  return { currentPath: path.store, navigate, matchRoute };
 });
 
 const App = (await import('../src/App.svelte')).default;
@@ -39,6 +37,8 @@ const EVENT = {
 beforeEach(() => {
   vi.clearAllMocks();
   path.store.set('/');
+  matchRoute.mockReturnValue(null);
+  window.localStorage.clear();
   getEvents.mockResolvedValue({ events: [EVENT], total: 1 });
 });
 
@@ -74,5 +74,60 @@ describe('App, before it knows who is looking', () => {
     const { container, findByText } = render(App);
     expect(await findByText('jdoe2')).toBeTruthy();
     await waitFor(() => expect(container.querySelector('.animate-pulse')).toBeNull());
+  });
+});
+
+/**
+ * Signing in through the university's identity provider is a round trip that
+ * ends at the front page, so somebody who followed the Discord link address
+ * while signed out has to be put back on it once they are known.
+ */
+describe('App, once it knows who is looking', () => {
+  it('sends the person on to the address they were headed for', async () => {
+    window.localStorage.setItem('via_after_sign_in', '/link/discord/abc');
+    getMe.mockResolvedValue({ user: { net_id: 'jdoe2', memberships: [] } });
+    render(App);
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/link/discord/abc'));
+    expect(window.localStorage.getItem('via_after_sign_in')).toBeNull();
+  });
+
+  it('goes nowhere when nobody was headed anywhere', async () => {
+    getMe.mockResolvedValue({ user: { net_id: 'jdoe2', memberships: [] } });
+    render(App);
+    await waitFor(() => expect(getEvents).toHaveBeenCalled());
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('goes nowhere when nobody signed in', async () => {
+    window.localStorage.setItem('via_after_sign_in', '/link/discord/abc');
+    getMe.mockRejectedValue(new Error('Authentication required'));
+    render(App);
+    await waitFor(() => expect(getEvents).toHaveBeenCalled());
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('draws the account page', async () => {
+    getMe.mockResolvedValue({
+      user: { net_id: 'jdoe2', memberships: [], discord: { linked: false, linked_at: null } },
+    });
+    path.store.set('/account');
+    const { findByRole } = render(App);
+    expect(await findByRole('heading', { name: 'Your account' })).toBeTruthy();
+  });
+
+  it('draws the Discord link page for a link address', async () => {
+    getMe.mockResolvedValue({ user: { net_id: 'jdoe2', memberships: [] } });
+    matchRoute.mockReturnValue({ name: 'link-discord', params: { session: 'abc' } });
+    path.store.set('/link/discord/abc');
+    const { findByRole } = render(App);
+    expect(await findByRole('heading', { name: 'Link your Discord account' })).toBeTruthy();
+  });
+
+  it('draws the page that confirms a link was made', async () => {
+    getMe.mockResolvedValue({ user: { net_id: 'jdoe2', memberships: [] } });
+    matchRoute.mockReturnValue({ name: 'link-discord-done', params: { session: 'abc' } });
+    path.store.set('/link/discord/abc/done');
+    const { findByRole } = render(App);
+    expect(await findByRole('heading', { name: 'Your Discord account is linked' })).toBeTruthy();
   });
 });

@@ -45,6 +45,24 @@ describe('matchRoute()', () => {
   it('does not match non-numeric event ids', () => {
     expect(matchRoute('/events/abc')).toBeNull();
   });
+
+  it('matches the Discord link page and carries the session', () => {
+    expect(matchRoute('/link/discord/hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT')).toEqual({
+      name: 'link-discord',
+      params: { session: 'hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT' },
+    });
+  });
+
+  it('matches the page shown once the link is made', () => {
+    expect(matchRoute('/link/discord/hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT/done')).toEqual({
+      name: 'link-discord-done',
+      params: { session: 'hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT' },
+    });
+  });
+
+  it('does not match a session identifier of the wrong shape', () => {
+    expect(matchRoute('/link/discord/not-a-session')).toBeNull();
+  });
 });
 
 describe('navigate() routeParams updates', () => {

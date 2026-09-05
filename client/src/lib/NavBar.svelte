@@ -94,7 +94,12 @@
       {#if !$authResolved}
         <span class="w-20"></span>
       {:else if $currentUser}
-        <span class="text-sm text-muted-foreground">{$currentUser.net_id}</span>
+        <a
+          href="/account"
+          on:click|preventDefault={() => go('/account')}
+          class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          title="Your account"
+        >{$currentUser.net_id}</a>
         <button on:click={logout} class="px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors">Sign out</button>
       {:else}
         <button on:click={() => go('/login')} class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">Sign in</button>
@@ -183,7 +188,11 @@
         <div class="px-2 py-1">
           {#if $currentUser}
             <div class="flex items-center justify-between">
-              <span class="text-sm text-muted-foreground">{$currentUser.net_id}</span>
+              <a
+                href="/account"
+                on:click|preventDefault={() => go('/account')}
+                class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >{$currentUser.net_id}</a>
               <button on:click={logout} class="px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors">Sign out</button>
             </div>
           {:else}

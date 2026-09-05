@@ -3,6 +3,11 @@ import { writable } from 'svelte/store';
 const ROUTES = [
   { name: 'event-detail',  pattern: /^\/events\/(\d+)$/,    paramNames: ['id'] },
   { name: 'update-detail', pattern: /^\/updates\/([^/]+)$/, paramNames: ['slug'] },
+  // A link session identifier is thirty two random bytes written URL safe,
+  // which is forty three characters, and the shape is checked here so that a
+  // stray address never becomes a request.
+  { name: 'link-discord',      pattern: /^\/link\/discord\/([A-Za-z0-9_-]{43})$/,      paramNames: ['session'] },
+  { name: 'link-discord-done', pattern: /^\/link\/discord\/([A-Za-z0-9_-]{43})\/done$/, paramNames: ['session'] },
 ];
 
 export function matchRoute(path) {

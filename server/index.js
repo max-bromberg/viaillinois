@@ -7,6 +7,7 @@ import astraPoller from './services/astraPoller.js';
 import { pollersEnabled } from './lib/pollerConfig.js';
 import { startDenialRecorder, stopDenialRecorder } from './services/denialRecorder.js';
 import { startOutboxPruner, stopOutboxPruner } from './services/outboxPruner.js';
+import { registerMetadata, isConfigured } from './services/linkedRoles.js';
 
 if (process.env.NODE_ENV === 'production') {
   const required = ['JWT_SECRET', 'SESSION_SECRET', 'DB_PASSWORD', 'DB_USER'];
@@ -30,6 +31,16 @@ const server = app.listen(PORT, () => {
   }
   startDenialRecorder();
   startOutboxPruner();
+  // Discord keeps one set of linked role fields per application, so putting
+  // ours at startup is how they are kept current and costs nothing when they
+  // have not changed. A deployment with no Discord application skips it.
+  if (isConfigured()) {
+    registerMetadata().then(({ registered, reason }) => {
+      console.log(registered
+        ? 'the linked role fields are registered with Discord'
+        : `the linked role fields could not be registered with Discord: ${reason}`);
+    });
+  }
 });
 
 // Node's defaults let a connection hold a socket open for a long time saying

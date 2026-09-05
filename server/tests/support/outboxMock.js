@@ -36,5 +36,7 @@ export function outboxMock() {
     recordMidtermChanged: vi.fn(),
     recordMidtermDeleted: vi.fn(),
     recordMembershipChanged: vi.fn(),
+    recordLinkCompleted: vi.fn(),
+    recordLinkRevoked: vi.fn(),
   };
 }

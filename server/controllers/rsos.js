@@ -6,9 +6,27 @@ import { parseRoster } from '../lib/netId.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 import { recordDenial } from '../services/denialRecorder.js';
 import * as outbox from '../db/queries/outbox.ts';
+import { pushFacts } from '../services/linkedRoles.js';
 
 /** Largest roster accepted in one request. */
 const MAX_ROSTER = 200;
+
+/**
+ * Tell Discord that somebody's board membership may have changed.
+ *
+ * One of the three linked role facts is whether the person sits on a board, so
+ * it is refreshed here rather than left until the next time they link. The
+ * service passes over a person with no Discord authorization on its own, and
+ * every failure is swallowed, because a roster is recorded on VIA whatever
+ * Discord is doing.
+ */
+async function refreshLinkedRoles(netId) {
+  try {
+    await pushFacts(netId);
+  } catch (err) {
+    console.error(`refreshing the linked role facts for ${netId} failed:`, err.message);
+  }
+}
 
 export async function deleteRso(req, res, next) {
   try {
@@ -137,6 +155,7 @@ export async function addMember(req, res, next) {
       await rsoDb.addMember(id, rsoId, role);
       if (already?.role !== role) {
         await outbox.recordMembershipChanged({ netId: id, rsoId, role });
+        await refreshLinkedRoles(id);
       }
     }
 
@@ -151,6 +170,7 @@ export async function removeMember(req, res, next) {
     const result = await rsoDb.removeMember(netId, rsoId);
     if (!result.affectedRows) return res.status(404).json({ error: 'Member not found' });
     await outbox.recordMembershipChanged({ netId, rsoId, role: null });
+    await refreshLinkedRoles(netId);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }

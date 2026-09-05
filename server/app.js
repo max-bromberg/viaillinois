@@ -17,6 +17,7 @@ import authRouter     from './routes/auth.js';
 import eventsRouter   from './routes/events.js';
 import rsosRouter     from './routes/rsos.js';
 import usersRouter    from './routes/users.js';
+import linkRouter     from './routes/link.js';
 import venuesRouter   from './routes/venues.js';
 import seoRouter      from './routes/seo.js';
 import { createHtmlShellHandler } from './middleware/htmlShell.js';
@@ -136,6 +137,8 @@ app.use('/auth',              authRouter);
 app.use('/api/v1/events',     eventsRouter);
 app.use('/api/v1/rsos',       rsosRouter);
 app.use('/api/v1/users',      usersRouter);
+// What the Discord link page reads about the session it was opened for.
+app.use('/api/v1/link',       linkRouter);
 app.use('/api/v1/venues',     venuesRouter);
 
 // Ahead of the static handler, so these are generated rather than served from

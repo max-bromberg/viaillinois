@@ -8,8 +8,15 @@ vi.mock('../../services/denialRecorder.js', () => ({
   startDenialRecorder: vi.fn(), stopDenialRecorder: vi.fn(),
   flushDenials: vi.fn(), bufferSize: () => 0, resetRecorder: vi.fn(),
 }));
-const getLinkByDiscordUserId = vi.hoisted(() => vi.fn());
-vi.mock('../../db/queries/discordLinks.ts', () => ({ getLinkByDiscordUserId }));
+const linksDb = vi.hoisted(() => ({
+  getLinkByDiscordUserId: vi.fn(), getLinkByNetId: vi.fn(), getLinkWithMemberships: vi.fn(),
+  openLinkSession: vi.fn(), getLinkSession: vi.fn(), completeLinkSession: vi.fn(),
+  linkAccount: vi.fn(), setLinkAuthorization: vi.fn(),
+  deleteLinkByDiscordUserId: vi.fn(), deleteLinkByNetId: vi.fn(),
+  SESSION_MINUTES: 10,
+}));
+vi.mock('../../db/queries/discordLinks.ts', () => linksDb);
+const getLinkByDiscordUserId = linksDb.getLinkByDiscordUserId;
 vi.mock('../../db/queries/users.js', () => ({
   getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn(),
 }));
@@ -59,8 +66,17 @@ vi.mock('../../db/queries/outbox.ts', async () => ({
   readOutbox,
 }));
 
+vi.mock('../../services/linkedRoles.js', () => ({
+  clearFacts: vi.fn(), pushFacts: vi.fn(), registerMetadata: vi.fn(),
+  isConfigured: () => true, METADATA_SCHEMA: [], PLATFORM_NAME: 'VIA',
+}));
+
 const TOKEN = 'e'.repeat(64);
 process.env.BOT_SERVICE_TOKEN = TOKEN;
+// The address in a link session is built from where the website is served, and
+// the recorded shape is the one the bot's repository copies, so the fixture is
+// taken against the address the platform actually runs at.
+process.env.CLIENT_URL = 'https://viaillinois.com';
 
 const app = (await import('../../app.js')).default;
 const { presentEvent } = await import('../../lib/eventShape.js');
@@ -162,6 +178,8 @@ function outboxEntries() {
 
 const asBot = path => request(app).get(path).set('Authorization', `Bearer ${TOKEN}`);
 const acting = path => asBot(path).set('X-Via-Acting-Discord-User', '123456789012345678');
+const post = path => request(app).post(path).set('Authorization', `Bearer ${TOKEN}`);
+const actingPost = path => post(path).set('X-Via-Acting-Discord-User', '123456789012345678');
 
 // The calendar file carries the moment it was written, so the clock is held
 // still while these answers are taken.
@@ -192,6 +210,21 @@ beforeEach(() => {
   getSectionsForCourses.mockResolvedValue([SECTION]);
   occupiedLocationIds.mockResolvedValue(new Set());
   readOutbox.mockResolvedValue(outboxEntries().slice(0, 2));
+  linksDb.openLinkSession.mockResolvedValue({
+    sessionId: 'hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT',
+    expiresAt: '2026-09-04 18:40:00',
+  });
+  linksDb.getLinkWithMemberships.mockResolvedValue({
+    discord_user_id: '204255221017214977',
+    net_id: 'rgarcia7',
+    display_name: 'Rosa Garcia',
+    is_global_admin: false,
+    linked_at: '2026-09-04 18:32:11',
+    memberships: [
+      { rso_id: 4, rso_name: 'IEEE Student Branch', role: 'Board' },
+      { rso_id: 9, rso_name: 'HKN', role: 'Member' },
+    ],
+  });
 });
 
 describe('the answer shapes the Discord bot depends on', () => {
@@ -273,6 +306,32 @@ describe('the answer shapes the Discord bot depends on', () => {
     expect(res.status).toBe(200);
     expect(res.body.entries).toHaveLength(11);
     fixture('outboxEntries', res.body);
+  });
+
+  it('a new link session', async () => {
+    const res = await post('/internal/v1/links/sessions').send({ discord_user_id: '204255221017214977' });
+    expect(res.status).toBe(201);
+    fixture('links.session', res.body);
+  });
+
+  it('a resolved link', async () => {
+    const res = await asBot('/internal/v1/links/204255221017214977');
+    expect(res.status).toBe(200);
+    fixture('links.link', res.body);
+  });
+
+  it('an account nobody linked', async () => {
+    linksDb.getLinkWithMemberships.mockResolvedValue(null);
+    const res = await asBot('/internal/v1/links/999999999999999999');
+    expect(res.status).toBe(404);
+    fixture('links.unlinked', res.body);
+  });
+
+  it('a confirmed server binding', async () => {
+    reads.getRso.mockResolvedValue({ ...RSO, rso_id: 4, name: 'IEEE Student Branch' });
+    const res = await actingPost('/internal/v1/guilds/bindings/confirm').send({ rso_id: 4 });
+    expect(res.status).toBe(200);
+    fixture('bindingsConfirm', res.body);
   });
 
   it('a refusal', async () => {
