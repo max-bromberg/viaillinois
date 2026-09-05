@@ -250,13 +250,23 @@ beforeEach(() => {
   feedbackDb.saveFeedback.mockResolvedValue(undefined);
   seriesDb.createSeriesWithOccurrences.mockResolvedValue({ seriesId: 4, eventIds: [10, 11, 12] });
   seriesDb.busyInRoom.mockResolvedValue([]);
-  recommend.mockResolvedValue({
-    recommendations: [{
-      start_time: '2026-09-16 18:00:00', end_time: '2026-09-16 19:00:00',
-      location_id: 5, building: 'Electrical & Computer Eng Bldg', room_number: '1002', score: 91,
-    }],
-    considered: 12,
-  });
+  // The shape services/intelligentScheduler.js actually answers with, so the
+  // recorded fixture is what the bot will read and not a shape of this test's own.
+  const pick = {
+    start: '2026-09-16 18:00:00', end: '2026-09-16 19:00:00',
+    location: { location_id: 5, building: 'Electrical & Computer Eng Bldg', room_number: '1002', max_capacity: 40 },
+    score: 91,
+    insights: [
+      { type: 'positive', text: 'This room is free for 12 of 13 weeks' },
+      { type: 'warning', text: 'ECE 385 has a midterm within 72 hours' },
+    ],
+    recurrence: {
+      interval_weeks: 1, days_of_week: ['Wed'],
+      occurrences: ['2026-09-16', '2026-09-23', '2026-09-30'],
+      weeks_total: 13, weeks_clear: 12, conflicts: ['2026-10-21'], until: '2026-12-09',
+    },
+  };
+  recommend.mockResolvedValue({ curatedPicks: [pick], allOptions: [pick] });
   calendarsDb.rotateCalendar.mockResolvedValue({ rotatedAt: '2026-09-05 12:00:00' });
   calendarsDb.setCalendarRsos.mockResolvedValue(1);
   calendarsDb.getCalendarByTokenHash.mockResolvedValue({ netId: 'alice', rsoIds: [1] });
