@@ -208,6 +208,9 @@ export async function getEventById(eventId) {
       l.room_number,
       s.frequency AS series_frequency,
       s.interval_weeks AS series_interval_weeks,
+      s.interval_months AS series_interval_months,
+      s.month_day AS series_month_day,
+      s.month_week AS series_month_week,
       s.days_of_week AS series_days_of_week,
       s.ends_on AS series_ends_on,
       GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
@@ -340,6 +343,9 @@ export async function getEventsByRso(rsoId) {
             r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
             s.frequency AS series_frequency,
             s.interval_weeks AS series_interval_weeks,
+            s.interval_months AS series_interval_months,
+            s.month_day AS series_month_day,
+            s.month_week AS series_month_week,
             s.days_of_week AS series_days_of_week,
             s.ends_on AS series_ends_on,
             GROUP_CONCAT(t.tag_name) AS tags

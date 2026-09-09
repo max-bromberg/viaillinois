@@ -98,9 +98,31 @@ export const eventSeries = mysqlTable("Event_Series", {
 	seriesId: int("series_id").autoincrement().notNull(),
 	rsoId: int("rso_id").notNull().references(() => rsOs.rsoId, { onDelete: "cascade" } ),
 	createdBy: varchar("created_by", { length: 20 }).notNull().references(() => users.netId, { onDelete: "cascade" } ),
+	/**
+	 * Which of the three shapes this rule is: weekly, monthly, or a set of dates
+	 * the organizer picked.
+	 */
 	frequency: varchar({ length: 20 }).default('weekly').notNull(),
-	intervalWeeks: int("interval_weeks").default(1).notNull(),
-	daysOfWeek: varchar("days_of_week", { length: 27 }).notNull(),
+	/**
+	 * The interval, in the unit its own shape counts in. A weekly rule has weeks
+	 * and no months, a monthly rule the other way round, and a set of picked
+	 * dates has neither, because there is no rule between one date and the next.
+	 */
+	intervalWeeks: int("interval_weeks"),
+	intervalMonths: int("interval_months"),
+	/**
+	 * The two shapes a monthly rule can take, and only ever one of them: a date
+	 * in the month, such as the fifteenth, or a position and a weekday, such as
+	 * the second Tuesday. monthWeek is 1 to 5, or -1 for the last one.
+	 */
+	monthDay: tinyint("month_day"),
+	monthWeek: tinyint("month_week"),
+	/**
+	 * The days a weekly rule runs on, the one weekday a monthly rule by position
+	 * uses, and for a set of picked dates the days those dates happen to fall
+	 * on, which is what the sentence describing the series reads off.
+	 */
+	daysOfWeek: varchar("days_of_week", { length: 27 }),
 	startsOn: date("starts_on", { mode: 'string' }).notNull(),
 	endsOn: date("ends_on", { mode: 'string' }).notNull(),
 	startOfDay: time("start_of_day").notNull(),
@@ -113,6 +135,8 @@ export const eventSeries = mysqlTable("Event_Series", {
 	unique("uq_series_external_uid").on(table.rsoId, table.externalUid),
 	check("chk_series_dates", sql`(\`ends_on\` >= \`starts_on\`)`),
 	check("chk_series_interval", sql`(\`interval_weeks\` >= 1)`),
+	check("chk_series_interval_months", sql`(\`interval_months\` >= 1)`),
+	check("chk_series_frequency", sql`(\`frequency\` in (_latin1\'weekly\',_latin1\'monthly\',_latin1\'dates\'))`),
 ]);
 
 export const eventTags = mysqlTable("Event_Tags", {
