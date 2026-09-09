@@ -8,6 +8,7 @@
   import { showToast } from '../stores/ui.js';
   import { getAdminMidterms, updateMidtermStatus, deleteMidterm } from '../api/midterms.js';
   import CalendarImport from '../lib/CalendarImport.svelte';
+  import TagManager from '../lib/TagManager.svelte';
   import DenialChart from '../lib/DenialChart.svelte';
   import { campusDate, campusDateTime, campusTime } from '../lib/campusTime.js';
 
@@ -446,6 +447,10 @@
         class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'dataSources' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
         on:click={() => activeTab = 'dataSources'}
       >Data Sources</button>
+      <button
+        class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'tags' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
+        on:click={() => activeTab = 'tags'}
+      >Tags</button>
       <button
         class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'availability' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
         on:click={() => { activeTab = 'availability'; loadDenials(); }}
@@ -1192,6 +1197,11 @@
           </div>
         {/if}
       </div>
+    {/if}
+
+    <!-- ── Tags Tab ───────────────────────────────────────────────────── -->
+    {#if activeTab === 'tags'}
+      <TagManager />
     {/if}
 
     <!-- ── Availability Tab ───────────────────────────────────────────── -->

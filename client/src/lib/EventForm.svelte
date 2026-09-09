@@ -1,4 +1,5 @@
 <script>
+  import { tagNames } from './tagList.js';
   import { createEventDispatcher } from 'svelte';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -25,7 +26,8 @@
 
   const dispatch = createEventDispatcher();
 
-  const ALL_TAGS = ['Free Food', 'Workshop', 'Social', 'Corporate', 'Competition', 'Weekly Meeting', 'Speaker', 'Networking'];
+  // The list the platform keeps, which an admin adds to and takes from.
+  const ALL_TAGS = tagNames;
 
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const REPEATS = [
@@ -216,7 +218,7 @@
   <div class="space-y-2">
     <Label>Tags</Label>
     <div class="flex flex-wrap gap-2">
-      {#each ALL_TAGS as tag}
+      {#each $ALL_TAGS as tag}
         <button
           type="button"
           class="text-xs px-3 py-1 rounded-full border transition-colors
