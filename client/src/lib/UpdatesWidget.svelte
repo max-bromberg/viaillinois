@@ -11,8 +11,8 @@
   <div class="flex items-center justify-between">
     <h3 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Platform Updates</h3>
     <a
-      href="/updates"
-      on:click|preventDefault={() => navigate('/updates')}
+      href="/about/updates"
+      on:click|preventDefault={() => navigate('/about/updates')}
       class="text-xs text-muted-foreground hover:text-foreground transition-colors"
     >View all →</a>
   </div>

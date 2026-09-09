@@ -26,6 +26,7 @@ import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
 import semesterRouter  from './routes/semester.js';
 import tagsRouter      from './routes/tags.js';
+import bugReportsRouter from './routes/bugReports.js';
 import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, readFileSync } from 'fs';
@@ -138,6 +139,7 @@ app.use('/api/v1/rsos',       rsosRouter);
 app.use('/api/v1/users',      usersRouter);
 app.use('/api/v1/venues',     venuesRouter);
 app.use('/api/v1/tags',       tagsRouter);
+app.use('/api/v1/bug-reports', bugReportsRouter);
 
 // Ahead of the static handler, so these are generated rather than served from
 // the bundle, where they were stale and used relative addresses.

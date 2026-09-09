@@ -72,3 +72,21 @@ describe('NavBar, the board entries', () => {
     await waitFor(() => expect(container.querySelector('[data-board-divider]')).toBeNull());
   });
 });
+
+/**
+ * Updates had an entry of their own beside About, which put two entries in the
+ * navigation for one thing a reader looks at rarely. They are part of About now.
+ */
+describe('NavBar, the reader entries', () => {
+  it('offers About, which is where the updates are', async () => {
+    const { findByRole } = render(NavBar);
+    authResolved.set(true);
+    expect(await findByRole('link', { name: 'About' })).toBeTruthy();
+  });
+
+  it('no longer offers Updates on its own', async () => {
+    const { queryAllByRole } = render(NavBar);
+    authResolved.set(true);
+    await waitFor(() => expect(queryAllByRole('link', { name: 'Updates' })).toEqual([]));
+  });
+});

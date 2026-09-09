@@ -3,6 +3,9 @@ import { writable } from 'svelte/store';
 const ROUTES = [
   { name: 'event-detail',  pattern: /^\/events\/(\d+)$/,    paramNames: ['id'] },
   { name: 'update-detail', pattern: /^\/updates\/([^/]+)$/, paramNames: ['slug'] },
+  // About holds more than one thing now, and each of them has an address, so a
+  // reader can link to the updates rather than to About and a set of clicks.
+  { name: 'about-tab',     pattern: /^\/about\/([^/]+)$/,   paramNames: ['tab'] },
 ];
 
 export function matchRoute(path) {

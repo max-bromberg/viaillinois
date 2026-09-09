@@ -33,6 +33,38 @@ export const accessDenials = mysqlTable("Access_Denials", {
 	primaryKey({ columns: [table.bucketStart, table.reason, table.route, table.authenticated], name: "Access_Denials_pk"}),
 ]);
 
+/**
+ * Bug reports, from the form in About.
+ *
+ * Somebody who has found something wrong with VIA has had one way to say so,
+ * which is to write to the address on the About page, and most people do not
+ * write an email about a button. The form records what they saw and where they
+ * saw it, and an admin reads it on the admin page.
+ *
+ * reportedBy is the NetID of somebody signed in, and nothing at all for a
+ * visitor who is not, because a student should not have to sign in to say that
+ * a page is broken. contact is what they chose to give so they can be written
+ * back to, which is optional for the same reason. No address of any kind is
+ * recorded: the platform does not store those, and a bug report is no reason to
+ * start.
+ */
+export const bugReports = mysqlTable("Bug_Reports", {
+	reportId: int("report_id").autoincrement().notNull(),
+	reportedBy: varchar("reported_by", { length: 20 }).references(() => users.netId, { onDelete: "set null" } ),
+	area: varchar({ length: 50 }).notNull(),
+	summary: varchar({ length: 200 }).notNull(),
+	detail: text(),
+	contact: varchar({ length: 255 }),
+	page: varchar({ length: 500 }),
+	status: varchar({ length: 20 }).default('Open').notNull(),
+	createdAt: datetime("created_at", { mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+},
+(table) => [
+	index("idx_bug_reports_status").on(table.status, table.createdAt),
+	primaryKey({ columns: [table.reportId], name: "Bug_Reports_report_id"}),
+	check("chk_bug_report_status", sql`(\`status\` in (_latin1\'Open\',_latin1\'Closed\'))`),
+]);
+
 export const courseSections = mysqlTable("Course_Sections", {
 	sectionId: int("section_id").autoincrement().notNull(),
 	courseCode: varchar("course_code", { length: 20 }).notNull().references(() => courses.courseCode, { onDelete: "cascade" } ),
