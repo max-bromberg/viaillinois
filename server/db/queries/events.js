@@ -1,5 +1,6 @@
 import { query } from '../pool.js';
 import { campusNow, campusStartOfToday } from '../../lib/timezone.js';
+import { dayRange } from '../../lib/dateRange.js';
 
 /**
  * How a request divides events against the campus calendar.
@@ -69,6 +70,7 @@ function panelFilters({ rsoIds = [], excludePrivate = false } = {}) {
  */
 export async function getPublicEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -117,7 +119,7 @@ export async function getPublicEvents(filters = {}) {
       e.start_time ${bound.direction}
   LIMIT ? OFFSET ?
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag, limit, offset]
     )
 }
 
@@ -130,6 +132,7 @@ export async function getPublicEvents(filters = {}) {
  */
 export async function getAllEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -177,7 +180,7 @@ export async function getAllEvents(filters = {}) {
       e.start_time ${bound.direction}
   LIMIT ? OFFSET ?
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag, limit, offset]
     )
 }
 
@@ -362,6 +365,7 @@ export async function getEventsByRso(rsoId) {
 export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
   if (!memberRsoIds.length) return getPublicEvents(filters);
   const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters;
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate);
   const tag = rawTags[0] ?? null;
   const bound = timeframeBound(timeframe)
   const panel = panelFilters(filters);
@@ -385,7 +389,7 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
     HAVING (? IS NULL OR tags LIKE CONCAT('%',?,'%'))
     ORDER BY e.start_time ${bound.direction}
     LIMIT ? OFFSET ?`,
-    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
+    [memberRsoIds, keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag, limit, offset]
   );
 }
 
@@ -397,6 +401,7 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
 export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
   if (!memberRsoIds.length) return countPublicEvents(filters);
   const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters;
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate);
   const tag = rawTags[0] ?? null;
   const bound = timeframeBound(timeframe)
   const panel = panelFilters(filters);
@@ -414,7 +419,7 @@ export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
       ${bound.clause}
       ${panel.clause}
       AND (? IS NULL OR t.tag_name = ?)`,
-    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
+    [memberRsoIds, keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag]
   );
 }
 
@@ -425,6 +430,7 @@ export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
  */
 export async function countPublicEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -452,7 +458,7 @@ export async function countPublicEvents(filters = {}) {
         ? IS NULL OR t.tag_name = ?
     )
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag]
     )
 }
 
@@ -463,6 +469,7 @@ export async function countPublicEvents(filters = {}) {
  */
 export async function countAllEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -490,6 +497,6 @@ export async function countAllEvents(filters = {}) {
         ? IS NULL OR t.tag_name = ?
     )
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag]
     )
 }

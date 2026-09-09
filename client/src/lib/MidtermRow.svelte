@@ -30,7 +30,7 @@
       {#if confirming}
         <span class="inline-flex items-center gap-1.5">
           <button
-            class="px-2.5 py-1 text-xs bg-destructive text-white rounded-md hover:bg-destructive/90 transition-colors"
+            class="px-2.5 py-1 text-xs bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
             on:click={() => { confirming = false; dispatch('delete', { midterm_id: midterm.midterm_id }); }}
           >Yes, delete</button>
           <button

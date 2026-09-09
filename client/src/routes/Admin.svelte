@@ -449,7 +449,7 @@
       <button
         class="px-4 py-1.5 text-sm font-medium rounded-t transition-colors {activeTab === 'availability' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}"
         on:click={() => { activeTab = 'availability'; loadDenials(); }}
-      >Availability</button>
+      >Requests refused</button>
     </div>
 
     <!-- ── RSOs Tab ───────────────────────────────────────────────────── -->
@@ -567,7 +567,7 @@
                       <span class="flex items-center gap-1.5">
                         <span class="text-xs text-destructive font-medium">Delete RSO?</span>
                         <button
-                          class="px-2.5 py-1.5 text-xs bg-destructive text-white rounded-md hover:bg-destructive/90 transition-colors"
+                          class="px-2.5 py-1.5 text-xs bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
                           on:click={() => handleDeleteRso(rso.rso_id)}
                         >Yes, delete</button>
                         <button
@@ -974,7 +974,7 @@
                       <span class="flex items-center gap-1.5 flex-wrap">
                         <span class="text-xs text-destructive font-medium">Delete this midterm?</span>
                         <button
-                          class="px-2.5 py-1.5 text-xs bg-destructive text-white rounded-md hover:bg-destructive/90 transition-colors"
+                          class="px-2.5 py-1.5 text-xs bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
                           on:click={() => handleDeleteMidterm(mt.midterm_id)}
                         >Yes, delete</button>
                         <button
@@ -1202,12 +1202,16 @@
             <div>
               <h2 class="text-base font-semibold">Requests VIA refused</h2>
               <p class="text-sm text-muted-foreground">
-                Every request the platform turned away, grouped by day and by reason. An
-                empty table means the limits are not touching real readers.
+                Every request the platform turned away, grouped by day and by reason. VIA
+                refuses a request when it is too busy to answer, when one caller is asking
+                far more often than a reader would, or when a page far past the end of a
+                listing is asked for. An empty table means those limits are not touching
+                real readers, and a table that fills up is the sign that one of them needs
+                loosening.
               </p>
             </div>
             <select
-              class="border rounded-md px-2 py-1 text-sm"
+              class="border rounded-md px-2 py-1 text-sm bg-background"
               bind:value={denialWindowDays}
               on:change={loadDenials}
             >

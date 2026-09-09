@@ -85,8 +85,10 @@ describe.each([...listers, ...counters])('%s', (_name, run) => {
   it('still honours a date range alongside the timeframe', async () => {
     await run({ timeframe: 'upcoming', startDate: '2026-09-10', endDate: '2026-09-20' });
     const { params } = lastStatement();
-    expect(params).toContain('2026-09-10');
-    expect(params).toContain('2026-09-20');
+    // Each end of the range is read as the whole day it names, which is what
+    // tests/db/eventDateRange.test.js pins.
+    expect(params).toContain('2026-09-10 00:00:00');
+    expect(params).toContain('2026-09-20 23:59:59');
     expect(parameterFor('AND e.start_time >= ?')).toBe(campusStartOfToday());
   });
 });

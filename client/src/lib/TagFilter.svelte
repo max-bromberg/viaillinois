@@ -9,10 +9,14 @@
   const ALL_TAGS = ['Free Food', 'Workshop', 'Social', 'Corporate', 'Competition', 'Weekly Meeting', 'Speaker', 'Networking'];
 
   // The feed is a list of what is on, so it opens on what is still to come.
-  // Everything before today is in the archive, which is one click away.
+  // Everything before today is one click away.
+  //
+  // The value is what the API, and the Discord bot that reads it, have always
+  // called this timeframe. The label is what a student calls it, which is past
+  // rather than archived: nobody filed those events anywhere, they happened.
   const TIMEFRAMES = [
     { value: 'upcoming', label: 'Upcoming' },
-    { value: 'archived', label: 'Archived' },
+    { value: 'archived', label: 'Past' },
   ];
 
   let keyword = '';

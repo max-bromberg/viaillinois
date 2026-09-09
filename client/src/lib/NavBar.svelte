@@ -39,8 +39,14 @@
       <a href="/midterms"  on:click|preventDefault={() => go('/midterms')}  class="text-sm text-muted-foreground hover:text-foreground transition-colors">Midterms</a>
       <a href="/updates"   on:click|preventDefault={() => go('/updates')}   class="text-sm text-muted-foreground hover:text-foreground transition-colors">Updates</a>
       <a href="/about"     on:click|preventDefault={() => go('/about')}     class="text-sm text-muted-foreground hover:text-foreground transition-colors">About</a>
+      <!--
+        Everything above this line is for anybody reading the site. Everything
+        below it is for the people who run an organization, and the rule says
+        so rather than leaving them to read as more of the same.
+      -->
       {#if $currentUser}
-        <a href="/dashboard" on:click|preventDefault={() => go('/dashboard')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">Dashboard</a>
+        <span data-board-divider aria-hidden="true" class="h-4 w-px bg-border"></span>
+        <a href="/dashboard" on:click|preventDefault={() => go('/dashboard')} class="text-sm text-muted-foreground hover:text-foreground transition-colors">My RSOs</a>
       {/if}
       {#if $isGlobalAdmin}
         <a href="/admin"   on:click|preventDefault={() => go('/admin')}     class="text-sm text-muted-foreground hover:text-foreground transition-colors">Admin</a>
@@ -131,7 +137,8 @@
         <a href="/updates"   on:click|preventDefault={() => go('/updates')}   class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Updates</a>
         <a href="/about"     on:click|preventDefault={() => go('/about')}     class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">About</a>
         {#if $currentUser}
-          <a href="/dashboard" on:click|preventDefault={() => go('/dashboard')} class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Dashboard</a>
+          <div data-board-divider class="border-t my-1"></div>
+          <a href="/dashboard" on:click|preventDefault={() => go('/dashboard')} class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">My RSOs</a>
         {/if}
         {#if $isGlobalAdmin}
           <a href="/admin"   on:click|preventDefault={() => go('/admin')}     class="px-2 py-2 text-sm rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">Admin</a>

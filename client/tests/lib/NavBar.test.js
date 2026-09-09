@@ -40,3 +40,35 @@ describe('NavBar, before it knows who is looking', () => {
     expect(queryByRole('button', { name: 'Sign in' })).toBeNull();
   });
 });
+
+/**
+ * The board's own entries.
+ *
+ * The dashboard and the admin page are for the people who run an organization
+ * rather than for a student reading the feed, and the navigation ran them
+ * together with About and Updates as though they were the same kind of thing.
+ * The dashboard is also now named for what it holds.
+ */
+describe('NavBar, the board entries', () => {
+  it('names the dashboard for the organizations it holds', async () => {
+    const { findByRole, queryByRole } = render(NavBar);
+    currentUser.set({ net_id: 'jdoe2', memberships: [{ rso_id: 1, role: 'Board' }] });
+    authResolved.set(true);
+    expect(await findByRole('link', { name: 'My RSOs' })).toBeTruthy();
+    expect(queryByRole('link', { name: 'Dashboard' })).toBeNull();
+  });
+
+  it('separates them from the entries every reader has', async () => {
+    const { container } = render(NavBar);
+    currentUser.set({ net_id: 'jdoe2', memberships: [{ rso_id: 1, role: 'Board' }] });
+    authResolved.set(true);
+    await waitFor(() => expect(container.querySelector('[data-board-divider]')).not.toBeNull());
+  });
+
+  it('shows no separator to a reader who runs nothing', async () => {
+    const { container } = render(NavBar);
+    currentUser.set(null);
+    authResolved.set(true);
+    await waitFor(() => expect(container.querySelector('[data-board-divider]')).toBeNull());
+  });
+});

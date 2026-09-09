@@ -18,7 +18,9 @@
   const today = campusTodayMarker();
 
   // ── View/nav state ────────────────────────────────────────────────────────
-  let view = 'week'; // 'week' | 'month'
+  // The month is the view a board reads the calendar in: the question it is
+  // opened with is what else is on this month, not what else is on this week.
+  let view = 'month'; // 'week' | 'month'
   let year = today.getFullYear();
   let month = today.getMonth();
   let weekStart = getWeekStart(today);
@@ -29,6 +31,16 @@
   let selectedRsoIds = [];
   let showMidterms = true;
   let showInternal = true;
+
+  /**
+   * The day whose cell is showing everything it holds.
+   *
+   * A cell has room for three entries, and a term imported from a calendar file
+   * puts far more than three on some days. The rest used to sit behind a count
+   * with nothing to click, so the honest reading of the grid was that the
+   * events were not there.
+   */
+  let expandedDay = null;
 
   // ── Data ──────────────────────────────────────────────────────────────────
   let allEvents = [];
@@ -126,10 +138,19 @@
       const items = (byDay[d] ?? []).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
       result.push({ day: d, items });
     }
+    // The grid is drawn in weeks, so the week the month ends in is a whole row
+    // rather than a short one with empty space beside it. A row that stopped
+    // partway through read as a week the calendar had nothing for.
+    while (result.length % 7 !== 0) result.push(null);
     return result;
   }
 
+  /** How many entries a cell draws before the rest are behind an opener. */
+  const VISIBLE_PER_DAY = 3;
+
   $: monthCells = buildMonthCells(year, month, firstWeekday, daysInMonth, filteredEvents, filteredMidterms);
+  // A day opened in one month is not a day in the next one.
+  $: view, year, month, (expandedDay = null);
 
   // ── Week cells (for consistency, computed from filtered data) ──────────────
   $: weekCells = weekDays.map(day => {
@@ -255,10 +276,12 @@
         <!-- View toggle -->
         <div class="flex border rounded-md overflow-hidden text-xs">
           <button
+            aria-pressed={view === 'week'}
             class="px-3 py-1.5 transition-colors {view === 'week' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}"
             on:click={() => view = 'week'}
           >Week</button>
           <button
+            aria-pressed={view === 'month'}
             class="px-3 py-1.5 transition-colors border-l {view === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}"
             on:click={() => view = 'month'}
           >Month</button>
@@ -304,10 +327,10 @@
         <div class="grid grid-cols-7 border-l border-t">
           {#each monthCells as cell}
             {#if cell === null}
-              <div class="border-r border-b bg-muted/20 min-h-[7rem]"></div>
+              <div data-month-cell class="border-r border-b bg-muted/20 min-h-[7rem]"></div>
             {:else}
               {@const isToday = cell.day === today.getDate() && month === today.getMonth() && year === today.getFullYear()}
-              <div class="border-r border-b min-h-[7rem] p-1.5 space-y-1">
+              <div data-month-cell class="border-r border-b min-h-[7rem] p-1.5 space-y-1">
                 <div class="flex justify-end">
                   <span class="text-xs font-medium leading-none
                     {isToday ? 'bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center' : 'text-muted-foreground'}">
@@ -319,7 +342,7 @@
                     <div class="h-4 rounded bg-muted animate-pulse"></div>
                   {/each}
                 {:else}
-                  {#each cell.items.slice(0, 3) as item (item._type + (item.event_id ?? item.midterm_id))}
+                  {#each (expandedDay === cell.day ? cell.items : cell.items.slice(0, VISIBLE_PER_DAY)) as item (item._type + (item.event_id ?? item.midterm_id))}
                     {#if item._type === 'event'}
                       <button
                         class="w-full text-left text-xs rounded overflow-hidden flex cursor-pointer hover:opacity-80 transition-opacity"
@@ -336,8 +359,13 @@
                       >📝 {item.course_code}</div>
                     {/if}
                   {/each}
-                  {#if cell.items.length > 3}
-                    <p class="text-xs text-muted-foreground pl-1">+{cell.items.length - 3} more</p>
+                  {#if cell.items.length > VISIBLE_PER_DAY}
+                    <button
+                      class="w-full text-left text-xs text-muted-foreground hover:text-foreground pl-1 transition-colors"
+                      on:click={() => expandedDay = expandedDay === cell.day ? null : cell.day}
+                    >
+                      {expandedDay === cell.day ? 'Show fewer' : `+${cell.items.length - VISIBLE_PER_DAY} more`}
+                    </button>
                   {/if}
                 {/if}
               </div>

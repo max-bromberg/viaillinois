@@ -3,6 +3,7 @@ import { query } from '../pool.js';
 import { db } from '../client.ts';
 import { midterms } from '../schema/schema.ts';
 import { campusNow } from '../../lib/timezone.js';
+import { dayRange } from '../../lib/dateRange.js'
 import { pageClause, pageParams } from './paging.js';
 
 /**
@@ -30,13 +31,16 @@ export async function getMidterms(filters = {}) {
     whereClauses.push('c.course_code = ?')
     params.push(courseCode)
   }
-  if (startDate) {
+  // The range is a range of days, so its last day is a whole day. Pushed as
+  // written, a date read as midnight and left the exams on it out.
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate)
+  if (startAt) {
     whereClauses.push('m.start_time >= ?')
-    params.push(startDate)
+    params.push(startAt)
   }
-  if (endDate) {
+  if (endAt) {
     whereClauses.push('m.start_time <= ?')
-    params.push(endDate)
+    params.push(endAt)
   }
   if (endingOnOrAfter) {
     whereClauses.push('m.end_time >= ?')
@@ -187,13 +191,16 @@ export async function getConfirmedMidtermsForScheduler(filters = {}) {
   const params = []
   let whereClauses = ['m.status = "Confirmed"']
   
-  if (startDate) {
+  // The range is a range of days, so its last day is a whole day. Pushed as
+  // written, a date read as midnight and left the exams on it out.
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate)
+  if (startAt) {
     whereClauses.push('m.start_time >= ?')
-    params.push(startDate)
+    params.push(startAt)
   }
-  if (endDate) {
+  if (endAt) {
     whereClauses.push('m.start_time <= ?')
-    params.push(endDate)
+    params.push(endAt)
   }
   if (courseCodes && courseCodes.length > 0) {
     const placeholders = courseCodes.map(() => '?').join(', ')

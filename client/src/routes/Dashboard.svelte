@@ -32,6 +32,14 @@
   // ── Events tab state ──────────────────────────────────────────────────────
   let events = [];
   let showCreateForm = false;
+  /**
+   * The calendar importer.
+   *
+   * It used to be drawn only while the manual entry form was open, so a board
+   * importing a term of events had to open a form for an event nobody was
+   * entering in order to find it.
+   */
+  let showImport = false;
   let editingEvent = null;
   let semester = null;
   /**
@@ -77,6 +85,7 @@
     loading = true;
     editingEvent = null;
     showCreateForm = false;
+    showImport = false;
     confirmRemoveNetId = null;
     try {
       const { rso } = await getRso(rsoId);
@@ -189,6 +198,19 @@
     return applyUpdate(asked.event.event_id, asked.payload, scope);
   }
 
+  /**
+   * A calendar file has landed, so the table behind the panel is out of date.
+   *
+   * Without this the import reported what it had written and the listing went
+   * on showing what was there before it, which reads as an import that did
+   * nothing.
+   */
+  async function handleImported(e) {
+    const { created = 0, updated = 0 } = e.detail ?? {};
+    await loadRso(selectedRso.rso_id);
+    showToast(`Imported ${created} ${created === 1 ? 'event' : 'events'}, updated ${updated}.`);
+  }
+
   // ── Member handlers ───────────────────────────────────────────────────────
   async function handleAddMember() {
     if (!memberForm.netId.trim()) return;
@@ -257,24 +279,17 @@
 {:else}
   <div class="max-w-5xl mx-auto px-4 py-8 space-y-5">
 
-    <!-- Header -->
-    <div class="flex items-start justify-between gap-4 flex-wrap">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          {#if selectedRso?.logo_color}
-            <span class="w-4 h-4 rounded-sm flex-shrink-0" style="background-color: {selectedRso.logo_color}"></span>
-          {/if}
-          <h1 class="text-2xl font-bold truncate">{selectedRso?.name ?? 'Dashboard'}</h1>
-          {#if userRole}
-            <span class="text-xs px-2 py-0.5 rounded-full font-medium {roleBadgeClass(userRole)}">{userRole}</span>
-          {/if}
-        </div>
-        {#if selectedRso?.description}
-          <p class="text-sm text-muted-foreground mt-0.5">{selectedRso.description}</p>
-        {/if}
-      </div>
+    <!--
+      Header.
 
-      <!-- RSO selector pills -->
+      The organization switcher used to sit beside the name and the description
+      in one row, so an organization with a long description, which ECESAC has,
+      pushed the switcher across the header and moved the control under the
+      pointer of somebody halfway through clicking it. The switcher now has its
+      own row above the name, where nothing else decides where it sits, and the
+      description is held to a readable measure.
+    -->
+    <div class="space-y-3">
       {#if dashboardMemberships.length > 1}
         <div class="flex gap-2 flex-wrap">
           {#each dashboardMemberships as m}
@@ -288,6 +303,21 @@
           {/each}
         </div>
       {/if}
+
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          {#if selectedRso?.logo_color}
+            <span class="w-4 h-4 rounded-sm flex-shrink-0" style="background-color: {selectedRso.logo_color}"></span>
+          {/if}
+          <h1 class="text-2xl font-bold truncate">{selectedRso?.name ?? 'Dashboard'}</h1>
+          {#if userRole}
+            <span class="text-xs px-2 py-0.5 rounded-full font-medium {roleBadgeClass(userRole)}">{userRole}</span>
+          {/if}
+        </div>
+        {#if selectedRso?.description}
+          <p class="text-sm text-muted-foreground mt-0.5 max-w-2xl">{selectedRso.description}</p>
+        {/if}
+      </div>
     </div>
 
     <!-- Tabs -->
@@ -328,6 +358,10 @@
             on:click={() => { showCreateForm = true; editingEvent = null; }}
           >+ Manual entry</button>
           <button
+            class="px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors"
+            on:click={() => showImport = !showImport}
+          >{showImport ? 'Close import' : 'Import calendar'}</button>
+          <button
             class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex items-center gap-1.5"
             on:click={() => navigate('/scheduler')}
           >
@@ -350,9 +384,13 @@
         {/if}
 
         <!-- Import from a calendar file -->
-        {#if showCreateForm}
-          <section class="border rounded-lg p-6 bg-card shadow-sm">
-            <CalendarImport kind="events" rsoId={selectedRso.rso_id} />
+        {#if showImport}
+          <section data-calendar-import class="border rounded-lg p-6 bg-card shadow-sm">
+            <CalendarImport
+              kind="events"
+              rsoId={selectedRso.rso_id}
+              on:imported={handleImported}
+            />
           </section>
         {/if}
 
@@ -567,7 +605,7 @@
                       {#if confirmRemoveNetId === member.net_id}
                         <span class="flex items-center gap-1.5 justify-end">
                           <span class="text-xs text-destructive">Remove?</span>
-                          <button class="text-xs px-2 py-1 rounded bg-destructive text-white hover:bg-destructive/90 transition-colors"
+                          <button class="text-xs px-2 py-1 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
                             on:click={() => handleRemoveMember(member.net_id)}>Yes</button>
                           <button class="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors"
                             on:click={() => confirmRemoveNetId = null}>Cancel</button>

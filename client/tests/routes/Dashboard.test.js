@@ -7,6 +7,7 @@ const updateEvent = vi.hoisted(() => vi.fn());
 const deleteEvent = vi.hoisted(() => vi.fn());
 const getRso = vi.hoisted(() => vi.fn());
 const showToast = vi.hoisted(() => vi.fn());
+const importCalendar = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/api/events.js', () => ({ createEvent, createEventSeries, updateEvent, deleteEvent }));
 vi.mock('../../src/api/rsos.js', () => ({
@@ -20,6 +21,7 @@ vi.mock('../../src/api/semester.js', () => ({
   }),
 }));
 vi.mock('../../src/api/venues.js', () => ({ searchVenues: vi.fn().mockResolvedValue({ venues: [] }) }));
+vi.mock('../../src/api/calendar.js', () => ({ importCalendar }));
 vi.mock('../../src/stores/ui.js', () => ({ showToast }));
 vi.mock('../../src/lib/router.js', () => ({
   navigate: vi.fn(),
@@ -165,5 +167,40 @@ describe('Dashboard, with repeating events', () => {
     expect(getByRole('button', { name: 'This event only' })).toBeTruthy();
     await fireEvent.click(getByRole('button', { name: 'This event only' }));
     await waitFor(() => expect(updateEvent).toHaveBeenCalledWith(5, expect.any(Object), 'one'));
+  });
+});
+
+/**
+ * Importing a calendar file into an RSO.
+ *
+ * Two things made an import look as though nothing had happened. The panel was
+ * drawn only while the manual entry form was open, so there was nowhere to
+ * import from without first opening a form for an event nobody was entering,
+ * and the panel told nothing when it succeeded, so the table behind it went on
+ * showing what it had before.
+ */
+describe('Dashboard calendar import', () => {
+  it('offers the importer without having to open the manual entry form first', async () => {
+    const { getByRole, findByText } = render(Dashboard);
+    await waitFor(() => expect(getRso).toHaveBeenCalled());
+    await fireEvent.click(getByRole('button', { name: /Import calendar/i }));
+    expect(await findByText('Import from a calendar file')).toBeTruthy();
+  });
+
+  it('reloads the events it lists once an import has landed', async () => {
+    importCalendar.mockResolvedValueOnce({ entries: [{ title: 'Imported meeting', start: '2026-10-06 18:00:00', action: 'create' }], skipped: 0 });
+    importCalendar.mockResolvedValueOnce({ created: 1, updated: 0, skipped: 0 });
+    const { getByRole, getByPlaceholderText, findByRole } = render(Dashboard);
+    await waitFor(() => expect(getRso).toHaveBeenCalled());
+    await fireEvent.click(getByRole('button', { name: /Import calendar/i }));
+
+    const paste = getByPlaceholderText(/paste the contents/i);
+    await fireEvent.input(paste, { target: { value: 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nEND:VEVENT\nEND:VCALENDAR' } });
+    await fireEvent.click(getByRole('button', { name: 'Preview' }));
+
+    const confirm = await findByRole('button', { name: /^Import 1 entry$/ });
+    const before = getRso.mock.calls.length;
+    await fireEvent.click(confirm);
+    await waitFor(() => expect(getRso.mock.calls.length).toBeGreaterThan(before));
   });
 });
