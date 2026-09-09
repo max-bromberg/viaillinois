@@ -25,9 +25,11 @@ describe('MidtermRowSkeleton', () => {
  * is one cell narrow while it loads and the header shifts when the rows arrive.
  */
 describe('MidtermRowSkeleton with a delete column', () => {
-  it('renders the extra cell for someone who may delete', () => {
+  // The tick for choosing entries to remove together, and the delete control,
+  // on either side of the four the listing always has.
+  it('renders the extra cells for someone who may delete', () => {
     const { container } = render(MidtermRowSkeleton, { props: { canDelete: true } });
-    expect(container.querySelectorAll('td').length).toBe(5);
+    expect(container.querySelectorAll('td').length).toBe(6);
   });
 
   it('leaves it out for someone who may not', () => {

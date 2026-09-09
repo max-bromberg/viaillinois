@@ -6,6 +6,8 @@
   export let midterm;
   /** Global admins and RSO board members may remove an entry from the schedule. */
   export let canDelete = false;
+  /** Whether this entry is one of the ones chosen for removal together. */
+  export let chosen = false;
 
   const dispatch = createEventDispatcher();
 
@@ -15,6 +17,18 @@
 </script>
 
 <tr class="border-b bg-card hover:bg-muted/50 transition-colors">
+  {#if canDelete}
+    <td class="py-3 pl-4 pr-0 w-8">
+      <input
+        type="checkbox"
+        data-midterm-tick
+        checked={chosen}
+        aria-label="Choose {midterm.course_code} {midterm.title} for removal"
+        on:change={e => dispatch('choose', { midterm_id: midterm.midterm_id, chosen: e.currentTarget.checked })}
+        class="rounded border-input text-primary focus:ring-primary"
+      />
+    </td>
+  {/if}
   <td class="py-3 px-4">
     <p class="font-medium text-sm">{midterm.title}</p>
     <p class="text-xs text-muted-foreground">{midterm.course_code}: {midterm.course_title}</p>

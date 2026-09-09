@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { getMidterms, createMidterm, deleteMidterm } from '../api/midterms.js';
+  import { getMidterms, createMidterm, deleteMidterm, deleteMidterms } from '../api/midterms.js';
   import { searchLocations } from '../api/locations.js';
   import MidtermRow from '../lib/MidtermRow.svelte';
   import { locationLabel } from '../lib/locationLabel.js';
@@ -21,6 +21,53 @@
   // as may a global admin. A board member cannot reach the admin page, so for
   // them this listing is the only place the controls can be.
   $: canManage = $isGlobalAdmin || $isRsoAdmin;
+
+  /**
+   * The entries ticked for removal together.
+   *
+   * A calendar imported under the wrong course codes leaves a page of entries
+   * to take off the schedule, and taking them off one confirmation at a time is
+   * what boards were doing. Held as a set of identifiers rather than as a flag
+   * on each row, so that filtering and sorting the listing leaves the choice
+   * where it was.
+   */
+  let chosenIds = new Set();
+  let confirmingBulk = false;
+
+  $: chosenOnPage = sorted.filter(m => chosenIds.has(m.midterm_id));
+  $: allOnPageChosen = sorted.length > 0 && chosenOnPage.length === sorted.length;
+
+  function chooseOne({ midterm_id, chosen }) {
+    const next = new Set(chosenIds);
+    if (chosen) next.add(midterm_id); else next.delete(midterm_id);
+    chosenIds = next;
+    if (next.size === 0) confirmingBulk = false;
+  }
+
+  function chooseAllOnPage() {
+    const next = new Set(chosenIds);
+    if (allOnPageChosen) {
+      for (const m of sorted) next.delete(m.midterm_id);
+    } else {
+      for (const m of sorted) next.add(m.midterm_id);
+    }
+    chosenIds = next;
+    if (next.size === 0) confirmingBulk = false;
+  }
+
+  async function handleBulkDelete() {
+    const ids = chosenOnPage.map(m => m.midterm_id);
+    if (ids.length === 0) return;
+    confirmingBulk = false;
+    try {
+      const { deleted } = await deleteMidterms(ids);
+      chosenIds = new Set();
+      showToast(`${deleted} ${deleted === 1 ? 'midterm' : 'midterms'} deleted`);
+      await load();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
 
   // Sort state, chronological by default
   let sortCol = 'start_time';
@@ -173,6 +220,36 @@
     </div>
   </div>
 
+  {#if canManage && chosenOnPage.length > 0}
+    <div class="flex items-center justify-between gap-3 flex-wrap border rounded-lg px-4 py-2.5 bg-card">
+      <p class="text-sm">
+        {chosenOnPage.length} {chosenOnPage.length === 1 ? 'midterm' : 'midterms'} chosen.
+      </p>
+      <div class="flex items-center gap-2">
+        {#if confirmingBulk}
+          <span class="text-xs text-destructive font-medium">This cannot be undone.</span>
+          <button
+            class="px-2.5 py-1 text-xs bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
+            on:click={handleBulkDelete}
+          >Yes, delete {chosenOnPage.length}</button>
+          <button
+            class="px-2.5 py-1 text-xs border border-input rounded-md hover:bg-accent transition-colors"
+            on:click={() => confirmingBulk = false}
+          >Cancel</button>
+        {:else}
+          <button
+            class="px-2.5 py-1 text-xs border border-destructive/50 text-destructive rounded-md hover:bg-destructive/10 transition-colors"
+            on:click={() => confirmingBulk = true}
+          >Delete {chosenOnPage.length} chosen</button>
+          <button
+            class="px-2.5 py-1 text-xs border border-input rounded-md hover:bg-accent transition-colors"
+            on:click={() => { chosenIds = new Set(); confirmingBulk = false; }}
+          >Clear</button>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   {#if showImport}
     <CalendarImport kind="midterms" on:imported={load} />
   {/if}
@@ -230,6 +307,18 @@
     <table class="w-full text-left">
       <thead class="bg-muted">
         <tr>
+          {#if canManage}
+            <th class="py-2 pl-4 pr-0 w-8">
+              <input
+                type="checkbox"
+                data-midterm-tick-all
+                checked={allOnPageChosen}
+                aria-label="Choose every midterm listed"
+                on:change={chooseAllOnPage}
+                class="rounded border-input text-primary focus:ring-primary"
+              />
+            </th>
+          {/if}
           {#each [['exam','Exam'],['start_time','Time'],['location','Location'],['status','Status']] as [col, label]}
             <th
               class="py-2 px-4 text-xs font-semibold uppercase tracking-wide cursor-pointer select-none hover:bg-muted/70 transition-colors whitespace-nowrap"
@@ -254,12 +343,18 @@
             <MidtermRowSkeleton canDelete={canManage} />
           {/each}
         {:else if sorted.length === 0}
-          <tr><td colspan={canManage ? 5 : 4} class="py-8 text-center text-sm text-muted-foreground">
+          <tr><td colspan={canManage ? 6 : 4} class="py-8 text-center text-sm text-muted-foreground">
             {courseFilter ? 'No exams match your search.' : 'No midterms found.'}
           </td></tr>
         {:else}
           {#each sorted as midterm (midterm.midterm_id)}
-            <MidtermRow {midterm} canDelete={canManage} on:delete={e => handleDelete(e.detail.midterm_id)} />
+            <MidtermRow
+              {midterm}
+              canDelete={canManage}
+              chosen={chosenIds.has(midterm.midterm_id)}
+              on:choose={e => chooseOne(e.detail)}
+              on:delete={e => handleDelete(e.detail.midterm_id)}
+            />
           {/each}
         {/if}
       </tbody>

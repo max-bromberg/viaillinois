@@ -4,6 +4,11 @@
 </script>
 
 <tr class="border-b">
+  <!-- Col 0: the tick, present only for those who may remove entries -->
+  {#if canDelete}
+    <td class="py-3 pl-4 pr-0 w-8"><div class="shimmer h-4 w-4 rounded"></div></td>
+  {/if}
+
   <!-- Col 1: title + subtitle -->
   <td class="py-3 px-4">
     <div class="shimmer h-3.5 w-32"></div>

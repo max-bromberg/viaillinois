@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { query } from '../pool.js';
 import { db } from '../client.ts';
 import { midterms } from '../schema/schema.ts';
@@ -166,6 +166,23 @@ export async function setMidtermStatus(midtermId, status) {
  */
 export async function deleteMidterm(midtermId) {
   const [result] = await db.delete(midterms).where(eq(midterms.midtermId, midtermId))
+  return { affectedRows: result.affectedRows }
+}
+
+/**
+ * Remove several entries at once.
+ *
+ * A calendar imported under the wrong course codes, or a term that has ended,
+ * leaves a page of entries to take off the schedule, and taking them off one
+ * confirmation at a time is what boards were doing. One statement rather than
+ * one per entry, so a board clearing fifty of them asks the database once.
+ *
+ * @param {number[]} midtermIds
+ * @returns {Promise<{ affectedRows: number }>}
+ */
+export async function deleteMidterms(midtermIds) {
+  if (!midtermIds || midtermIds.length === 0) return { affectedRows: 0 }
+  const [result] = await db.delete(midterms).where(inArray(midterms.midtermId, midtermIds))
   return { affectedRows: result.affectedRows }
 }
 
