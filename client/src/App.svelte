@@ -108,7 +108,7 @@
         <LazyRoute load={() => import('./routes/Admin.svelte')} />
       {:else if $currentPath === '/calendar'}
         <LazyRoute load={() => import('./routes/Calendar.svelte')} />
-      {:else if $currentPath === '/about'}
+      {:else if $currentPath === '/about' || dynamicRoute?.name === 'about-tab'}
         <LazyRoute load={() => import('./routes/About.svelte')} />
       {:else if $currentPath === '/scheduler'}
         <LazyRoute load={() => import('./routes/Scheduler.svelte')} />

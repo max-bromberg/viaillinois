@@ -7,6 +7,8 @@
   import EventCardSkeleton from '../lib/EventCardSkeleton.svelte';
   import Pagination from '../lib/Pagination.svelte';
   import UpdatesWidget from '../lib/UpdatesWidget.svelte';
+  import { adminRsoIds } from '../stores/auth.js';
+  import { navigate } from '../lib/router.js';
 
   const PAGE_SIZE = 18;
 
@@ -23,8 +25,10 @@
   let rawEvents = [];
   let serverTotal = 0; // every filter is applied by the server, so this counts them all
 
-  $: archived = filters.timeframe === 'archived';
-  $: heading = archived ? 'Archived Events' : 'Upcoming Events';
+  // The timeframe keeps the name the API gives it. What a reader is shown is
+  // past, because that is what has happened to those events.
+  $: past = filters.timeframe === 'archived';
+  $: heading = past ? 'Past Events' : 'Upcoming Events';
 
   $: rsoColorByName = Object.fromEntries(rsos.map(r => [r.name, r.logo_color || null]));
   $: rsoIdByName = Object.fromEntries(rsos.map(r => [r.name, r.rso_id]));
@@ -118,9 +122,27 @@
   </div>
 
   <div class="flex-1 space-y-4">
-    <h1 class="text-2xl font-bold">{heading}</h1>
+    <!--
+      A board member reading the feed had no way from it to the place events
+      are created, so the answer to seeing an empty week was to go and find the
+      dashboard. The way in belongs beside the feed the gap shows up in.
+    -->
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <h1 class="text-2xl font-bold">{heading}</h1>
+      {#if $adminRsoIds.length > 0}
+        <button
+          on:click={() => navigate('/scheduler')}
+          class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          Schedule an event
+        </button>
+      {/if}
+    </div>
 
-    {#if archived}
+    {#if past}
       <p class="text-sm text-muted-foreground">These events have already happened. Switch back to upcoming to see what is on next.</p>
     {/if}
 
@@ -136,7 +158,7 @@
       </div>
     {:else if displayedEvents.length === 0}
       <p class="text-muted-foreground text-sm">
-        {archived ? 'No archived events found. Try adjusting your filters.' : 'No events found. Try adjusting your filters.'}
+        {past ? 'No past events found. Try adjusting your filters.' : 'No events found. Try adjusting your filters.'}
       </p>
     {:else}
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

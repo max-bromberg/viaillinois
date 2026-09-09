@@ -1,9 +1,74 @@
+<script>
+  import { allUpdates, formatDate } from '../lib/updates.js';
+  import { currentPath, navigate, routeParams } from '../lib/router.js';
+  import BugReportForm from '../lib/BugReportForm.svelte';
+
+  /**
+   * About holds more than one thing.
+   *
+   * Updates had an entry of their own in the navigation, beside About, which
+   * put two entries there for one thing a reader looks at rarely. Each tab has
+   * an address of its own so that a reader can be linked straight to it, and
+   * the pages the updates have always had at /updates are untouched.
+   */
+  const TABS = [
+    { slug: '',        label: 'About VIA' },
+    { slug: 'updates', label: 'Updates' },
+    { slug: 'report',  label: 'Report a bug' },
+  ];
+
+  $: tab = $currentPath === '/about' ? '' : ($routeParams.tab ?? '');
+
+  function open(slug) {
+    navigate(slug === '' ? '/about' : `/about/${slug}`);
+  }
+</script>
+
 <svelte:head>
-  <title>About: VIA</title>
+  <title>{tab === 'updates' ? 'Updates: VIA' : tab === 'report' ? 'Report a bug: VIA' : 'About: VIA'}</title>
   <meta name="description" content="VIA is the centralized event platform for UIUC ECE student organizations, one place to discover events, coordinate scheduling, and stay on top of midterms." />
 </svelte:head>
 
 <div class="max-w-2xl mx-auto space-y-6">
+
+  <div class="flex gap-1 border-b" role="tablist">
+    {#each TABS as entry}
+      <button
+        role="tab"
+        aria-selected={tab === entry.slug}
+        class="px-4 py-2 text-sm font-medium transition-colors
+          {tab === entry.slug ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
+        on:click={() => open(entry.slug)}
+      >{entry.label}</button>
+    {/each}
+  </div>
+
+  {#if tab === 'report'}
+    <BugReportForm />
+  {:else if tab === 'updates'}
+    <div class="space-y-4">
+      <h1 class="text-2xl font-bold">Platform Updates</h1>
+      {#if allUpdates.length === 0}
+        <p class="text-muted-foreground">No updates yet.</p>
+      {:else}
+        {#each allUpdates as update (update.slug)}
+          <a
+            href="/updates/{update.slug}"
+            on:click|preventDefault={() => navigate(`/updates/${update.slug}`)}
+            class="block group rounded-lg border bg-card p-5 hover:border-primary transition-colors"
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+              <h2 class="text-base font-semibold group-hover:text-primary transition-colors">{update.title}</h2>
+              <time class="text-xs text-muted-foreground shrink-0">{formatDate(update.date)}</time>
+            </div>
+            {#if update.summary}
+              <p class="text-sm text-muted-foreground">{update.summary}</p>
+            {/if}
+          </a>
+        {/each}
+      {/if}
+    </div>
+  {:else}
 
   <!-- Hero -->
   <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
@@ -127,5 +192,7 @@
       set out what applies when you use the platform.
     </p>
   </div>
+
+  {/if}
 
 </div>

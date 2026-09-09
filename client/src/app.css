@@ -63,8 +63,16 @@
     --secondary-foreground: 0 0% 98%;
     --accent: 182 100% 12%;
     --accent-foreground: 182 100% 92%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    /*
+     * A red that can be read on a near black page. The dark maroon this was
+     * sat behind white text on a solid button and disappeared entirely as a
+     * label or an outline, which is how the delete controls on a midterm entry
+     * are drawn. The lightness rises here in the same way the primary colour's
+     * does, and the foreground goes dark to follow it.
+     * tests/lib/themeContrast.test.js holds both readings to account.
+     */
+    --destructive: 0 72% 62%;
+    --destructive-foreground: 0 72% 8%;
     --ring: 182 52% 49%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;

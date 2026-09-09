@@ -1,4 +1,5 @@
 <script>
+  import { tagNames } from './tagList.js';
   import { createEventDispatcher } from 'svelte';
   import DatePicker from './DatePicker.svelte';
 
@@ -6,13 +7,18 @@
 
   const dispatch = createEventDispatcher();
 
-  const ALL_TAGS = ['Free Food', 'Workshop', 'Social', 'Corporate', 'Competition', 'Weekly Meeting', 'Speaker', 'Networking'];
+  // The list the platform keeps, which an admin adds to and takes from.
+  const ALL_TAGS = tagNames;
 
   // The feed is a list of what is on, so it opens on what is still to come.
-  // Everything before today is in the archive, which is one click away.
+  // Everything before today is one click away.
+  //
+  // The value is what the API, and the Discord bot that reads it, have always
+  // called this timeframe. The label is what a student calls it, which is past
+  // rather than archived: nobody filed those events anywhere, they happened.
   const TIMEFRAMES = [
     { value: 'upcoming', label: 'Upcoming' },
-    { value: 'archived', label: 'Archived' },
+    { value: 'archived', label: 'Past' },
   ];
 
   let keyword = '';
@@ -109,7 +115,7 @@
     <div class="space-y-2">
       <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tags</p>
       <div class="flex flex-wrap gap-1">
-        {#each ALL_TAGS as tag}
+        {#each $ALL_TAGS as tag}
           <button on:click={() => toggleTag(tag)}
             class="text-xs border rounded-full px-2 py-0.5 cursor-pointer transition-colors
               {selectedTags.includes(tag) ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'}">

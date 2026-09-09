@@ -6,8 +6,13 @@ const getRsos = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/api/events.js', () => ({ getEvents }));
 vi.mock('../../src/api/rsos.js', () => ({ getRsos }));
+vi.mock('../../src/lib/router.js', () => ({ navigate: vi.fn() }));
 
+const { currentUser } = await import('../../src/stores/auth.js');
 const Home = (await import('../../src/routes/Home.svelte')).default;
+
+/** Who is looking, expressed the way the auth store reads it. */
+const signedInAs = memberships => currentUser.set({ net_id: 'jdoe2', memberships });
 
 const EVENT = {
   event_id: 1,
@@ -29,6 +34,7 @@ beforeEach(() => {
   getRsos.mockReset();
   getRsos.mockResolvedValue({ rsos: [] });
   history.replaceState(null, '', '/');
+  currentUser.set(null);
 });
 
 /**
@@ -52,17 +58,17 @@ describe('Home', () => {
     const { getByRole } = render(Home);
     await waitFor(() => expect(getEvents).toHaveBeenCalled());
 
-    await fireEvent.click(getByRole('button', { name: 'Archived' }));
+    await fireEvent.click(getByRole('button', { name: 'Past' }));
 
     await waitFor(() => expect(lastFilters().timeframe).toBe('archived'));
-    expect(getByRole('heading', { name: 'Archived Events' })).toBeTruthy();
+    expect(getByRole('heading', { name: 'Past Events' })).toBeTruthy();
   });
 
   it('goes back to upcoming events when the reader switches back', async () => {
     const { getByRole } = render(Home);
     await waitFor(() => expect(getEvents).toHaveBeenCalled());
 
-    await fireEvent.click(getByRole('button', { name: 'Archived' }));
+    await fireEvent.click(getByRole('button', { name: 'Past' }));
     await waitFor(() => expect(lastFilters().timeframe).toBe('archived'));
 
     await fireEvent.click(getByRole('button', { name: 'Upcoming' }));
@@ -75,9 +81,43 @@ describe('Home', () => {
     const { getByRole } = render(Home);
     await waitFor(() => expect(lastFilters().offset).toBe(36));
 
-    await fireEvent.click(getByRole('button', { name: 'Archived' }));
+    await fireEvent.click(getByRole('button', { name: 'Past' }));
 
     await waitFor(() => expect(lastFilters().timeframe).toBe('archived'));
     expect(lastFilters().offset).toBe(0);
+  });
+});
+
+/**
+ * The wording of the two halves of the feed, and the way into scheduling.
+ *
+ * Archived is what a database calls a row nobody deleted. What a student means
+ * is that the event has already happened, so the feed says past. And a board
+ * member reading the feed had no way from it to the place events are created.
+ */
+describe('Home, the feed wording and the board shortcut', () => {
+  it('calls what has already happened past rather than archived', async () => {
+    const { getByRole, findByRole, queryByText } = render(Home);
+    await waitFor(() => expect(getEvents).toHaveBeenCalled());
+    await fireEvent.click(getByRole('button', { name: 'Filters' }).closest('button'));
+    await fireEvent.click(await findByRole('button', { name: 'Past' }));
+    await waitFor(() => expect(getByRole('heading', { name: 'Past Events' })).toBeTruthy());
+    expect(queryByText(/Archived/)).toBeNull();
+    // The wire value is unchanged: the website, the API and the Discord bot all
+    // still name this timeframe the same thing.
+    expect(lastFilters().timeframe).toBe('archived');
+  });
+
+  it('offers a board member the way to schedule an event', async () => {
+    signedInAs([{ rso_id: 1, role: 'Board' }]);
+    const { findByRole } = render(Home);
+    expect(await findByRole('button', { name: /Schedule an event/i })).toBeTruthy();
+  });
+
+  it('offers a reader who runs nothing no such button', async () => {
+    signedInAs([{ rso_id: 1, role: 'Member' }]);
+    const { queryByRole } = render(Home);
+    await waitFor(() => expect(getEvents).toHaveBeenCalled());
+    expect(queryByRole('button', { name: /Schedule an event/i })).toBeNull();
   });
 });

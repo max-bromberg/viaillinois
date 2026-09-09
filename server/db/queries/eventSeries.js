@@ -61,8 +61,11 @@ export async function createSeriesWithOccurrences({ series, occurrences, event, 
       rsoId: series.rso_id,
       createdBy: series.created_by,
       frequency: series.frequency,
-      intervalWeeks: series.interval_weeks,
-      daysOfWeek: series.days_of_week,
+      intervalWeeks: series.interval_weeks ?? null,
+      intervalMonths: series.interval_months ?? null,
+      monthDay: series.month_day ?? null,
+      monthWeek: series.month_week ?? null,
+      daysOfWeek: series.days_of_week ?? null,
       startsOn: series.starts_on,
       endsOn: series.ends_on,
       startOfDay: series.start_of_day,
@@ -275,7 +278,11 @@ export async function deleteSeries(seriesId) {
  */
 export async function updateSeriesRule(seriesId, updates) {
   const row = {};
+  if (updates.frequency !== undefined)        row.frequency = updates.frequency;
   if (updates.interval_weeks !== undefined)   row.intervalWeeks = updates.interval_weeks;
+  if (updates.interval_months !== undefined)  row.intervalMonths = updates.interval_months;
+  if (updates.month_day !== undefined)        row.monthDay = updates.month_day;
+  if (updates.month_week !== undefined)       row.monthWeek = updates.month_week;
   if (updates.days_of_week !== undefined)     row.daysOfWeek = updates.days_of_week;
   if (updates.starts_on !== undefined)        row.startsOn = updates.starts_on;
   if (updates.ends_on !== undefined)          row.endsOn = updates.ends_on;

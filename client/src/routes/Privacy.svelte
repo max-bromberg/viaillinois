@@ -69,6 +69,7 @@
       <li><strong class="text-foreground">Responses to events.</strong> If you say you are going to an event, that association is stored and shown to the board of the organization holding it.</li>
       <li><strong class="text-foreground">Organization membership.</strong> Which organizations you belong to and your role in each.</li>
       <li><strong class="text-foreground">Exam entries.</strong> If you submit a midterm date, the entry is stored with the account that submitted it.</li>
+      <li><strong class="text-foreground">Bug reports.</strong> If you report a problem through the form on the About page, VIA stores what you wrote, which part of the platform it was about, and the page you were on. You do not have to be signed in to send one. If you are, your NetID is stored with it so that somebody can follow it up, and if you are not, nothing identifies you unless you choose to give an address to reply to. That address is used to answer your report and for nothing else. No network address is stored with a report.</li>
     </ul>
 
     <h3 class="text-sm font-medium mt-3">Data that does not come from you</h3>

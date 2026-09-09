@@ -146,6 +146,10 @@ const EVENT_ROW = {
   is_private: 0, cancelled_at: null, location_id: 5, building: 'Electrical & Computer Eng Bldg',
   room_number: '1002', location_text: null, location_note: 'Use the north entrance.',
   series_id: 4, series_frequency: 'weekly', series_interval_weeks: 1,
+  // The two fields a monthly rule uses, empty on a weekly one. A repeat can be
+  // weekly, monthly on a date or a weekday of the month, or a set of dates
+  // picked one by one, and the bot draws a different sentence for each.
+  series_interval_months: null, series_month_day: null, series_month_week: null,
   series_days_of_week: 'MO,WE', series_ends_on: '2026-12-09', interest_count: 3,
 };
 
@@ -168,7 +172,8 @@ const SECTION = {
  * shapes of the same event without this file changing.
  */
 const SERIES = {
-  series_id: 4, rso_id: 1, frequency: 'weekly', interval_weeks: 1, days_of_week: 'MO,WE',
+  series_id: 4, rso_id: 1, frequency: 'weekly', interval_weeks: 1,
+  interval_months: null, month_day: null, month_week: null, days_of_week: 'MO,WE',
   starts_on: '2026-09-07', ends_on: '2026-12-09', start_of_day: '18:00:00', duration_minutes: 60,
 };
 
@@ -492,5 +497,54 @@ describe('the answer shapes the Discord bot depends on', () => {
     const res = await asBot('/internal/v1/buildings/ZZZ');
     expect(res.status).toBe(404);
     fixture('refusal', res.body);
+  });
+});
+
+/**
+ * The fields the two newer shapes of repeat need.
+ *
+ * A repeat can be weekly on the days chosen, monthly on a date in the month or
+ * on a weekday of it, or a set of dates an organizer picked one by one. The bot
+ * draws a different sentence for each, and it can only do that if the shape it
+ * reads carries the fields the two newer ones are written in. A weekly rule
+ * leaves them empty, which is what tells the bot it is weekly.
+ */
+describe('an event carries every field of the repeat it belongs to', () => {
+  it('answers with the monthly fields alongside the weekly one', () => {
+    expect(presentEvent(EVENT_ROW)).toMatchObject({
+      series_frequency: 'weekly',
+      series_interval_weeks: 1,
+      series_interval_months: null,
+      series_month_day: null,
+      series_month_week: null,
+    });
+  });
+
+  it('carries a monthly rule as it is stored', () => {
+    expect(presentEvent({
+      ...EVENT_ROW,
+      series_frequency: 'monthly',
+      series_interval_weeks: null,
+      series_interval_months: 1,
+      series_month_day: null,
+      series_month_week: -1,
+      series_days_of_week: 'Fri',
+    })).toMatchObject({
+      series_frequency: 'monthly',
+      series_interval_weeks: null,
+      series_interval_months: 1,
+      series_month_day: null,
+      series_month_week: -1,
+      series_days_of_week: 'Fri',
+    });
+  });
+
+  it('leaves every one of them empty for an event that does not repeat', () => {
+    expect(presentEvent({ event_id: 10, rso_id: 1, title: 'One off' })).toMatchObject({
+      series_id: null,
+      series_interval_months: null,
+      series_month_day: null,
+      series_month_week: null,
+    });
   });
 });

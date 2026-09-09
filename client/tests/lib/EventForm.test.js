@@ -136,3 +136,95 @@ describe('EventForm location note', () => {
     );
   });
 });
+
+/**
+ * The shapes a repeat can take on the form.
+ *
+ * It used to be every week or every other week and nothing else, so a board
+ * holding a meeting once a month, or on a set of dates that follow no rule,
+ * entered each one by hand.
+ */
+describe('EventForm repeats', () => {
+  const filled = async () => {
+    const rendered = render(EventForm, { props: { rsoId: 1 } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    return rendered;
+  };
+
+  const submitted = async (rendered, onSubmit) => {
+    await fireEvent.click(rendered.getByRole('button', { name: /Create event/i }));
+    return onSubmit.mock.calls.at(-1)?.[0].detail;
+  };
+
+  it('sends a weekly repeat with the interval that was chosen', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'Every week' }));
+    await fireEvent.input(rendered.getByLabelText(/every how many weeks/i), { target: { value: '3' } });
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'weekly', interval_weeks: 3 });
+  });
+
+  it('sends a monthly repeat on a date in the month', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-15T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-15T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'Every month' }));
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'monthly', interval_months: 1, month_day: 15 });
+    expect(detail.recurrence.month_week).toBeUndefined();
+  });
+
+  it('sends a monthly repeat on a weekday of the month when that is chosen', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-08T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-08T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'Every month' }));
+    await fireEvent.click(rendered.getByRole('button', { name: /On a weekday of the month/i }));
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'monthly', month_week: 2, days_of_week: ['Tue'] });
+    expect(detail.recurrence.month_day).toBeUndefined();
+  });
+
+  it('sends the dates that were picked one by one', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'On dates I pick' }));
+    await fireEvent.click(rendered.getByRole('button', { name: 'September 17, 2026' }));
+    await fireEvent.click(rendered.getByRole('button', { name: 'September 24, 2026' }));
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'dates', dates: ['2026-09-17', '2026-09-24'] });
+  });
+
+  it('will not create a repeat on no dates at all', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'On dates I pick' }));
+    expect(rendered.getByRole('button', { name: /Create event/i }).disabled).toBe(true);
+  });
+
+  it('sends no repeat at all when the event does not repeat', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'One off' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toBeNull();
+  });
+});

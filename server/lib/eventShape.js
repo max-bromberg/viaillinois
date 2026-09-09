@@ -26,7 +26,14 @@ export function presentEvent(row) {
     location_note: row.location_note ?? null,
     series_id:             row.series_id ?? null,
     series_frequency:      row.series_frequency ?? null,
-    series_interval_weeks: row.series_interval_weeks ?? null,
+    // The interval is counted in the unit its own shape counts in: a weekly
+    // rule has weeks and no months, a monthly rule the other way round, and a
+    // set of dates picked one by one has neither. The two month fields are the
+    // two shapes a monthly rule can take, and it is only ever one of them.
+    series_interval_weeks:  row.series_interval_weeks ?? null,
+    series_interval_months: row.series_interval_months ?? null,
+    series_month_day:       row.series_month_day ?? null,
+    series_month_week:      row.series_month_week ?? null,
     series_days_of_week:   row.series_days_of_week ?? null,
     series_ends_on:        row.series_ends_on ?? null,
     interest_count: Number(row.interest_count ?? 0),

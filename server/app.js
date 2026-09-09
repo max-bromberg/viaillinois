@@ -30,6 +30,8 @@ import schedulerRouter from './routes/scheduler.js';
 import { createInternalRouter } from './routes/internal/index.js';
 import semesterRouter  from './routes/semester.js';
 import personalCalendarRouter from './routes/personalCalendar.js';
+import tagsRouter      from './routes/tags.js';
+import bugReportsRouter from './routes/bugReports.js';
 import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, readFileSync } from 'fs';
@@ -148,6 +150,8 @@ app.use('/api/v1/users',      usersRouter);
 // What the Discord link page reads about the session it was opened for.
 app.use('/api/v1/link',       linkRouter);
 app.use('/api/v1/venues',     venuesRouter);
+app.use('/api/v1/tags',       tagsRouter);
+app.use('/api/v1/bug-reports', bugReportsRouter);
 
 // Ahead of the static handler, so these are generated rather than served from
 // the bundle, where they were stale and used relative addresses.

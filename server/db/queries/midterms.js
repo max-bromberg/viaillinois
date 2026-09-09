@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { query } from '../pool.js';
 import { db } from '../client.ts';
 import { midterms } from '../schema/schema.ts';
 import { campusNow } from '../../lib/timezone.js';
+import { dayRange } from '../../lib/dateRange.js'
 import { pageClause, pageParams } from './paging.js';
 
 /**
@@ -30,13 +31,16 @@ export async function getMidterms(filters = {}) {
     whereClauses.push('c.course_code = ?')
     params.push(courseCode)
   }
-  if (startDate) {
+  // The range is a range of days, so its last day is a whole day. Pushed as
+  // written, a date read as midnight and left the exams on it out.
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate)
+  if (startAt) {
     whereClauses.push('m.start_time >= ?')
-    params.push(startDate)
+    params.push(startAt)
   }
-  if (endDate) {
+  if (endAt) {
     whereClauses.push('m.start_time <= ?')
-    params.push(endDate)
+    params.push(endAt)
   }
   if (endingOnOrAfter) {
     whereClauses.push('m.end_time >= ?')
@@ -166,6 +170,23 @@ export async function deleteMidterm(midtermId) {
 }
 
 /**
+ * Remove several entries at once.
+ *
+ * A calendar imported under the wrong course codes, or a term that has ended,
+ * leaves a page of entries to take off the schedule, and taking them off one
+ * confirmation at a time is what boards were doing. One statement rather than
+ * one per entry, so a board clearing fifty of them asks the database once.
+ *
+ * @param {number[]} midtermIds
+ * @returns {Promise<{ affectedRows: number }>}
+ */
+export async function deleteMidterms(midtermIds) {
+  if (!midtermIds || midtermIds.length === 0) return { affectedRows: 0 }
+  const [result] = await db.delete(midterms).where(inArray(midterms.midtermId, midtermIds))
+  return { affectedRows: result.affectedRows }
+}
+
+/**
  * Fetch confirmed midterms for use by the intelligent scheduler.
  * Filters to status = 'Confirmed' in the DB (not the computed upcoming/past status).
  * Optionally filters by course codes and date range.
@@ -187,13 +208,16 @@ export async function getConfirmedMidtermsForScheduler(filters = {}) {
   const params = []
   let whereClauses = ['m.status = "Confirmed"']
   
-  if (startDate) {
+  // The range is a range of days, so its last day is a whole day. Pushed as
+  // written, a date read as midnight and left the exams on it out.
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate)
+  if (startAt) {
     whereClauses.push('m.start_time >= ?')
-    params.push(startDate)
+    params.push(startAt)
   }
-  if (endDate) {
+  if (endAt) {
     whereClauses.push('m.start_time <= ?')
-    params.push(endDate)
+    params.push(endAt)
   }
   if (courseCodes && courseCodes.length > 0) {
     const placeholders = courseCodes.map(() => '?').join(', ')
