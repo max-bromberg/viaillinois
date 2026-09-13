@@ -4,6 +4,10 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+## 0.6.0 (2026-09-13)
+
+- 
+
 - Events stopped going missing from the calendar. A range of dates is a range of days, and a day is a whole day, but every listing that takes a start date and an end date compared them against the stored time as written, so an upper bound of the thirtieth of September was midnight that morning and threw away everything that happened on the day it named. That is why events went missing from the last week of some months on the calendar while sitting on the events page as usual, why nothing ever appeared in the Saturday column of the week view, and why the scheduler weighed a search window with its final day empty. Three more things went with it: the month grid stopped at the last day of the month rather than running in whole weeks, a day holding more than three entries hid the rest behind a count that could not be opened, which is what a term imported from a calendar file looks like, and the calendar opened on the week when the month is the view a board reads it in.
 - Importing a calendar file into an organization no longer looks as though nothing happened. The panel was drawn only while the manual entry form was open, so there was nowhere to import from without first opening a form for an event nobody was entering, and it told the listing behind it nothing when it succeeded, so the events table went on showing what was there before. It has its own control now, and the table reloads.
 - A repeat can be more than every week or every other week. Every so many weeks, since the interval was always stored and only two of its values were ever offered. Once a month, in the two forms that phrase actually means, a date in the month such as the fifteenth or a weekday of it such as the second Tuesday or the last Friday, with a month that has no such date left out rather than slid into the next one. And a set of dates picked one by one on a calendar the organizer clicks, each taking the hour and the length of the event, with nothing left out, because a date somebody chose is a date they meant.
