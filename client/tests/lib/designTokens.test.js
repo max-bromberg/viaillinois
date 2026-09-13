@@ -31,7 +31,7 @@ function tokensOf(css, selector) {
  * beside them for one step so that screens which have not been converted yet
  * keep working, and those are not expected to appear in the reference.
  */
-const SYSTEM = /^--(paper|card|well|line|line-strong|ink|ink-2|muted|faint|primary|primary-fg|primary-soft|primary-soft-fg|signal|signal-text|signal-soft|ok|warn|danger|plum|cat-\d|sky-\w+|sky-ink|g-current|g-board|lamp|lamp-hover|lamp-poster|shadow-float|sans|display|mono|tagmix)$/;
+const SYSTEM = /^--(paper|card|well|line|line-strong|ink|ink-2|muted|faint|primary|mark|primary-fg|primary-soft|primary-soft-fg|signal|signal-text|signal-soft|ok|warn|danger|plum|cat-\d|sky-\w+|sky-ink|g-current|g-board|lamp|lamp-hover|lamp-poster|shadow-float|sans|display|mono|tagmix)$/;
 
 describe('the light theme', () => {
   const mine = tokensOf(APP, ':root');

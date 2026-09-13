@@ -191,3 +191,47 @@ export function fallsOnDay(value, marker) {
   const day = campusStartOfDay(value);
   return day !== '' && day === calendarDayKey(marker);
 }
+
+/**
+ * A date written the way the site writes dates, "Thu Sep 10", with no comma.
+ *
+ * The browser's own short format puts a comma after the weekday, which reads as
+ * a list rather than as a date. docs/design/10-voice.md writes it without one.
+ *
+ * @param {string|Date|null} value
+ * @returns {string}
+ */
+export function campusShortDate(value) {
+  return campusDate(value, { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
+}
+
+/** How many campus days apart two times are. */
+function daysBetween(from, to) {
+  const start = campusStartOfDay(from);
+  const end = campusStartOfDay(to);
+  if (start === '' || end === '') return null;
+  const asDay = text => Date.UTC(...text.split('-').map(Number).map((part, at) => (at === 1 ? part - 1 : part)));
+  return Math.round((asDay(end) - asDay(start)) / 86400000);
+}
+
+/**
+ * What to call a day.
+ *
+ * docs/design/10-voice.md: "Today", "Tomorrow", then the weekday name for the
+ * next five days, then the date beyond that. The agenda, the clock under the sky
+ * band and the kiosk rail all name days, and a student reading "Thursday" in one
+ * place and "Thu Sep 17" in another for the same day is reading two sites.
+ *
+ * @param {string|Date|null} value the day being named
+ * @param {string|Date} [now] the day it is being named from, which is today
+ * @returns {string}
+ */
+export function campusDayName(value, now = new Date()) {
+  const away = daysBetween(now, value);
+  if (away === null) return '';
+  if (away === 0) return 'Today';
+  if (away === 1) return 'Tomorrow';
+  // A weekday name only helps while it is unambiguous, which is the week ahead.
+  if (away > 1 && away <= 6) return campusDate(value, { weekday: 'long' });
+  return campusShortDate(value);
+}

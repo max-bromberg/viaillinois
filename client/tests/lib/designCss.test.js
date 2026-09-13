@@ -30,8 +30,16 @@ describe('the design system rules in app.css', () => {
     }
   });
 
+  /**
+   * The rule reaches pseudo elements as well as elements. Written against the
+   * universal selector alone it matched neither ::before nor ::after, and the
+   * breathing pad on the current week of the term ribbon is drawn on one, so
+   * that movement would have kept going for somebody who asked for stillness.
+   */
   it('stop every movement for anybody who asks for reduced motion', () => {
-    expect(APP.replace(/\s+/g, '')).toContain('@media(prefers-reduced-motion:reduce){*{animation:none!important');
+    expect(APP.replace(/\s+/g, '')).toContain(
+      '@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important',
+    );
   });
 
   it('keep the cascade the reference is drawn with', () => {

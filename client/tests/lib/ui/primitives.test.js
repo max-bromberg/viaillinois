@@ -24,9 +24,10 @@ const PRIMITIVES = [
 ];
 
 /**
- * The design system's own directories. The three lowercase ones beside them are
- * what is left of the stock component kit, and they go when the last screen that
- * imports them is converted in step 4 of docs/design/11-implementation.md.
+ * The design system's own directories, primitives and composed parts alike. The
+ * three lowercase ones beside them are what is left of the stock component kit,
+ * and they go when the last screen that imports them is converted in step 4 of
+ * docs/design/11-implementation.md.
  */
 function directories() {
   return readdirSync(UI, { withFileTypes: true })
@@ -81,16 +82,33 @@ describe('every primitive', () => {
   it.each(directories())('%s holds no raw hex value in its source, outside the one the night band needs', directory => {
     const source = readFileSync(resolve(UI, directory, `${directory}.svelte`), 'utf8');
     const found = [...source.matchAll(/#[0-9a-fA-F]{6}\b/g)].map(match => match[0]);
-    // The night band is dark in either theme, so its ink cannot come from a
-    // token that changes with the theme. Those three values are the light ink,
-    // the secondary ink and the muted grey of the dark palette, and the contrast
-    // test holds them against every sky.
-    const allowed = new Set(['#e6f0f0', '#c3d3d3', '#8fa8a8']);
+    // Two places cannot take a colour from a token that changes with the theme.
+    // The night band is dark in either theme, so its ink is the light ink, the
+    // secondary ink and the muted grey of the dark palette, and the contrast test
+    // holds those against every sky. The mark is white on the kiosk and on the
+    // night sky, which docs/design/03-the-look.md states outright as the one
+    // variation the mark takes; its teal is the --mark token.
+    const allowed = new Set(['#e6f0f0', '#c3d3d3', '#8fa8a8', '#ffffff']);
     expect(found.filter(value => !allowed.has(value.toLowerCase()))).toEqual([]);
   });
 
-  it('exports every primitive the component document names', () => {
-    expect(directories().sort()).toEqual(['Cut', 'Highlight', 'Lamp', 'Numeral', 'Pad', 'Sky']);
+  it('carries every primitive the component document names', () => {
+    for (const primitive of ['Cut', 'Highlight', 'Lamp', 'Numeral', 'Pad', 'Sky']) {
+      expect(directories(), `${primitive} is missing`).toContain(primitive);
+    }
+  });
+
+  /**
+   * Two parts are drawn by the site that the component document does not name,
+   * and both exist because of rules the document does state. Icons are drawn
+   * rather than typed, because the first version of the site used emoji and they
+   * draw differently on every platform. The mark is inlined rather than loaded as
+   * an image, because it is white on the kiosk and on the night sky and an image
+   * cannot be recoloured. Both are recorded in 07-components.md.
+   */
+  it('carries the two parts the site draws that the component document gained later', () => {
+    expect(directories()).toContain('Icon');
+    expect(directories()).toContain('Mark');
   });
 
   /**

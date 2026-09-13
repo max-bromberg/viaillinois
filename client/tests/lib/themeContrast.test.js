@@ -128,6 +128,24 @@ describe.each(THEMES)('$name', ({ selector, lightIsDark }) => {
     }
   });
 
+  /**
+   * The night band is dark in either theme, so it carries the dark palette's
+   * inks whatever the page around it is doing. "Happening now" on the kiosk was
+   * set in the light theme's deep orange and read at 3.2 to 1 on the night sky
+   * before the band was given its own signal colour.
+   */
+  it('reads the words on a night band, which is dark in either theme', () => {
+    const NIGHT_INK = { ink: '#e6f0f0', secondary: '#c3d3d3', muted: '#8fa8a8', signal: '#ff8a66' };
+    for (const stop of stopsOf(t['--sky-night']).filter(s => s.toLowerCase() !== t['--paper'].toLowerCase())) {
+      for (const [role, colour] of Object.entries(NIGHT_INK)) {
+        // The band shows the top of its gradient, so the last stop is the one
+        // the page fades into rather than a surface words are set on.
+        if (stop === stopsOf(t['--sky-night']).at(-1) && role !== 'ink') continue;
+        expect(contrast(colour, stop), `${role} on the night sky at ${stop}`).toBeGreaterThanOrEqual(LARGE);
+      }
+    }
+  });
+
   it('reads secondary ink on the dusk sky at its top edge', () => {
     expect(contrast(t['--ink-2'], firstStop(t['--sky-evening']))).toBeGreaterThanOrEqual(TEXT);
   });

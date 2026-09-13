@@ -60,4 +60,9 @@ describe('Sky', () => {
     const { container } = render(Sky, { drift: false });
     expect(bandOf(container).classList.contains('drift')).toBe(false);
   });
+
+  it('draws whatever element it is asked for, since the band at the top of a page is its banner', () => {
+    const { container } = render(Sky, { as: 'header' });
+    expect(container.querySelector('header.skyband')).toBeTruthy();
+  });
 });

@@ -9,14 +9,24 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { collect, reference, PRIMITIVE_SELECTORS } from './designRules.js';
+import { collectFor, reference, PRIMITIVE_SELECTORS, COMPOSED_ROOTS, NARROWED } from './designRules.js';
 
 export const OPENS = '/* >>> design system: copied from docs/design/reference/foundation.css by scripts/syncDesignCss.js */';
 export const CLOSES = '/* <<< design system */';
 
-/** The block the client's stylesheet should carry, derived from the reference. */
+/**
+ * The block the client's stylesheet should carry, derived from the reference.
+ *
+ * The primitives and the composed parts are collected in one walk over the file
+ * rather than one walk each, so that the order they land in is the order the
+ * reference writes them and the cascade the reference render is drawn with comes
+ * across whole.
+ */
 export function designBlock(css = reference()) {
-  const rules = collect(css, PRIMITIVE_SELECTORS).map(rule => rule.text);
+  const rules = collectFor(css, {
+    selectors: [...PRIMITIVE_SELECTORS, ...NARROWED.keys()],
+    roots: COMPOSED_ROOTS,
+  }).map(rule => rule.text);
   return [OPENS, ...rules, CLOSES].join('\n');
 }
 

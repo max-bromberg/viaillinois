@@ -106,13 +106,98 @@ export function rulesOf(css) {
  * @returns {{ selector: string, text: string }[]}
  */
 export function collect(css, selectors) {
-  const wanted = new Set(selectors);
-  const narrowed = new Set(NARROWED.keys());
-  return rulesOf(css)
-    .filter(rule => wanted.has(rule.selector) || narrowed.has(rule.selector))
-    .map(rule => (narrowed.has(rule.selector)
-      ? { selector: NARROWED.get(rule.selector), text: rule.text.replace(rule.selector, NARROWED.get(rule.selector)) }
-      : rule));
+  return collectFor(css, { selectors: [...selectors, ...NARROWED.keys()] });
+}
+
+
+/**
+ * The roots of the composed parts, as the reference stylesheet names them. A
+ * rule comes across when every selector in its list is one of these or a
+ * descendant of one, so that a rule which also dresses the reference page's own
+ * document chrome is left behind rather than half applied.
+ */
+export const COMPOSED_ROOTS = [
+  'btn', 'check', 'tswitch', 'dial', 'fld', 'toast', 'empty', 'st', 'nowtag',
+  'skyband', 'nav', 'greet', 'feedhead', 'day', 'ev', 'poster', 'qr', 'board',
+  'mt', 'ribbon', 'ribcap', 'exams', 'exam', 'kiosk',
+];
+
+/** The roots of the surfaces, which step 4 lays the composed parts out on. */
+export const SURFACE_ROOTS = ['page', 'rail', 'wrap'];
+
+/**
+ * The reference page frames each of its mockups in a floating slab it calls the
+ * mock, and two rules hang off it that the client needs: a secondary or danger
+ * button standing on a card fills with the card colour rather than with paper.
+ * In the client that situation is a row, not a mockup, so the selector is
+ * rewritten to say what it means.
+ */
+const REFRAMED = new Map([
+  ['.mock .btn.secondary.cut::before,.mock .btn.danger.cut::before', '.on-card .btn.secondary.cut::before,.on-card .btn.danger.cut::before'],
+  // Revision 4 took the clock's date off the faint grey and onto secondary ink.
+  // The client has a greeting and no masthead, so it takes its half of the rule.
+  ['.mast .clock .d,.greet .clock .d', '.greet .clock .d'],
+]);
+
+const classesIn = selector => [...selector.matchAll(/\.([A-Za-z][\w-]*)/g)].map(match => match[1]);
+
+/**
+ * Whether a rule belongs to a set of roots: every comma separated selector in it
+ * has to begin with one of them, and every class it names has to be either a
+ * root, a state on a root, or something the design system already owns.
+ */
+function belongsTo(selector, roots) {
+  const parts = selector.split(',').map(part => part.trim()).filter(Boolean);
+  if (parts.length === 0) return false;
+  return parts.every(part => {
+    const first = classesIn(part)[0];
+    return first !== undefined && roots.includes(first);
+  });
+}
+
+/**
+ * The rules for a set of component roots, in the reference's own order.
+ *
+ * @param {string} css the reference stylesheet
+ * @param {string[]} roots
+ * @returns {{ selector: string, text: string }[]}
+ */
+export function collectRoots(css, roots) {
+  return collectFor(css, { roots });
+}
+
+/**
+ * Every rule the client wants, in the order the reference writes it.
+ *
+ * The order is the whole point. The reference states a rule and corrects it
+ * further down the file, and two rules of equal weight are settled by which
+ * comes last, so anything that reorders them changes what the page looks like
+ * without changing a single value. One walk over the file keeps the order it
+ * has.
+ *
+ * @param {string} css the reference stylesheet
+ * @param {{ selectors?: string[], roots?: string[] }} wanted
+ * @returns {{ selector: string, text: string }[]}
+ */
+export function collectFor(css, { selectors = [], roots = [] } = {}) {
+  const named = new Set(selectors);
+  return rulesOf(css).flatMap(rule => {
+    const reframed = REFRAMED.get(rule.selector);
+    if (reframed) {
+      return belongsTo(reframed, roots)
+        ? [{ selector: reframed, text: rule.text.replace(rule.selector, reframed) }]
+        : [];
+    }
+    const narrowed = NARROWED.get(rule.selector);
+    if (narrowed) {
+      return named.has(rule.selector)
+        ? [{ selector: narrowed, text: rule.text.replace(rule.selector, narrowed) }]
+        : [];
+    }
+    if (named.has(rule.selector)) return [rule];
+    if (rule.selector.startsWith('@')) return [];
+    return roots.length > 0 && belongsTo(rule.selector, roots) ? [rule] : [];
+  });
 }
 
 /** The reference stylesheet, as the client reads it. */

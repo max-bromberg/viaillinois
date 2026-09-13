@@ -23,6 +23,8 @@
     drift = true,
     /** The bottom left corner is cut on the band, at 44 px. */
     cut = 44,
+    /** The element to draw. The band at the top of a page is the page's banner. */
+    as = 'div',
     class: className = '',
     children,
     ...rest
@@ -47,27 +49,15 @@
   const classes = $derived(['skyband', 'cutbl', night && 'night', drift && 'drift', className].filter(Boolean).join(' '));
 </script>
 
-<div class={classes} style="--cut: {cut}px; --sky: var({token})" {...rest}>
+<svelte:element this={as} class={classes} style="--cut: {cut}px; --sky: var({token})" {...rest}>
   {@render children?.()}
-</div>
+</svelte:element>
 
 <style>
   .skyband {
     background: var(--sky);
     position: relative;
     overflow: hidden;
-  }
-
-  /*
-   * The night sky is dark whichever theme the page is in, so the band takes the
-   * light ink. The page below the band is untouched.
-   */
-  .night {
-    color: #e6f0f0;
-    --sky-ink: #e6f0f0;
-    --ink: #e6f0f0;
-    --ink-2: #c3d3d3;
-    --muted: #8fa8a8;
   }
 
   /*
