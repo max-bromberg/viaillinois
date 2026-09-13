@@ -61,6 +61,10 @@ As a tag filter it is a toggle button with `aria-pressed`. As a status it is a p
 A row of highlights (`.hlrow`) has a 2 px row gap and an 18 px column gap, and each has a
 32 px minimum height so it can be hit.
 
+A tag is drawn on a row or on paper. A cancelled row is a well, and it carries its status
+and no tags, which is what keeps every highlighter above the contrast threshold; see the
+second decision in the accessibility document.
+
 ### Sky
 
 Reads the campus hour, chooses the sky, paints the band, drifts it, crossfades at the hour
@@ -147,7 +151,8 @@ cut 14 px, lamp from the top left. Rows are 6 px apart and settle on load.
 - Side: a status highlight, or the now tag (breathing signal pad and "Happening now" in the
   display face at 13.5 px, signal text).
 - Live (`.now`): the lamp becomes signal at 20 percent.
-- Cancelled (`.cancel`): well background, title struck through in muted, no description.
+- Cancelled (`.cancel`): well background, title struck through in muted, no description and
+  no tags. The status highlight in the side column says it is cancelled.
 
 ## Event page parts
 

@@ -34,9 +34,17 @@
   const NEEDS_ACCOUNT = ['/dashboard', '/admin', '/scheduler', '/poster', '/account'];
   $: waitingForAccount = authLoading && NEEDS_ACCOUNT.includes($currentPath);
 
+  /**
+   * The class is the mechanism the client has always used and the one every
+   * unconverted screen reads. The attribute is what the design system's
+   * stylesheet reads, and it is what keeps the dark media query in app.css from
+   * overruling somebody who asked for the light theme on a system set to dark.
+   * index.html writes both before first paint, and this keeps them in step.
+   */
   function applyTheme(mode, prefersDark) {
     const isDark = mode === 'dark' || (mode === 'auto' && prefersDark);
     document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   }
 
   onMount(async () => {

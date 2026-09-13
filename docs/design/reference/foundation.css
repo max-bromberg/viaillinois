@@ -411,8 +411,9 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 
 /* tracking: the condensed cut is tight by design, so no negative tracking anywhere on it */
 .mast h1 b,.greet h2 b,.poster h1,.kiosk h1,.tspec .row1{letter-spacing:.012em}
-.mast h1,.greet h2,.sh h2,.cond,.tspec .big{letter-spacing:0}
+.mast h1,.greet h2,.sh h2,.cond,.tspec .big,.ev .b .title{letter-spacing:0}
 .day .dh b,.ev .t,.exam .code,.mt .head h1,.poster .when .big,.kiosk .whenk .big,.mast .clock .t,.greet .clock .t,.kiosk .k-top .t,.tspec .num,.sky .lab b,.ribbon .wkc b,.greet .line b{letter-spacing:.006em}
 .mast h1 b{word-spacing:.02em}
 
-<style>.poster h1{max-width:17ch}</style>
+/* the poster title's measure, 17 characters: 05-typography.md and 07-components.md */
+.poster h1{max-width:17ch}

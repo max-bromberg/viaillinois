@@ -2,86 +2,184 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    /* VIA brand palette (hex for direct use) */
-    --via-50: #d7feff;
-    --via-100: #7df8fc;
-    --via-200: #68e4e8;
-    --via-300: #52d0d5;
-    --via-400: #39bdc1;
-    --via-500: #00aaaf;
-    --via-600: #008b8f;
-    --via-700: #006366;
-    --via-800: #003c3e;
-    --via-900: #001d1e;
+/*
+ * The three faces, Latin subsets, self hosted from docs/design/fonts.
+ *
+ * Revisions 1 through 3 of the design were reviewed on files that held almost
+ * none of the alphabet, so tests/lib/fonts.test.js opens each of these and reads
+ * its character map before the client is allowed to ship.
+ */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url(/fonts/BricolageGrotesque-latin.woff2) format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(/fonts/IBMPlexSans-latin.woff2) format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/IBMPlexMono-400-latin.woff2) format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/IBMPlexMono-500-latin.woff2) format("woff2");
+}
 
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --border: 182 20% 88%;
-    --input: 182 20% 88%;
-    --primary: 182 100% 28%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 182 60% 94%;
-    --secondary-foreground: 182 100% 20%;
-    --accent: 182 100% 92%;
-    --accent-foreground: 182 100% 12%;
-    --destructive: 0 72.2% 50.6%;
-    --destructive-foreground: 0 0% 98%;
-    --ring: 182 100% 34%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 182 100% 28%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 182 100% 92%;
-    --sidebar-accent-foreground: 182 100% 12%;
-    --sidebar-border: 182 20% 88%;
-    --sidebar-ring: 182 100% 34%;
+@layer base {
+  /*
+   * The design system's tokens, copied from docs/design/reference/foundation.css,
+   * which is normative. tests/lib/designTokens.test.js compares the two, so a
+   * value that drifts from the approved stylesheet fails the gate.
+   */
+  :root {
+    --paper:#f5fafa;--card:#ffffff;--well:#ecf3f3;--line:#d3e2e2;--line-strong:#b4c9c9;
+    --ink:#0b1a1b;--ink-2:#2b3d3e;--muted:#4d6667;--faint:#7d9394;
+    --primary:#007c80;--primary-fg:#ffffff;--primary-soft:#e6f8f8;--primary-soft-fg:#005558;
+    --signal:#e84a27;--signal-text:#c8391a;--signal-soft:#fdeae4;
+    --ok:#1f7a3c;--warn:#9a5b00;--danger:#c02a2a;--plum:#6b3fa0;
+    --cat-1:#007c80;--cat-2:#e84a27;--cat-3:#6b3fa0;--cat-4:#b7791f;--cat-5:#1f7a3c;--cat-6:#0b5fa5;--cat-7:#b5306f;--cat-8:#5b6b12;
+    --sky-morning:linear-gradient(180deg,#fff1d6 0%,#eaf6f4 55%,var(--paper) 100%);
+    --sky-afternoon:linear-gradient(180deg,#d8f3f3 0%,#edf8f8 55%,var(--paper) 100%);
+    --sky-evening:linear-gradient(180deg,#ffd2bb 0%,#fbe3d9 30%,#d9f1f1 68%,var(--paper) 100%);
+    --sky-night:linear-gradient(180deg,#0f2224 0%,#1c3538 45%,#4b5f60 80%,var(--paper) 100%);
+    --sky-ink:var(--ink);
+    --g-current:linear-gradient(160deg,#0a9a9e 0%,#007c80 60%,#005558 100%);
+    --g-board:linear-gradient(160deg,#0f2e2f 0%,#0a1516 55%,#1a1210 100%);
+    --lamp:14%;
+    --shadow-float:0 2px 6px rgba(11,26,27,.06),0 18px 48px -12px rgba(11,26,27,.22);
+    --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --display:"Bricolage Grotesque","IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --tagmix:var(--ink);
+    color-scheme:light;
+    /*
+     * The names the stock component kit used, kept for one step so that screens
+     * which have not been converted yet keep working. They carry the new
+     * palette rather than the old cool grey, so the whole site takes the teal
+     * cast at once. docs/design/11-implementation.md removes them when the last
+     * surface that uses them lands in step 4.
+     */
+    --stock-background: 180 33.3% 97.1%;
+    --stock-foreground: 183.8 42.1% 7.5%;
+    --stock-muted: 180 22.6% 93.9%;
+    --stock-muted-foreground: 182.3 14.4% 35.3%;
+    --stock-popover: 0 0% 100%;
+    --stock-popover-foreground: 183.8 42.1% 7.5%;
+    --stock-card: 0 0% 100%;
+    --stock-card-foreground: 183.8 42.1% 7.5%;
+    --stock-border: 180 20.5% 85.7%;
+    --stock-input: 180 16.3% 74.7%;
+    --stock-primary: 181.9 100% 25.1%;
+    --stock-primary-foreground: 0 0% 100%;
+    --stock-secondary: 180 56.3% 93.7%;
+    --stock-secondary-foreground: 182 100% 17.3%;
+    --stock-accent: 180 56.3% 93.7%;
+    --stock-accent-foreground: 182 100% 17.3%;
+    --stock-destructive: 0 64.1% 45.9%;
+    --stock-destructive-foreground: 0 0% 100%;
+    --stock-ring: 181.9 100% 25.1%;
+    --stock-radius: 0.5rem;
+    --stock-sidebar-background: 180 22.6% 93.9%;
+    --stock-sidebar-foreground: 182.3 14.4% 35.3%;
+    --stock-sidebar-primary: 181.9 100% 25.1%;
+    --stock-sidebar-primary-foreground: 0 0% 100%;
+    --stock-sidebar-accent: 180 56.3% 93.7%;
+    --stock-sidebar-accent-foreground: 182 100% 17.3%;
+    --stock-sidebar-border: 180 20.5% 85.7%;
+    --stock-sidebar-ring: 181.9 100% 25.1%;
   }
 
+  /*
+   * The system preference darkens the page on its own, so a first paint is
+   * already dark before any script runs. The guard stands the block aside for
+   * somebody who asked for the light theme on a system set to dark: index.html
+   * writes data-theme before first paint, and App.svelte keeps it in step with
+   * the theme control.
+   */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#0a1516;--card:#111f20;--well:#0e1b1c;--line:#1f3334;--line-strong:#2d4647;
+      --ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;
+      --primary:#2fc4c8;--primary-fg:#04201f;--primary-soft:#0f2e2f;--primary-soft-fg:#8fdfe1;
+      --signal:#ff8a66;--signal-text:#ff8a66;--signal-soft:#3a1b12;
+      --ok:#5fcf85;--warn:#e8b04a;--danger:#ff7676;--plum:#b79aea;
+      --cat-1:#2fc4c8;--cat-2:#ff8a66;--cat-3:#b79aea;--cat-4:#e8b04a;--cat-5:#5fcf85;--cat-6:#6fb2f0;--cat-7:#f08ab8;--cat-8:#b7c85a;
+      --sky-morning:linear-gradient(180deg,#2a2416 0%,#12211f 55%,var(--paper) 100%);
+      --sky-afternoon:linear-gradient(180deg,#0f2e2f 0%,#0d2224 55%,var(--paper) 100%);
+      --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
+      --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
+      --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
+      --lamp:22%;
+      --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
+      --tagmix:var(--card);
+      color-scheme:dark;    }
+  }
+
+  /*
+   * The client has toggled a class on the document element since before this
+   * design, and an inline script in index.html adds it before first paint. The
+   * class is mapped to the same values as the reference's attribute block rather
+   * than the mechanism being swapped underneath a working page.
+   */
+  :root[data-theme="dark"],
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --border: 182 30% 18%;
-    --input: 182 30% 18%;
-    --primary: 182 52% 49%;
-    --primary-foreground: 182 100% 6%;
-    --secondary: 182 40% 14%;
-    --secondary-foreground: 0 0% 98%;
-    --accent: 182 100% 12%;
-    --accent-foreground: 182 100% 92%;
-    /*
-     * A red that can be read on a near black page. The dark maroon this was
-     * sat behind white text on a solid button and disappeared entirely as a
-     * label or an outline, which is how the delete controls on a midterm entry
-     * are drawn. The lightness rises here in the same way the primary colour's
-     * does, and the foreground goes dark to follow it.
-     * tests/lib/themeContrast.test.js holds both readings to account.
-     */
-    --destructive: 0 72% 62%;
-    --destructive-foreground: 0 72% 8%;
-    --ring: 182 52% 49%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 182 52% 49%;
-    --sidebar-primary-foreground: 182 100% 6%;
-    --sidebar-accent: 182 100% 12%;
-    --sidebar-accent-foreground: 182 100% 92%;
-    --sidebar-border: 182 30% 18%;
-    --sidebar-ring: 182 52% 49%;
+    --paper:#0a1516;--card:#111f20;--well:#0e1b1c;--line:#1f3334;--line-strong:#2d4647;
+    --ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;
+    --primary:#2fc4c8;--primary-fg:#04201f;--primary-soft:#0f2e2f;--primary-soft-fg:#8fdfe1;
+    --signal:#ff8a66;--signal-text:#ff8a66;--signal-soft:#3a1b12;
+    --ok:#5fcf85;--warn:#e8b04a;--danger:#ff7676;--plum:#b79aea;
+    --cat-1:#2fc4c8;--cat-2:#ff8a66;--cat-3:#b79aea;--cat-4:#e8b04a;--cat-5:#5fcf85;--cat-6:#6fb2f0;--cat-7:#f08ab8;--cat-8:#b7c85a;
+    --sky-morning:linear-gradient(180deg,#2a2416 0%,#12211f 55%,var(--paper) 100%);
+    --sky-afternoon:linear-gradient(180deg,#0f2e2f 0%,#0d2224 55%,var(--paper) 100%);
+    --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
+    --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
+    --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
+    --lamp:22%;
+    --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
+    --tagmix:var(--card);
+    color-scheme:dark;
+    /* The stock names again, on the dark palette. */
+    --stock-background: 185 37.5% 6.3%;
+    --stock-foreground: 180 25% 92.2%;
+    --stock-muted: 184.3 33.3% 8.2%;
+    --stock-muted-foreground: 180 12.6% 61%;
+    --stock-popover: 184 30.6% 9.6%;
+    --stock-popover-foreground: 180 25% 92.2%;
+    --stock-card: 184 30.6% 9.6%;
+    --stock-card-foreground: 180 25% 92.2%;
+    --stock-border: 182.9 25.3% 16.3%;
+    --stock-input: 182.3 22.4% 22.7%;
+    --stock-primary: 181.6 61.9% 48.4%;
+    --stock-primary-foreground: 177.9 77.8% 7.1%;
+    --stock-secondary: 181.9 51.6% 12.2%;
+    --stock-secondary-foreground: 181.5 57.7% 72.2%;
+    --stock-accent: 181.9 51.6% 12.2%;
+    --stock-accent-foreground: 181.5 57.7% 72.2%;
+    --stock-destructive: 0 100% 73.1%;
+    --stock-destructive-foreground: 177.9 77.8% 7.1%;
+    --stock-ring: 181.6 61.9% 48.4%;
+    --stock-sidebar-background: 184.3 33.3% 8.2%;
+    --stock-sidebar-foreground: 180 12.6% 61%;
+    --stock-sidebar-primary: 181.6 61.9% 48.4%;
+    --stock-sidebar-primary-foreground: 177.9 77.8% 7.1%;
+    --stock-sidebar-accent: 181.9 51.6% 12.2%;
+    --stock-sidebar-accent-foreground: 181.5 57.7% 72.2%;
+    --stock-sidebar-border: 182.9 25.3% 16.3%;
+    --stock-sidebar-ring: 181.6 61.9% 48.4%;
   }
 }
 
@@ -90,7 +188,36 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* The three voices, as the reference stylesheet names them. */
+@layer components {
+  .mono {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .disp {
+    font-family: var(--display);
+    font-variation-settings: "opsz" 96;
+  }
+  .cond {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    letter-spacing: 0;
+  }
+  .wide {
+    font-family: var(--display);
+    font-stretch: 100%;
+    font-variation-settings: "opsz" 96;
   }
 }
 
@@ -103,13 +230,13 @@
   .shimmer {
     background: linear-gradient(
       90deg,
-      hsl(var(--muted))   0%,
-      hsl(var(--accent))  50%,
-      hsl(var(--muted))   100%
+      hsl(var(--stock-muted))   0%,
+      hsl(var(--stock-accent))  50%,
+      hsl(var(--stock-muted))   100%
     );
     background-size: 200% 100%;
     animation: shimmer 2s linear infinite;
     animation-delay: -1s;
-    border-radius: var(--radius);
+    border-radius: var(--stock-radius);
   }
 }

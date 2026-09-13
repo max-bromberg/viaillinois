@@ -69,24 +69,24 @@
   .update-body :global(a) {
     text-decoration: underline;
     text-underline-offset: 2px;
-    color: hsl(var(--primary));
+    color: hsl(var(--stock-primary));
   }
   .update-body :global(code) {
     font-family: monospace;
     font-size: 0.85em;
-    background: hsl(var(--muted));
+    background: hsl(var(--stock-muted));
     padding: 0.1em 0.3em;
     border-radius: 3px;
   }
   .update-body :global(blockquote) {
-    border-left: 3px solid hsl(var(--border));
+    border-left: 3px solid hsl(var(--stock-border));
     padding-left: 1rem;
-    color: hsl(var(--muted-foreground));
+    color: hsl(var(--stock-muted-foreground));
     margin: 0.75rem 0;
   }
   .update-body :global(hr) {
     border: none;
-    border-top: 1px solid hsl(var(--border));
+    border-top: 1px solid hsl(var(--stock-border));
     margin: 1.5rem 0;
   }
 </style>
