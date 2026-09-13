@@ -109,6 +109,7 @@ describe('every primitive', () => {
   it('carries the two parts the site draws that the component document gained later', () => {
     expect(directories()).toContain('Icon');
     expect(directories()).toContain('Mark');
+    expect(directories()).toContain('Trace');
   });
 
   /**

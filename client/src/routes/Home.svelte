@@ -208,10 +208,31 @@
 </div>
 
 <style>
+  /*
+   * The rail is a 200 px track. A grid item is free to grow past its track when
+   * something inside it will not shrink, and the date pickers would not, so the
+   * rail leaned across the agenda and the day names sat underneath it.
+   */
   .left {
     display: grid;
     gap: 26px;
     align-content: start;
+    min-width: 0;
+  }
+
+  /*
+   * A grid item's automatic minimum size is its content, and that beats
+   * max-width, so the rail has to be told outright that it may be narrower than
+   * the longest tag in it. Without this it grew to 268 px inside its 200 px
+   * track and leaned across the day names.
+   */
+  .left > :global(*) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .agenda {
+    min-width: 0;
   }
 
   .lead {

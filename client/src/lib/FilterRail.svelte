@@ -201,6 +201,17 @@
 
 <style>
   /*
+   * Each block of the rail is a grid item, and a grid item's automatic minimum
+   * size is its own content, which beats any width the track gives it. Without
+   * this the tag row set its own width from the longest tag and the rail leaned
+   * across the agenda. Scoped with the child combinator, because a rule written
+   * for the outer blocks would otherwise reach the rows inside them.
+   */
+  .rail > div {
+    min-width: 0;
+  }
+
+  /*
    * The two timeframe words carry their weight and their underline from the
    * .rail .when rules copied from the reference stylesheet, so the buttons
    * inside them bring nothing of their own.

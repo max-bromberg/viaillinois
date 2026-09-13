@@ -3,6 +3,7 @@
   import { Nav } from '../Nav/index.js';
   import { Greeting } from '../Greeting/index.js';
   import { Clock } from '../Clock/index.js';
+  import { Trace } from '../Trace/index.js';
   import { campusFields, campusSky } from '../../../campusTime.js';
 
   /**
@@ -63,6 +64,13 @@
 </script>
 
 <Sky {sky} {at} as="header" class={className} {...rest}>
+  <!--
+    The one ornament the system permits, in one of the four places it is allowed.
+    It replaced the circuit board that used to be drawn behind the whole page,
+    which was either too faint to register or, once it registered, a pattern
+    running under the reading.
+  -->
+  <Trace />
   <Nav {links} {here} onDark={night} {onnavigate}>{@render controls?.()}</Nav>
   <Greeting {hour} {name} {title} {tonight} {where} {week} {midterm}>
     <Clock {at} sky={showing} />

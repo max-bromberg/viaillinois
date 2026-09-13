@@ -11,10 +11,17 @@ import { DayGroup } from '../../../src/lib/components/ui/DayGroup/index.js';
 const TODAY = '2026-09-10T09:00:00-05:00';
 
 describe('DayGroup', () => {
-  it('names the day and dates it', () => {
+  it('names the day and dates it, with each line doing a different job', () => {
     const { container } = render(DayGroup, { day: '2026-09-12T18:00:00-05:00', now: TODAY });
     expect(container.querySelector('.dh b').textContent).toBe('Saturday');
-    expect(container.querySelector('.dh time').textContent).toBe('Sat Sep 12');
+    // The name already carries the weekday, so the date does not repeat it.
+    expect(container.querySelector('.dh time').textContent).toBe('Sep 12');
+  });
+
+  it('names a day far out by its weekday rather than by its date twice over', () => {
+    const { container } = render(DayGroup, { day: '2026-10-03T18:00:00-05:00', now: TODAY });
+    expect(container.querySelector('.dh b').textContent).toBe('Saturday');
+    expect(container.querySelector('.dh time').textContent).toBe('Oct 3');
   });
 
   it('calls today Today and tomorrow Tomorrow', () => {
@@ -57,6 +64,12 @@ describe('DayGroup', () => {
   it('says the date in the heading as well as the name, so Today is not the whole answer', () => {
     const { container } = render(DayGroup, { day: TODAY, now: TODAY });
     expect(container.querySelector('h3').textContent).toContain('Thu Sep 10');
+  });
+
+  it('carries the weekday in the date when the name is a relative one', () => {
+    const { container } = render(DayGroup, { day: '2026-09-11T18:00:00-05:00', now: TODAY });
+    expect(container.querySelector('.dh b').textContent).toBe('Tomorrow');
+    expect(container.querySelector('.dh time').textContent).toBe('Fri Sep 11');
   });
 
   it('holds the rows that belong to it', () => {

@@ -16,7 +16,6 @@
   import AppSkeleton from './lib/AppSkeleton.svelte';
   import Footer      from './lib/Footer.svelte';
   import { toast } from './stores/ui.js';
-  import CircuitBackground from './lib/CircuitBackground.svelte';
   import { Toast } from './lib/components/ui/index.js';
   import { apiFetch } from './api/base.js';
   import { greetingCounts } from './lib/greeting.js';
@@ -124,8 +123,6 @@
 {:else if $currentPath.startsWith('/kiosk')}
   <LazyRoute load={() => import('./routes/Kiosk.svelte')} />
 {:else}
-  <CircuitBackground />
-
   {#if $toast}
     <div class="toast-corner">
       <!--

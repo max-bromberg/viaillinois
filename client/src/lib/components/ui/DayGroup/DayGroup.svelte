@@ -1,6 +1,6 @@
 <script>
   import { Pad } from '../Pad/index.js';
-  import { campusDayName, campusShortDate, campusStartOfDay, isSameCampusDay } from '../../../campusTime.js';
+  import { campusDate, campusShortDate, campusStartOfDay, isSameCampusDay } from '../../../campusTime.js';
 
   /**
    * A day in the agenda.
@@ -27,8 +27,36 @@
   } = $props();
 
   const today = $derived(isSameCampusDay(day, now));
-  const name = $derived(campusDayName(day, now));
-  const date = $derived(campusShortDate(day));
+
+  /**
+   * Tomorrow is the campus day after today's. Worked out by adding a day to an
+   * instant instead, it lands an hour early or an hour late across a daylight
+   * saving change, and the agenda would call Sunday "Monday" twice a year.
+   */
+  const tomorrow = $derived.by(() => {
+    const from = campusStartOfDay(now);
+    if (from === '') return false;
+    const [year, month, date] = from.split('-').map(Number);
+    const after = new Date(Date.UTC(year, month - 1, date + 1));
+    const pad = value => String(value).padStart(2, '0');
+    return campusStartOfDay(day)
+      === `${after.getUTCFullYear()}-${pad(after.getUTCMonth() + 1)}-${pad(after.getUTCDate())}`;
+  });
+
+  /**
+   * The name is Today, Tomorrow, or the weekday, however far out the day is. The
+   * date under it carries the weekday too when the name does not, so that
+   * "Today" and "Saturday" both say which day they actually are. Naming a day
+   * three weeks out "Sat Oct 3" and then dating it "Sat Oct 3" underneath said
+   * the same thing twice, which is what the reference render avoids by keeping
+   * the two lines to different jobs.
+   */
+  const name = $derived(
+    today ? 'Today' : tomorrow ? 'Tomorrow' : campusDate(day, { weekday: 'long' }),
+  );
+  const date = $derived(
+    today || tomorrow ? campusShortDate(day) : campusDate(day, { month: 'short', day: 'numeric' }),
+  );
   const machine = $derived(campusStartOfDay(day));
 </script>
 

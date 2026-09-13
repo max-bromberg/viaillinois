@@ -20,6 +20,7 @@ export { Numeral } from './Numeral/index.js';
 // kiosk and on the night sky and an image cannot be recoloured.
 export { Icon, ICONS } from './Icon/index.js';
 export { Mark } from './Mark/index.js';
+export { Trace } from './Trace/index.js';
 
 // Controls.
 export { Button } from './Button/index.js';

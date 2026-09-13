@@ -9,7 +9,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { collectFor, reference, PRIMITIVE_SELECTORS, COMPOSED_ROOTS, NARROWED } from './designRules.js';
+import { collectFor, reference, PRIMITIVE_SELECTORS, COMPOSED_ROOTS, SURFACE_ROOTS, NARROWED } from './designRules.js';
 
 export const OPENS = '/* >>> design system: copied from docs/design/reference/foundation.css by scripts/syncDesignCss.js */';
 export const CLOSES = '/* <<< design system */';
@@ -25,7 +25,7 @@ export const CLOSES = '/* <<< design system */';
 export function designBlock(css = reference()) {
   const rules = collectFor(css, {
     selectors: [...PRIMITIVE_SELECTORS, ...NARROWED.keys()],
-    roots: COMPOSED_ROOTS,
+    roots: [...COMPOSED_ROOTS, ...SURFACE_ROOTS],
   }).map(rule => rule.text);
   return [OPENS, ...rules, CLOSES].join('\n');
 }

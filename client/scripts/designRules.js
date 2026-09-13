@@ -56,8 +56,6 @@ export const PRIMITIVE_SELECTORS = [
  */
 export const NARROWED = new Map([
   ['.hl:focus-visible,.hl.focus,.check:focus-visible,.check.focus,.dial:focus-visible,.dial.focus,.tswitch:focus-visible,.tswitch.focus,.pad:focus-visible', '.hl:focus-visible,.check:focus-visible,.dial:focus-visible,.tswitch:focus-visible,.pad:focus-visible'],
-  ['.check,.rail .orgs span,.hl', '.check,.hl'],
-  ['.rail .orgs .pad,.check .pad,.hl .pad', '.check .pad,.hl .pad'],
 ]);
 
 /**
@@ -122,8 +120,12 @@ export const COMPOSED_ROOTS = [
   'mt', 'ribbon', 'ribcap', 'exams', 'exam', 'kiosk',
 ];
 
-/** The roots of the surfaces, which step 4 lays the composed parts out on. */
-export const SURFACE_ROOTS = ['page', 'rail', 'wrap'];
+/**
+ * The roots of the surfaces, which step 4 lays the composed parts out on. The
+ * reference page's own container, .wrap, stays behind: the client has a page
+ * body of its own and two rules for the same job would fight.
+ */
+export const SURFACE_ROOTS = ['page', 'rail', 'feedhead'];
 
 /**
  * The reference page frames each of its mockups in a floating slab it calls the
