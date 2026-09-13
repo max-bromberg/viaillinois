@@ -94,6 +94,10 @@ describe('the outbox writers', () => {
         location_text: null, location_note: 'Use the north entrance.',
         series_id: null, series_frequency: null, series_interval_weeks: null,
         series_days_of_week: null, series_ends_on: null, interest_count: 0,
+        // The three a monthly repeat needs. The bot describes a repeat from
+        // them, so a payload without them would have it call a monthly meeting
+        // a weekly one.
+        series_interval_months: null, series_month_day: null, series_month_week: null,
       });
     });
 
@@ -241,6 +245,8 @@ describe('the outbox writers', () => {
         series_id: created.series_id, rso_id: 1, frequency: 'weekly', interval_weeks: 1,
         days_of_week: 'Tue', starts_on: '2027-09-07', ends_on: '2027-09-21',
         start_of_day: '18:00:00', duration_minutes: 90,
+        // Null on a weekly repeat, and carried because a monthly one needs them.
+        interval_months: null, month_day: null, month_week: null,
       });
       expect(entry.payload.event_ids).toEqual(created.event_ids);
     });
