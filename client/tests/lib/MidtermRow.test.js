@@ -39,14 +39,14 @@ describe('MidtermRow shows campus time', () => {
     const { getByText } = render(MidtermRow, {
       midterm: { ...base, start_time: '2026-10-01T19:00:00-05:00' },
     });
-    expect(getByText(/Thu, Oct 1 at 7:00 PM/)).toBeTruthy();
+    expect(getByText(/Thu Oct 1, 7:00 PM/)).toBeTruthy();
   });
 
   it('shows the same hour to a reader in another zone', () => {
     const { getByText } = render(MidtermRow, {
       midterm: { ...base, start_time: '2026-10-02T09:00:00+09:00' },
     });
-    expect(getByText(/Thu, Oct 1 at 7:00 PM/)).toBeTruthy();
+    expect(getByText(/Thu Oct 1, 7:00 PM/)).toBeTruthy();
   });
 });
 
@@ -97,5 +97,50 @@ describe('MidtermRow delete', () => {
     await fireEvent.click(getByRole('button', { name: /cancel/i }));
     expect(deleted).not.toHaveBeenCalled();
     expect(queryByRole('button', { name: /yes, delete/i })).toBeNull();
+  });
+});
+
+/**
+ * A midterm is a line in a printed listing, as docs/design/07-components.md
+ * describes the exam row: the course code as the headline, the time as a
+ * number, the status as a highlighted word. There is no table, no card and no
+ * filled pill.
+ */
+describe('MidtermRow, as an exam row', () => {
+  it('sets the entry as an exam row', () => {
+    const { container } = render(MidtermRow, { midterm: base });
+    expect(container.querySelector('.exam')).toBeTruthy();
+    expect(container.querySelector('tr')).toBeNull();
+  });
+
+  it('heads the row with the course code and the course under it', () => {
+    const { container } = render(MidtermRow, { midterm: base });
+    const code = container.querySelector('.exam .code');
+    expect(code.textContent).toContain('ECE 210');
+    expect(code.textContent).toContain('Analog Signal Processing');
+  });
+
+  it('says the status as a highlighted word rather than as a filled pill', () => {
+    const { container } = render(MidtermRow, { midterm: { ...base, status: 'Confirmed' } });
+    const status = container.querySelector('.exam .hl');
+    expect(status.textContent).toBe('Confirmed');
+    expect(status.className).not.toMatch(/rounded|bg-/);
+  });
+
+  it('draws the tick as a pad inside a target big enough to hit', () => {
+    const { container } = render(MidtermRow, { props: { midterm: base, canDelete: true } });
+    const tick = container.querySelector('.tick');
+    expect(tick.querySelector('.pad')).toBeTruthy();
+    expect(tick.querySelector('input[type="checkbox"][data-midterm-tick]')).toBeTruthy();
+  });
+
+  it('reports the entry when its tick is ticked', async () => {
+    const chosen = vi.fn();
+    const { container } = render(MidtermRow, {
+      props: { midterm: base, canDelete: true },
+      events: { choose: chosen },
+    });
+    await fireEvent.click(container.querySelector('input[data-midterm-tick]'));
+    expect(chosen.mock.calls[0][0].detail).toEqual({ midterm_id: 1, chosen: true });
   });
 });

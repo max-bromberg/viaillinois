@@ -1,6 +1,13 @@
 <script>
-  const card = 'rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3';
-  const body = 'text-sm text-muted-foreground leading-relaxed';
+  import ReadingPage from '../lib/ReadingPage.svelte';
+  import { Pad } from '../lib/components/ui/index.js';
+
+  /**
+   * Where somebody lands once the link is made.
+   *
+   * A reading page with the state drawn the way the account page draws it: a
+   * filled pad and a sentence saying what is true now.
+   */
 </script>
 
 <svelte:head>
@@ -8,17 +15,30 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="max-w-xl mx-auto space-y-6">
-  <div class="{card}">
-    <h1 class="text-2xl font-bold tracking-tight">Your Discord account is linked</h1>
-    <p class="{body}">
+<ReadingPage title="Your Discord account is linked">
+  <p class="state">
+    <Pad lit />
+    <span>
       You can go back to Discord now. The VIA bot has sent you a direct message, and every
       command you run from here on knows who you are.
-    </p>
-    <p class="{body}">
-      If you change your mind, you can undo this at any time from your
-      <a href="/account" class="underline underline-offset-2">account page</a>, or with the
-      unlink command on Discord.
-    </p>
-  </div>
-</div>
+    </span>
+  </p>
+  <p>
+    If you change your mind, you can undo this at any time from your
+    <a href="/account">account page</a>, or with the unlink command on Discord.
+  </p>
+</ReadingPage>
+
+<style>
+  .state {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    color: var(--ink);
+  }
+
+  .state :global(.pad) {
+    margin-top: 7px;
+    flex: none;
+  }
+</style>

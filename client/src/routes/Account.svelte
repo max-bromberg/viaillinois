@@ -1,24 +1,38 @@
 <script>
+  import { onMount } from 'svelte';
   import { currentUser, authResolved } from '../stores/auth.js';
   import { getMe, unlinkDiscord } from '../api/users.js';
   import { showToast } from '../stores/ui.js';
   import { navigate } from '../lib/router.js';
   import { campusDate } from '../lib/campusTime.js';
-  import { onMount } from 'svelte';
+  import ReadingPage from '../lib/ReadingPage.svelte';
+  import { Button, Field, Pad } from '../lib/components/ui/index.js';
+
+  /**
+   * Your account.
+   *
+   * A reading page with a field for each setting. The one setting here is the
+   * NetID, which arrives from the University sign in and is read rather than
+   * typed, and the one thing a person can do on this page is undo a Discord
+   * link that was made somewhere else.
+   *
+   * The link state is drawn as a filled pad and a sentence, and a change to it
+   * is said in a toast, which is what the rest of the site does when something
+   * happens. See docs/design/08-surfaces.md.
+   */
 
   // There is nothing on this page for somebody who is not signed in, because
   // everything it shows belongs to one account. Whether somebody is signed in
   // is the answer to a request of its own, so this waits for that answer
   // rather than sending a signed in person to sign in again.
-  $: if ($authResolved && !$currentUser) navigate('/login');
+  $effect(() => {
+    if ($authResolved && !$currentUser) navigate('/login');
+  });
 
-  let confirming = false;
-  let working = false;
+  let confirming = $state(false);
+  let working = $state(false);
 
-  const card = 'rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3';
-  const body = 'text-sm text-muted-foreground leading-relaxed';
-
-  $: discord = $currentUser?.discord ?? { linked: false, linked_at: null, roles_published: false };
+  const discord = $derived($currentUser?.discord ?? { linked: false, linked_at: null, roles_published: false });
 
   /**
    * What came back from the linked roles round trip, in the words the person
@@ -34,9 +48,14 @@
     signedout: 'You were signed out of VIA while you were on Discord, so nothing changed. Please sign in again and press the button once more.',
   };
 
-  let rolesResult = null;
   onMount(() => {
-    rolesResult = new URLSearchParams(window.location.search).get('roles');
+    const result = new URLSearchParams(window.location.search).get('roles');
+    const said = ROLES_RESULTS[result];
+    if (!said) return;
+    // Everything but the one that worked stays until it is read, because a
+    // sentence saying nothing changed should still be there when the reader
+    // looks up.
+    showToast(said, result === 'on' ? 'success' : 'error');
   });
 
   /** Where the optional linked roles step is started, with no link session. */
@@ -50,6 +69,8 @@
    */
   const readableDate = value =>
     campusDate(value, { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const linkedOn = $derived(discord.linked ? readableDate(discord.linked_at) : '');
 
   async function unlink() {
     working = true;
@@ -72,87 +93,111 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="max-w-xl mx-auto space-y-6">
-  <div class="{card}">
-    <h1 class="text-2xl font-bold tracking-tight">Your account</h1>
-    <p class="{body}">
-      You are signed in as <span class="font-medium text-foreground">{$currentUser?.net_id ?? ''}</span>.
-    </p>
+<ReadingPage title="Your account">
+  <p>
+    This is what VIA holds about your account, and the one place to undo the Discord link.
+    The rest of what you can do on the site depends on which organizations you are on the
+    board of, and a board sets that on its own page.
+  </p>
+
+  <div class="setting">
+    <Field
+      label="NetID"
+      id="account-net-id"
+      value={$currentUser?.net_id ?? ''}
+      readonly
+      help="This is how VIA knows you. It comes from the University sign in and is not changed here."
+    />
   </div>
 
-  <div class="{card}">
-    <h2 class="text-lg font-semibold">Discord</h2>
-
-    {#if rolesResult && ROLES_RESULTS[rolesResult]}
-      <p class="text-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3 leading-relaxed">
-        {ROLES_RESULTS[rolesResult]}
-      </p>
-    {/if}
+  <section>
+    <h2>Discord</h2>
 
     {#if discord.linked}
-      <p class="{body}">
-        A Discord account is linked to your VIA account{readableDate(discord.linked_at)
-          ? `, since ${readableDate(discord.linked_at)}` : ''}. The VIA bot can act as you on
-        Discord for the things you can already do on this website, and it never reads your messages.
+      <p class="state">
+        <Pad lit />
+        <span>
+          A Discord account is linked to your VIA account{linkedOn ? `, since ${linkedOn}` : ''}.
+          The VIA bot can act as you on Discord for the things you can already do on this
+          website, and it never reads your messages.
+        </span>
       </p>
 
       {#if discord.roles_published}
-        <p class="{body}">
+        <p>
           VIA already publishes your linked roles facts to Discord: that you are verified,
           whether you are on the board of an organization, and the day you linked. Unlinking
           your Discord account takes them away again.
         </p>
       {:else}
-        <p class="{body}">
+        <p>
           VIA is not publishing any linked roles facts for you. If you would like it to, it
-          publishes three and nothing else: that you are verified, whether you are on the board
-          of an organization, and the day you linked. A Discord server can use those to give
-          you a role.
+          publishes three and nothing else: that you are verified, whether you are on the
+          board of an organization, and the day you linked. A Discord server can use those to
+          give you a role.
         </p>
-        <div>
-          <a
-            href="{ROLES_ADDRESS}"
-            class="inline-flex items-center justify-center px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors"
-          >
-            Publish my linked roles facts
-          </a>
-        </div>
+        <p class="act">
+          <Button variant="primary" href={ROLES_ADDRESS}>Publish my linked roles facts</Button>
+        </p>
       {/if}
 
       {#if confirming}
-        <p class="{body}">
+        <p>
           Unlinking means the bot stops knowing who you are on Discord, and any role a server
           gave you through VIA can be taken away. You can link again whenever you like.
         </p>
-        <div class="flex gap-2">
-          <button
-            on:click={unlink}
-            disabled={working}
-            class="px-3 py-1.5 text-sm bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors disabled:opacity-60"
-          >
+        <p class="act">
+          <Button variant="danger" busy={working} onclick={unlink}>
             Yes, unlink my Discord account
-          </button>
-          <button
-            on:click={() => confirming = false}
-            disabled={working}
-            class="px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors"
-          >
+          </Button>
+          <Button variant="secondary" disabled={working} onclick={() => { confirming = false; }}>
             No, keep it linked
-          </button>
-        </div>
+          </Button>
+        </p>
       {:else}
-        <button
-          on:click={() => confirming = true}
-          class="px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors"
-        >
-          Unlink my Discord account
-        </button>
+        <p class="act">
+          <Button variant="danger" onclick={() => { confirming = true; }}>
+            Unlink my Discord account
+          </Button>
+        </p>
       {/if}
     {:else}
-      <p class="{body}">
-        No Discord account is linked to your VIA account. To link one, run the /link command
-        on Discord in a server the VIA bot is in, and open the address it sends you.
+      <p class="state">
+        <Pad hollow />
+        <span>
+          No Discord account is linked to your VIA account. To link one, run the /link command
+          on Discord in a server the VIA bot is in, and open the address it sends you.
+        </span>
       </p>
     {/if}
-  </div>
-</div>
+  </section>
+</ReadingPage>
+
+<style>
+  .setting {
+    margin-top: 26px;
+  }
+
+  /*
+   * The link state: a filled pad and a sentence, which is how the site says
+   * what is on without drawing a box round it.
+   */
+  .state {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .state :global(.pad) {
+    margin-top: 7px;
+    flex: none;
+  }
+
+  /* A line of controls under the prose takes the same rhythm the prose does. */
+  .act {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 18px;
+  }
+</style>

@@ -45,6 +45,7 @@ least 24 px, or 18.66 px bold) and for graphics.
 | light ink on every dark theme sky | 12.5 to 17.2 : 1 | AAA |
 | highlighter text on its stroke, worst hue, light | 4.8 : 1 | AA |
 | highlighter text on its stroke, worst hue, dark | 4.9 : 1 | AA |
+| status highlighter on its stroke in a well, worst status, light | 5.2 : 1 | AA |
 | adapted organization name on its lamp, worst input, light | 6.9 : 1 | AA |
 | adapted organization name on its lamp, worst input, dark | 6.2 : 1 | AA |
 | adapted organization mark on paper, worst input | 4.3 : 1 | AA for graphics |
@@ -63,7 +64,11 @@ one fails the gate.
    space, keeping the hue. The name stays colored, and every input clears 6 to 1 on its
    lamp. The method is in the color document.
 2. **The highlighter stays a half height stroke.** The text clears AA against the stroke,
-   which is the strictest background behind it, so there is no reason to widen it.
+   which is the strictest background behind it, so there is no reason to widen it. A tag is
+   drawn on a row or on paper, and never in a well. The one well surface in the agenda is a
+   cancelled row, which carries a status and no tags, and the eight hues fall to 4.4 to 1
+   that far down while every status hue still clears 5.1 to 1. The contrast test holds the
+   two sets against the surfaces each is actually drawn on.
 3. **The sky follows the window, not the theme preference.** A person who chose the light
    theme still gets a dark band at night, with light ink on it. The page below the band
    stays light. This was considered and kept because the band is the site's clock.

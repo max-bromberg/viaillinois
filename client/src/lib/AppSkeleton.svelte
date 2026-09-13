@@ -1,46 +1,77 @@
 <script>
+  /**
+   * The whole page, before the answer to who is looking has come back.
+   *
+   * It draws the shapes the feed is about to be: the band, the rail and the
+   * rows, in well colour, with nothing moving. The rows settle into place when
+   * they arrive, which is the movement that says the agenda has just come.
+   */
   import NavBarSkeleton from './NavBarSkeleton.svelte';
   import EventCardSkeleton from './EventCardSkeleton.svelte';
 </script>
 
 <NavBarSkeleton />
 
-<div class="min-h-screen bg-background text-foreground">
-  <main class="container mx-auto px-4 py-6">
-    <div class="flex gap-6">
-      <!-- TagFilter sidebar placeholder (w-56 shrink-0 matches TagFilter's aside) -->
-      <aside class="w-56 shrink-0 space-y-4">
-        <div class="space-y-1">
-          <div class="shimmer h-3 w-24"></div>
-          <div class="shimmer h-8 w-full rounded"></div>
+<div class="shell">
+  <main class="page">
+    <div class="rail" aria-hidden="true">
+      {#each Array(4) as _, at (at)}
+        <div>
+          <div class="ghost head"></div>
+          <div class="ghost row"></div>
+          <div class="ghost row"></div>
         </div>
-        <div class="space-y-2">
-          <div class="shimmer h-3 w-16"></div>
-          <div class="flex flex-wrap gap-1">
-            {#each Array(8) as _}
-              <div class="shimmer h-5 w-20 rounded-full"></div>
-            {/each}
-          </div>
-        </div>
-        <div class="space-y-1">
-          <div class="shimmer h-3 w-20"></div>
-          <div class="shimmer h-8 w-full rounded"></div>
-          <div class="shimmer h-8 w-full rounded"></div>
-        </div>
-      </aside>
+      {/each}
+    </div>
 
-      <!-- Main content area -->
-      <div class="flex-1 space-y-4">
-        <!-- "Upcoming Events" heading placeholder -->
-        <div class="shimmer h-7 w-44"></div>
-
-        <!-- Event card grid (matches Home's grid classes) -->
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {#each Array(6) as _}
-            <EventCardSkeleton />
-          {/each}
-        </div>
-      </div>
+    <div class="agenda">
+      <div class="ghost head wide" aria-hidden="true"></div>
+      {#each Array(6) as _, at (at)}
+        <EventCardSkeleton />
+      {/each}
     </div>
   </main>
 </div>
+
+<style>
+  .shell {
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  .agenda {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    min-width: 0;
+  }
+
+  .ghost {
+    background: var(--well);
+    display: block;
+  }
+
+  .head {
+    height: 16px;
+    width: 70%;
+    margin-bottom: 10px;
+  }
+
+  .head.wide {
+    height: 22px;
+    width: 160px;
+    margin-bottom: 14px;
+  }
+
+  .row {
+    height: 14px;
+    width: 90%;
+    margin-top: 8px;
+  }
+</style>

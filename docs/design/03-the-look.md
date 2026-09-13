@@ -94,5 +94,6 @@ For reviewers, the tells that a screen has drifted back toward a template:
 - A grid of identical bordered cards where a list would do.
 - A rounded rectangle with a one pixel border used as the default container.
 - A shadow on something that does not float.
-- A gradient anywhere except the sky, the primary button, the lamp and the kiosk board.
+- A gradient anywhere except the sky, the primary button, the lamp, the kiosk board and the
+  underline under the word a rail or a listing is currently sorted or filtered by.
 - Emoji standing in for icons.

@@ -228,3 +228,70 @@ describe('EventForm repeats', () => {
     expect(detail.recurrence).toBeNull();
   });
 });
+
+/**
+ * The form in the design system.
+ *
+ * A board tool follows the same rules as the rest of the site with less
+ * ceremony, so the form is built from the field, the switch and the highlighter
+ * rather than from boxes and filled pills. See docs/design/08-surfaces.md.
+ */
+describe('EventForm, drawn in the design system', () => {
+  it('builds its inputs from the field, which has no box around it', () => {
+    const { container } = setUp();
+    expect(container.querySelectorAll('.fld').length).toBeGreaterThanOrEqual(5);
+    expect(container.querySelector('.rounded-md, .rounded-full, .rounded-lg')).toBeNull();
+  });
+
+  it('offers the private setting as a switch rather than as a checkbox', () => {
+    const { getByRole, container } = setUp();
+    expect(getByRole('switch', { name: /members only/i }).getAttribute('aria-checked')).toBe('false');
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
+  it('sends the private setting the switch was turned to', async () => {
+    const onSubmit = vi.fn();
+    const { getByRole } = render(EventForm, {
+      props: {
+        rsoId: 1,
+        semester: SEMESTER,
+        initial: { title: 'Board meeting', start_time: '2026-09-01 18:00:00', end_time: '2026-09-01 19:30:00' },
+      },
+      events: { submit: onSubmit },
+    });
+    await fireEvent.click(getByRole('switch', { name: /members only/i }));
+    await fireEvent.click(getByRole('button', { name: 'Create event' }));
+    expect(onSubmit.mock.calls.at(-1)[0].detail.is_private).toBe(true);
+  });
+
+  it('draws a tag as a highlighted word that says whether it is on', async () => {
+    const { getByRole } = setUp();
+    const tag = getByRole('button', { name: 'Free Food' });
+    expect(tag.classList.contains('hl')).toBe(true);
+    expect(tag.getAttribute('aria-pressed')).toBe('false');
+    await fireEvent.click(tag);
+    expect(getByRole('button', { name: 'Free Food' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('draws the repeat shapes as a pad and a word rather than as filled pills', () => {
+    const { getByRole } = setUp();
+    const weekly = getByRole('button', { name: 'Every week' });
+    expect(weekly.classList.contains('check')).toBe(true);
+    expect(weekly.querySelector('.pad')).toBeTruthy();
+  });
+
+  it('draws the days of the week the same way', async () => {
+    const { getByRole } = setUp();
+    await fireEvent.click(getByRole('button', { name: 'Every week' }));
+    const tuesday = getByRole('button', { name: 'Tue' });
+    expect(tuesday.classList.contains('check')).toBe(true);
+    expect(tuesday.querySelector('.pad')).toBeTruthy();
+  });
+
+  it('carries one primary button, which is the one that files the event', () => {
+    const { container } = setUp();
+    const primaries = container.querySelectorAll('.btn.primary');
+    expect(primaries.length).toBe(1);
+    expect(primaries[0].textContent.trim()).toBe('Create event');
+  });
+});

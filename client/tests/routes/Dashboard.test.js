@@ -25,7 +25,7 @@ vi.mock('../../src/api/semester.js', () => ({
 }));
 vi.mock('../../src/api/venues.js', () => ({ searchVenues: vi.fn().mockResolvedValue({ venues: [] }) }));
 vi.mock('../../src/api/calendar.js', () => ({ importCalendar }));
-vi.mock('../../src/stores/ui.js', () => ({ showToast }));
+vi.mock('../../src/stores/ui.js', async importOriginal => ({ ...await importOriginal(), showToast }));
 vi.mock('../../src/lib/router.js', () => ({
   navigate: vi.fn(),
   currentPath: { subscribe: fn => { fn('/dashboard'); return () => {}; } },
@@ -80,11 +80,11 @@ describe('Dashboard, with repeating events', () => {
 
   it('creates a series in one request when the form asks for a repeat', async () => {
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
 
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Weekly meeting' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-09-01T18:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Weekly meeting' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-09-01T19:30' } });
     await fireEvent.click(getByRole('button', { name: 'Every week' }));
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
@@ -98,10 +98,10 @@ describe('Dashboard, with repeating events', () => {
   it('says how many events a repeat created', async () => {
     createEventSeries.mockResolvedValue({ series_id: 3, created: 14, skipped: [] });
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Weekly meeting' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-09-01T18:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Weekly meeting' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-09-01T19:30' } });
     await fireEvent.click(getByRole('button', { name: 'Every week' }));
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
@@ -111,10 +111,10 @@ describe('Dashboard, with repeating events', () => {
   it('names the weeks a repeat could not take, rather than dropping them quietly', async () => {
     createEventSeries.mockResolvedValue({ series_id: 3, created: 12, skipped: ['2026-10-06', '2026-11-03'] });
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Weekly meeting' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-09-01T18:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Weekly meeting' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-09-01T19:30' } });
     await fireEvent.click(getByRole('button', { name: 'Every week' }));
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
@@ -125,10 +125,10 @@ describe('Dashboard, with repeating events', () => {
 
   it('creates a single event when no repeat is asked for', async () => {
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Career fair' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-10-01T10:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-10-01T14:00' } });
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Career fair' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-10-01T10:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-10-01T14:00' } });
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
     await waitFor(() => expect(createEvent).toHaveBeenCalled());
@@ -252,10 +252,15 @@ describe('Dashboard, interest on the insights tab', () => {
       { event_id: 8, title: 'Career fair', start_time: '2026-10-01T10:00:00-05:00', interest_count: 12 },
       { event_id: 5, title: 'IEEE Weekly Meeting', start_time: '2026-09-15T18:00:00-05:00', interest_count: 1 },
     ] });
-    const { findByRole, findByText } = render(Dashboard);
+    const { findByRole, container } = render(Dashboard);
     await fireEvent.click(await findByRole('button', { name: 'Insights' }));
-    expect(await findByText('12 interested')).toBeTruthy();
-    expect(await findByText('1 interested')).toBeTruthy();
+    await findByRole('heading', { name: /interest in upcoming events/i });
+    // The count and what it means travel together as one numeral, which is why
+    // they are read off the numeral rather than looked up as one text node.
+    const said = [...container.querySelectorAll('.numeral')]
+      .map(one => one.textContent.replace(/\s+/g, ' ').trim());
+    expect(said).toContain('12 interested');
+    expect(said).toContain('1 interested');
   });
 
   it('says so when nobody has shown interest yet', async () => {
@@ -358,5 +363,83 @@ describe('Dashboard calendar import', () => {
     const before = getRso.mock.calls.length;
     await fireEvent.click(confirm);
     await waitFor(() => expect(getRso.mock.calls.length).toBeGreaterThan(before));
+  });
+});
+
+/**
+ * The dashboard in the design system.
+ *
+ * A board tool follows the same rules as the rest of the site with less
+ * ceremony: the page title in the condensed display face, tables built like the
+ * exam listing, a status as a highlighted word, and one primary button on the
+ * screen. See docs/design/08-surfaces.md.
+ */
+describe('Dashboard, drawn in the design system', () => {
+  it('names the organization as the page title', async () => {
+    const { findByRole } = render(Dashboard);
+    expect(await findByRole('heading', { level: 1, name: 'IEEE' })).toBeTruthy();
+  });
+
+  it('draws the organization mark as a pad in the colour the site adapted', async () => {
+    const { organizationColor } = await import('../../src/lib/organizationColor.js');
+    getRso.mockResolvedValue({ rso: {
+      rso_id: 1, name: 'IEEE', logo_color: '#00b2a9', members: [], events: [],
+    } });
+    const { container, findByRole } = render(Dashboard);
+    await findByRole('heading', { level: 1, name: 'IEEE' });
+    const pad = container.querySelector('.orgmark');
+    expect(pad).toBeTruthy();
+    expect(pad.getAttribute('style')).toContain(organizationColor('#00b2a9', 'mark', 'light'));
+  });
+
+  it('carries one primary button on the events tab', async () => {
+    const { container, findByRole } = render(Dashboard);
+    await findByRole('button', { name: 'Add an event' });
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  it('still carries only one primary button while the event form is open', async () => {
+    const { container, findByRole } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  it('draws a cancelled event as a highlighted word rather than as a filled pill', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, name: 'IEEE', members: [],
+      events: [{ ...ONE_OFF, cancelled_at: '2026-09-04 09:00:00' }] } });
+    const { findByText } = render(Dashboard);
+    expect((await findByText('Cancelled')).classList.contains('hl')).toBe(true);
+  });
+
+  it('lists its events as rows on hairlines rather than inside a bordered card', async () => {
+    const { container, findByText } = render(Dashboard);
+    await findByText('Career fair');
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.querySelectorAll('.listing .row[role="row"]:not(.head)').length).toBe(2);
+  });
+
+  it('says what to do next when the organization has nothing on', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, name: 'IEEE', members: [], events: [] } });
+    const { container, findByText } = render(Dashboard);
+    await findByText(/Nothing on the feed yet/);
+    expect(container.querySelector('.empty')).toBeTruthy();
+  });
+});
+
+/**
+ * The organization's own details.
+ *
+ * Saving is offered only once something has actually changed, so the field has
+ * to report that it did. The field is its own component now, and a component
+ * does not forward a browser event on its own.
+ */
+describe('Dashboard, the details tab', () => {
+  it('offers to save only once a detail has been changed', async () => {
+    const { findByRole, getByRole, getByLabelText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'RSO Details' }));
+    expect(getByRole('button', { name: 'Save the details' }).disabled).toBe(true);
+
+    await fireEvent.input(getByLabelText('Name'), { target: { value: 'IEEE at Illinois' } });
+    expect(getByRole('button', { name: 'Save the details' }).disabled).toBe(false);
   });
 });

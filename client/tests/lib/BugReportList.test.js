@@ -8,7 +8,7 @@ const showToast = vi.hoisted(() => vi.fn());
 vi.mock('../../src/api/bugReports.js', () => ({
   getBugReports, setBugReportStatus, submitBugReport: vi.fn(),
 }));
-vi.mock('../../src/stores/ui.js', () => ({ showToast }));
+vi.mock('../../src/stores/ui.js', async importOriginal => ({ ...await importOriginal(), showToast }));
 
 const BugReportList = (await import('../../src/lib/BugReportList.svelte')).default;
 
@@ -63,5 +63,36 @@ describe('BugReportList', () => {
     await fireEvent.click(await findByRole('button', { name: /Open only/i }));
     expect(getByText('The last week of September is empty')).toBeTruthy();
     await waitFor(() => expect(queryByText('Delete button is invisible')).toBeNull());
+  });
+
+  /** The filter is a toggle, so it reports whether it is on. */
+  it('says whether it is showing only the open ones', async () => {
+    const { findByRole } = render(BugReportList);
+    const only = await findByRole('button', { name: /Open only/i });
+    expect(only.getAttribute('aria-pressed')).toBe('false');
+    await fireEvent.click(only);
+    await waitFor(() => expect(only.getAttribute('aria-pressed')).toBe('true'));
+  });
+
+  /**
+   * A status is a highlighter, not a filled pill, and the listing stands on
+   * hairlines rather than inside a card with a shadow. See the review checklist
+   * in docs/design/11-implementation.md.
+   */
+  it('draws a status as a highlight and the listing on hairlines', async () => {
+    const { container, findByText } = render(BugReportList);
+    await findByText('The last week of September is empty');
+    const statuses = [...container.querySelectorAll('.hl')].map(node => node.textContent.trim());
+    expect(statuses).toContain('Open');
+    expect(statuses).toContain('Closed');
+    expect(container.innerHTML).not.toMatch(/shadow|rounded-lg|bg-primary/);
+  });
+
+  /** A time is a time on campus, whatever zone the reader is in. */
+  it('dates each report on the campus clock', async () => {
+    const { container, findByText } = render(BugReportList);
+    await findByText('The last week of September is empty');
+    expect(container.textContent).toMatch(/Sep 8/);
+    expect(container.textContent).toMatch(/10:00 AM/);
   });
 });

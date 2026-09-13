@@ -6,6 +6,7 @@ const getRsos = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/api/events.js', () => ({ getEvents }));
 vi.mock('../../src/api/rsos.js', () => ({ getRsos }));
+vi.mock('../../src/api/tags.js', () => ({ getTags: vi.fn().mockResolvedValue({ tags: [{ tag_name: 'Workshop' }] }) }));
 vi.mock('../../src/lib/router.js', () => ({ navigate: vi.fn() }));
 
 const { currentUser } = await import('../../src/stores/auth.js');
@@ -49,9 +50,16 @@ describe('Home', () => {
     expect(lastFilters().timeframe).toBe('upcoming');
   });
 
-  it('is headed by what it is showing', async () => {
-    const { getByRole } = render(Home);
-    await waitFor(() => expect(getByRole('heading', { name: 'Upcoming Events' })).toBeTruthy());
+  /**
+   * The reference render heads the feed with the one word and puts the count
+   * beside it, so "Upcoming" and "12 events" are two things rather than one
+   * phrase. The behaviour is unchanged: the heading still says which half of the
+   * feed is being read.
+   */
+  it('is headed by what it is showing, with the count beside it', async () => {
+    const { getByRole, container } = render(Home);
+    await waitFor(() => expect(getByRole('heading', { name: 'Upcoming' })).toBeTruthy());
+    expect(container.querySelector('.feedhead span').textContent).toBe('1 event');
   });
 
   it('asks for the archive when the reader switches to it', async () => {
@@ -61,7 +69,7 @@ describe('Home', () => {
     await fireEvent.click(getByRole('button', { name: 'Past' }));
 
     await waitFor(() => expect(lastFilters().timeframe).toBe('archived'));
-    expect(getByRole('heading', { name: 'Past Events' })).toBeTruthy();
+    expect(getByRole('heading', { name: 'Past' })).toBeTruthy();
   });
 
   it('goes back to upcoming events when the reader switches back', async () => {
@@ -73,7 +81,7 @@ describe('Home', () => {
 
     await fireEvent.click(getByRole('button', { name: 'Upcoming' }));
     await waitFor(() => expect(lastFilters().timeframe).toBe('upcoming'));
-    expect(getByRole('heading', { name: 'Upcoming Events' })).toBeTruthy();
+    expect(getByRole('heading', { name: 'Upcoming' })).toBeTruthy();
   });
 
   it('starts the archive at its first page', async () => {
@@ -96,12 +104,15 @@ describe('Home', () => {
  * member reading the feed had no way from it to the place events are created.
  */
 describe('Home, the feed wording and the board shortcut', () => {
+  /**
+   * The rail is words rather than a panel now, so there is no longer a control
+   * that opens it. On a narrow screen it stacks above the agenda instead.
+   */
   it('calls what has already happened past rather than archived', async () => {
     const { getByRole, findByRole, queryByText } = render(Home);
     await waitFor(() => expect(getEvents).toHaveBeenCalled());
-    await fireEvent.click(getByRole('button', { name: 'Filters' }).closest('button'));
     await fireEvent.click(await findByRole('button', { name: 'Past' }));
-    await waitFor(() => expect(getByRole('heading', { name: 'Past Events' })).toBeTruthy());
+    await waitFor(() => expect(getByRole('heading', { name: 'Past' })).toBeTruthy());
     expect(queryByText(/Archived/)).toBeNull();
     // The wire value is unchanged: the website, the API and the Discord bot all
     // still name this timeframe the same thing.

@@ -1,5 +1,14 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { Pad } from './components/ui/index.js';
+
+  /**
+   * How much each day of the week matters to the search.
+   *
+   * A day is clicked through the four answers and back to nothing. The answer
+   * is written out in full beside the day, because "SP" and "NtH" were shorter
+   * to draw and told a board nothing at all.
+   */
 
   // value: Array<{ day: string, tier: 'required'|'strongly_preferred'|'nice_to_have'|'excluded' }>
   export let value = [];
@@ -9,16 +18,17 @@
   const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const TIER_CYCLE = [null, 'required', 'strongly_preferred', 'nice_to_have', 'excluded'];
   const TIER_LABELS = {
-    required: 'Req',
-    strongly_preferred: 'SP',
-    nice_to_have: 'NtH',
-    excluded: 'Off',
+    required: 'required',
+    strongly_preferred: 'strongly preferred',
+    nice_to_have: 'nice to have',
+    excluded: 'excluded',
   };
-  const TIER_CLASSES = {
-    required: 'bg-primary text-primary-foreground border-primary',
-    strongly_preferred: 'bg-amber-500 text-white border-amber-500',
-    nice_to_have: 'bg-sky-500 text-white border-sky-500',
-    excluded: 'bg-muted text-muted-foreground border-muted line-through',
+  /** The colour each answer is read in, from the tokens the rest of the site uses. */
+  const TIER_TONES = {
+    required: 'var(--primary)',
+    strongly_preferred: 'var(--cat-4)',
+    nice_to_have: 'var(--cat-6)',
+    excluded: 'var(--danger)',
   };
 
   // Reactive map so Svelte tracks `value` as an explicit dependency
@@ -40,21 +50,67 @@
   }
 </script>
 
-<div class="flex flex-wrap gap-1.5">
+<div class="days">
   {#each DAYS as day}
     {@const tier = tierMap[day] ?? null}
     <button
       type="button"
-      class="px-2.5 py-1 text-xs font-medium rounded border transition-all
-        {tier ? TIER_CLASSES[tier] : 'border-border hover:bg-accent text-foreground'}"
+      class="check"
+      aria-pressed={tier !== null}
       on:click={() => cycleDay(day)}
-      title="{day}: {tier ? TIER_LABELS[tier] : 'unset, click to set'}"
     >
-      {day}{tier ? ` · ${TIER_LABELS[tier]}` : ''}
+      <Pad tone={tier ? TIER_TONES[tier] : null} hollow={!tier} />
+      <span class="day">{day}</span>
+      {#if tier}<span class="tier">{TIER_LABELS[tier]}</span>{/if}
     </button>
   {/each}
 </div>
 
-<p class="text-[10px] text-muted-foreground mt-1">
-  Click a day to cycle: unset → Required → Strongly Preferred → Nice to Have → Excluded
+<p class="how">
+  Click a day to say how much it matters. It runs from nothing to required, then strongly
+  preferred, then nice to have, then excluded, and back to nothing.
 </p>
+
+<style>
+  .days {
+    display: grid;
+    gap: 2px 20px;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  }
+
+  .check {
+    font: inherit;
+    font-size: 14px;
+    background: none;
+    border: 0;
+    padding: 0;
+    gap: 10px;
+    color: var(--ink);
+    cursor: pointer;
+    justify-content: flex-start;
+  }
+
+  .check:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  .day {
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 700;
+    min-width: 32px;
+  }
+
+  .tier {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .how {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 8px;
+    max-width: 52ch;
+  }
+</style>

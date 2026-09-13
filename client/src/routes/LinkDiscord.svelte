@@ -5,20 +5,31 @@
   import { rememberAfterSignIn } from '../lib/afterSignIn.js';
   import { getLinkSession } from '../api/link.js';
   import { campusTime } from '../lib/campusTime.js';
+  import ReadingPage from '../lib/ReadingPage.svelte';
+  import { Button, Switch, Pad } from '../lib/components/ui/index.js';
+
+  /**
+   * The page a person lands on from a direct message the bot sent them.
+   *
+   * It has one job, which is to let somebody say yes with their eyes open: what
+   * the bot will be able to do as them, what it will never do, and that they
+   * can undo it whenever they want. It is a reading page for that reason, with
+   * one primary button at the end of the reading.
+   *
+   * The optional linked roles step is a preference, so it is a switch, and a
+   * refusal on the way back from Discord is a sentence with a pad beside it
+   * rather than a coloured box.
+   */
 
   /** The session identifier out of the address the bot sent. */
-  export let session = '';
+  let { session = '' } = $props();
 
-  let status = 'loading';
-  let expiresAt = null;
-  let wantsRoles = true;
-  let reason = null;
-  let sentToSignIn = false;
-  let askedAboutSession = false;
-
-  const card = 'rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3';
-  const body = 'text-sm text-muted-foreground leading-relaxed';
-  const list = 'text-sm text-muted-foreground leading-relaxed list-disc pl-5 space-y-1';
+  let status = $state('loading');
+  let expiresAt = $state(null);
+  let wantsRoles = $state(true);
+  let reason = $state(null);
+  let sentToSignIn = $state(false);
+  let askedAboutSession = $state(false);
 
   /**
    * What a refusal on the way back from Discord means, in the words the person
@@ -36,8 +47,9 @@
     signedout: 'You were signed out of VIA while you were on Discord, so nothing was linked. Please sign in again and press the button once more.',
   };
 
-  $: startAddress = `/auth/discord/start?session=${encodeURIComponent(session)}&roles=${wantsRoles ? 1 : 0}`;
-  $: canContinue = status === 'open';
+  const startAddress = $derived(
+    `/auth/discord/start?session=${encodeURIComponent(session)}&roles=${wantsRoles ? 1 : 0}`,
+  );
 
   onMount(() => {
     reason = new URLSearchParams(window.location.search).get('reason');
@@ -49,16 +61,20 @@
   // on mount sent a signed in person to sign in again.
 
   // Somebody who is not signed in signs in first, and comes back here.
-  $: if ($authResolved && !$currentUser && !sentToSignIn) {
-    sentToSignIn = true;
-    rememberAfterSignIn(`/link/discord/${session}`);
-    navigate('/login');
-  }
+  $effect(() => {
+    if ($authResolved && !$currentUser && !sentToSignIn) {
+      sentToSignIn = true;
+      rememberAfterSignIn(`/link/discord/${session}`);
+      navigate('/login');
+    }
+  });
 
-  $: if ($authResolved && $currentUser && !askedAboutSession) {
-    askedAboutSession = true;
-    loadSession();
-  }
+  $effect(() => {
+    if ($authResolved && $currentUser && !askedAboutSession) {
+      askedAboutSession = true;
+      loadSession();
+    }
+  });
 
   /** What the server says about this session, which decides what the page offers. */
   async function loadSession() {
@@ -77,6 +93,8 @@
    * at for anybody who is not on campus.
    */
   const readableTime = value => campusTime(value);
+
+  const runsOutAt = $derived(expiresAt ? readableTime(expiresAt) : '');
 </script>
 
 <svelte:head>
@@ -84,75 +102,127 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="max-w-xl mx-auto space-y-6">
-  <div class="{card}">
-    <h1 class="text-2xl font-bold tracking-tight">Link your Discord account</h1>
+<ReadingPage title="Link your Discord account">
+  {#if reason && REASONS[reason]}
+    <p class="said">
+      <Pad tone="var(--signal)" lit />
+      <span>{REASONS[reason]}</span>
+    </p>
+  {/if}
 
-    {#if reason && REASONS[reason]}
-      <p class="text-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3 leading-relaxed">
-        {REASONS[reason]}
-      </p>
+  {#if sentToSignIn || status === 'loading'}
+    <p>Checking your link request.</p>
+  {:else if status === 'expired' || status === 'unknown'}
+    <p>
+      {status === 'expired'
+        ? 'This link request has expired. A link request is good for ten minutes, which is short on purpose, because it is what proves the Discord account asking is the one in front of you.'
+        : 'This link request is not one VIA opened, or it has already been cleared away.'}
+    </p>
+    <p>Please run the link command on Discord again, and open the new address it sends you.</p>
+  {:else if status === 'completed'}
+    <p>
+      This link request has already been used, so your Discord account is linked. You can
+      see it and undo it on your <a href="/account">account page</a>.
+    </p>
+  {:else}
+    <p>
+      You are signed in as <strong>{$currentUser?.net_id}</strong>. Linking tells VIA that
+      this NetID and the Discord account that asked to link are the same person, so the VIA
+      bot can act on Discord as you.
+    </p>
+
+    <section>
+      <h2>What linking lets the bot do</h2>
+      <ul>
+        <li>Act as you on VIA for the things you can already do on this website, such as creating an event for an organization whose board you sit on.</li>
+        <li>Show you the events and organizations you are a member of, including the ones that are internal to your organization.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>What linking never does</h2>
+      <ul>
+        <li>The bot never reads your messages. It has no access to message content anywhere on Discord, and it stores no message text.</li>
+        <li>Nothing you do on VIA is posted to Discord as you, and your NetID is never shown to anybody who could not already see it on this website.</li>
+        <li>You can undo this at any time, from your account page here or with the unlink command on Discord.</li>
+      </ul>
+    </section>
+
+    <div class="pref">
+      <Switch label="Publish my linked roles facts to Discord" bind:checked={wantsRoles} />
+      <div>
+        <p class="what">Publish my linked roles facts to Discord</p>
+        <p>
+          VIA publishes three facts and nothing else: that you are verified, whether you are
+          on the board of an organization, and the day you linked. A server can use those to
+          hand you a role. This part is optional, and you can add it or remove it later.
+        </p>
+      </div>
+    </div>
+
+    <p class="act">
+      <Button variant="primary" href={startAddress}>Continue to Discord</Button>
+    </p>
+
+    {#if runsOutAt}
+      <p class="runs-out mono">This request is good until {runsOutAt}.</p>
     {/if}
+  {/if}
+</ReadingPage>
 
-    {#if sentToSignIn || status === 'loading'}
-      <p class="{body}">Checking your link request.</p>
-    {:else if status === 'expired' || status === 'unknown'}
-      <p class="{body}">
-        {status === 'expired'
-          ? 'This link request has expired. A link request is good for ten minutes, which is short on purpose, because it is what proves the Discord account asking is the one in front of you.'
-          : 'This link request is not one VIA opened, or it has already been cleared away.'}
-      </p>
-      <p class="{body}">Please run the link command on Discord again, and open the new address it sends you.</p>
-    {:else if status === 'completed'}
-      <p class="{body}">
-        This link request has already been used, so your Discord account is linked. You can
-        see it and undo it on your <a href="/account" class="underline underline-offset-2">account page</a>.
-      </p>
-    {:else}
-      <p class="{body}">
-        You are signed in as <span class="font-medium text-foreground">{$currentUser?.net_id}</span>.
-        Linking tells VIA that this NetID and the Discord account that asked to link are the
-        same person, so the VIA bot can act on Discord as you.
-      </p>
+<style>
+  /*
+   * What came back from Discord: a sentence with a pad beside it, which is how
+   * the site says something without drawing a box round it.
+   */
+  .said {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    color: var(--ink);
+  }
 
-      <div class="space-y-2">
-        <p class="text-sm font-medium">What linking lets the bot do</p>
-        <ul class="{list}">
-          <li>Act as you on VIA for the things you can already do on this website, such as creating an event for an organization whose board you sit on.</li>
-          <li>Show you the events and organizations you are a member of, including the ones that are internal to your organization.</li>
-        </ul>
-      </div>
+  .said :global(.pad) {
+    margin-top: 7px;
+    flex: none;
+  }
 
-      <div class="space-y-2">
-        <p class="text-sm font-medium">What linking never does</p>
-        <ul class="{list}">
-          <li>The bot never reads your messages. It has no access to message content anywhere on Discord, and it stores no message text.</li>
-          <li>Nothing you do on VIA is posted to Discord as you, and your NetID is never shown to anybody who could not already see it on this website.</li>
-          <li>You can undo this at any time, from your account page here or with the unlink command on Discord.</li>
-        </ul>
-      </div>
+  /* The preference: the switch, then its name, then what it means. */
+  .pref {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-top: 32px;
+    max-width: 62ch;
+  }
 
-      <label class="flex items-start gap-2 text-sm">
-        <input type="checkbox" bind:checked={wantsRoles} class="mt-0.5" />
-        <span class="{body}">
-          Also let VIA publish three linked roles facts to Discord: that you are verified,
-          whether you are on the board of an organization, and the day you linked. Servers can
-          use those to hand out a role. This part is optional, and you can add or remove it later.
-        </span>
-      </label>
+  .pref :global(.tswitch) {
+    margin-top: 4px;
+    flex: none;
+  }
 
-      <div class="pt-1">
-        <a
-          href="{startAddress}"
-          class="inline-flex items-center justify-center px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
-          Continue to Discord
-        </a>
-      </div>
+  .pref :global(.tswitch:focus-visible) {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
 
-      {#if expiresAt && readableTime(expiresAt)}
-        <p class="text-xs text-muted-foreground">This request is good until {readableTime(expiresAt)}.</p>
-      {/if}
-    {/if}
-  </div>
-</div>
+  .what {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .act {
+    margin-top: 30px;
+  }
+
+  .runs-out {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 14px;
+  }
+</style>

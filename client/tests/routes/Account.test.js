@@ -6,7 +6,7 @@ const unlinkDiscord = vi.hoisted(() => vi.fn());
 vi.mock('../../src/api/users.js', () => ({ getMe, unlinkDiscord }));
 
 const showToast = vi.hoisted(() => vi.fn());
-vi.mock('../../src/stores/ui.js', () => ({ showToast }));
+vi.mock('../../src/stores/ui.js', async importOriginal => ({ ...await importOriginal(), showToast }));
 
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock('../../src/lib/router.js', () => ({
@@ -166,21 +166,70 @@ describe('the account page', () => {
     expect(screen.queryByRole('link', { name: /linked roles/i })).toBeNull();
   });
 
+  /**
+   * A change to the link state is a toast, which is what the design document
+   * asks for and what the rest of the site already does when something
+   * happens. See docs/design/08-surfaces.md.
+   */
   it('says what happened when the person comes back from Discord', async () => {
     window.history.replaceState({}, '', '/account?roles=on');
     render(Account);
-    await waitFor(() => expect(document.body.textContent).toMatch(/Discord now has/i));
+    await waitFor(() =>
+      expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/Discord now has/i), 'success'));
   });
 
   it('says when the sign in lapsed while the person was on Discord', async () => {
     window.history.replaceState({}, '', '/account?roles=signedout');
     render(Account);
-    await waitFor(() => expect(document.body.textContent).toMatch(/signed out/i));
+    await waitFor(() =>
+      expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/signed out/i), 'error'));
   });
 
   it('says what happened when the person did not finish on Discord', async () => {
     window.history.replaceState({}, '', '/account?roles=declined');
     render(Account);
-    await waitFor(() => expect(document.body.textContent).toMatch(/did not finish/i));
+    await waitFor(() =>
+      expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/did not finish/i), 'error'));
+  });
+
+  it('says nothing at all when the person did not come back from anywhere', async () => {
+    render(Account);
+    await screen.findByRole('button', { name: /unlink/i });
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The account page is a reading page with a field for each setting. The one
+   * setting on it is the NetID, which comes from the University sign in and is
+   * read here rather than typed.
+   */
+  it('shows the NetID as a field, which is read and not changed', async () => {
+    const { container } = render(Account);
+    const field = container.querySelector('.fld');
+    expect(field.querySelector('label').textContent).toContain('NetID');
+    const input = field.querySelector('input');
+    expect(input.value).toBe('rgarcia7');
+    expect(input.readOnly).toBe(true);
+  });
+
+  /** The link state is shown as a filled pad with a sentence beside it. */
+  it('draws the link state as a pad and a sentence', async () => {
+    const { container } = render(Account);
+    const said = container.querySelector('.state');
+    expect(said.querySelector('.pad')).toBeTruthy();
+    expect(said.textContent).toMatch(/A Discord account is linked/i);
+  });
+
+  /** One primary button on a screen. */
+  it('offers one primary button, which is the step not yet taken', async () => {
+    const { container } = render(Account);
+    const primary = [...container.querySelectorAll('.btn.primary')];
+    expect(primary.length).toBe(1);
+    expect(primary[0].textContent).toMatch(/linked roles/i);
+  });
+
+  it('carries no boxed notice and no shouting', async () => {
+    const { container } = render(Account);
+    expect(container.innerHTML).not.toMatch(/uppercase|rounded-md|border-amber|bg-card/);
   });
 });

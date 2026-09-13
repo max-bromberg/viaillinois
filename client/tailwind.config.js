@@ -1,6 +1,12 @@
-import { fontFamily } from "tailwindcss/defaultTheme";
 import tailwindcssAnimate from "tailwindcss-animate";
 
+/**
+ * The design system reaches Tailwind through the tokens in src/app.css, which are
+ * copied from docs/design/reference/foundation.css. What is mapped here is only what a
+ * utility class has to be able to name: the three faces, the teal scale, the
+ * two gradients that are allowed to exist, and the stock colour names that
+ * unconverted screens still use.
+ */
 /** @type {import('tailwindcss').Config} */
 const config = {
 	darkMode: ["class"],
@@ -16,70 +22,48 @@ const config = {
 		},
 		extend: {
 			colors: {
+				// The teal scale of docs/design/04-color.md, with the mark at its centre.
 				via: {
-					50:  '#d7feff',
-					100: '#7df8fc',
-					200: '#68e4e8',
+					50:  '#e6f8f8',
+					100: '#c3eeef',
+					200: '#8fdfe1',
 					300: '#52d0d5',
-					400: '#39bdc1',
+					400: '#2fc4c8',
 					500: '#00aaaf',
 					600: '#008b8f',
-					700: '#006366',
-					800: '#003c3e',
-					900: '#001d1e',
+					700: '#007c80',
+					800: '#005558',
+					900: '#0a3334',
+					950: '#0a1516',
 				},
-				border: "hsl(var(--border) / <alpha-value>)",
-				input: "hsl(var(--input) / <alpha-value>)",
-				ring: "hsl(var(--ring) / <alpha-value>)",
-				background: "hsl(var(--background) / <alpha-value>)",
-				foreground: "hsl(var(--foreground) / <alpha-value>)",
-				primary: {
-					DEFAULT: "hsl(var(--primary) / <alpha-value>)",
-					foreground: "hsl(var(--primary-foreground) / <alpha-value>)"
-				},
-				secondary: {
-					DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
-					foreground: "hsl(var(--secondary-foreground) / <alpha-value>)"
-				},
-				destructive: {
-					DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
-					foreground: "hsl(var(--destructive-foreground) / <alpha-value>)"
-				},
-				muted: {
-					DEFAULT: "hsl(var(--muted) / <alpha-value>)",
-					foreground: "hsl(var(--muted-foreground) / <alpha-value>)"
-				},
-				accent: {
-					DEFAULT: "hsl(var(--accent) / <alpha-value>)",
-					foreground: "hsl(var(--accent-foreground) / <alpha-value>)"
-				},
-				popover: {
-					DEFAULT: "hsl(var(--popover) / <alpha-value>)",
-					foreground: "hsl(var(--popover-foreground) / <alpha-value>)"
-				},
-				card: {
-					DEFAULT: "hsl(var(--card) / <alpha-value>)",
-					foreground: "hsl(var(--card-foreground) / <alpha-value>)"
-				},
-				sidebar: {
-					DEFAULT: "hsl(var(--sidebar-background))",
-					foreground: "hsl(var(--sidebar-foreground))",
-					primary: "hsl(var(--sidebar-primary))",
-					"primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-					accent: "hsl(var(--sidebar-accent))",
-					"accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-					border: "hsl(var(--sidebar-border))",
-					ring: "hsl(var(--sidebar-ring))",
-        		},
-			},
-			borderRadius: {
-				xl: "calc(var(--radius) + 4px)",
-				lg: "var(--radius)",
-				md: "calc(var(--radius) - 2px)",
-				sm: "calc(var(--radius) - 4px)"
+				// The design system's own names, so a utility class can reach a token.
+				paper: "var(--paper)",
+				well: "var(--well)",
+				line: { DEFAULT: "var(--line)", strong: "var(--line-strong)" },
+				ink: { DEFAULT: "var(--ink)", 2: "var(--ink-2)" },
+				faint: "var(--faint)",
+				signal: { DEFAULT: "var(--signal)", text: "var(--signal-text)", soft: "var(--signal-soft)" },
+				ok: "var(--ok)",
+				warn: "var(--warn)",
+				danger: "var(--danger)",
+				plum: "var(--plum)",
 			},
 			fontFamily: {
-				sans: [...fontFamily.sans]
+				display: ["Bricolage Grotesque", "IBM Plex Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+				sans: ["IBM Plex Sans", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+				mono: ["IBM Plex Mono", "ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
+			},
+			// The only gradients the system permits, beside the sky and the lamp.
+			backgroundImage: {
+				current: "var(--g-current)",
+				board: "var(--g-board)",
+				"sky-morning": "var(--sky-morning)",
+				"sky-afternoon": "var(--sky-afternoon)",
+				"sky-evening": "var(--sky-evening)",
+				"sky-night": "var(--sky-night)",
+			},
+			boxShadow: {
+				float: "var(--shadow-float)",
 			},
 			keyframes: {
 				"accordion-down": {

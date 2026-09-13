@@ -1,29 +1,51 @@
-<div class="border rounded-lg p-4 bg-card">
-  <!-- Title row: title bar + private badge shape -->
-  <div class="flex items-start justify-between gap-2 mb-1">
-    <div class="shimmer h-4 w-2/3"></div>
-    <div class="shimmer h-5 w-12 shrink-0"></div>
-  </div>
+<script>
+  /**
+   * The shape of a row, while it is on its way.
+   *
+   * docs/design/08-surfaces.md: loading draws the shape of the rows in well
+   * colour with no shimmer, and the rows settle when they arrive. The shimmer
+   * that used to run across these was motion with nothing to tell you, which is
+   * the fastest way to make a page feel generated.
+   */
+</script>
 
-  <!-- RSO name -->
-  <div class="shimmer h-3 w-2/5 mb-2"></div>
-
-  <!-- Description: 2 lines -->
-  <div class="space-y-1.5 mb-2">
-    <div class="shimmer h-3 w-full"></div>
-    <div class="shimmer h-3 w-4/5"></div>
-  </div>
-
-  <!-- Date + location -->
-  <div class="space-y-1 mb-2">
-    <div class="shimmer h-3 w-48"></div>
-    <div class="shimmer h-3 w-36"></div>
-  </div>
-
-  <!-- Tag pills -->
-  <div class="flex flex-wrap gap-1">
-    <div class="shimmer h-5 w-12 rounded-full"></div>
-    <div class="shimmer h-5 w-14 rounded-full"></div>
-    <div class="shimmer h-5 w-10 rounded-full"></div>
+<div class="ghost cut" style="--cut: 14px" aria-hidden="true">
+  <div class="time"></div>
+  <div class="body">
+    <div class="line wide"></div>
+    <div class="line"></div>
   </div>
 </div>
+
+<style>
+  .ghost {
+    display: grid;
+    grid-template-columns: 104px 1fr;
+    gap: 18px;
+    padding: 16px 20px 16px 18px;
+    background: var(--well);
+  }
+
+  .time {
+    height: 34px;
+    background: color-mix(in srgb, var(--line-strong) 55%, var(--well));
+  }
+
+  .body {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    padding-top: 4px;
+  }
+
+  .line {
+    height: 13px;
+    width: 40%;
+    background: color-mix(in srgb, var(--line-strong) 40%, var(--well));
+  }
+
+  .line.wide {
+    height: 19px;
+    width: 62%;
+  }
+</style>

@@ -9,6 +9,12 @@ the file wins and this document is corrected.
 Bits UI remains as the headless layer for menus, dialogs, popovers and the date picker, for
 keyboard and screen reader behavior only. It contributes no styling.
 
+The rules are not retyped into the client. `client/scripts/designRules.js` reads them out of
+`reference/foundation.css` in the order that file writes them, because that order is the
+cascade the reference render is drawn with, and `client/scripts/syncDesignCss.js` writes
+them into `client/src/app.css` between markers. A test derives the same block and compares,
+so a rule that has drifted from the reference fails the gate.
+
 ## Primitives
 
 ### Pad (`.pad`)
@@ -61,6 +67,10 @@ As a tag filter it is a toggle button with `aria-pressed`. As a status it is a p
 A row of highlights (`.hlrow`) has a 2 px row gap and an 18 px column gap, and each has a
 32 px minimum height so it can be hit.
 
+A tag is drawn on a row or on paper. A cancelled row is a well, and it carries its status
+and no tags, which is what keeps every highlighter above the contrast threshold; see the
+second decision in the accessibility document.
+
 ### Sky
 
 Reads the campus hour, chooses the sky, paints the band, drifts it, crossfades at the hour
@@ -72,6 +82,25 @@ greeting can say "dusk over ECEB". It is the only component that knows what time
 A large condensed number with a small unit after it, as in `.greet .line b` and
 `.tspec .num`: the number at condensed 800, the unit in Plex Sans at 15 px on the same
 baseline.
+
+### Icon (`svg.i`)
+
+The eight shapes the reference render draws: pin, calendar, arrow, back, bolt, share, sun
+and moon. They take the stroke weight of the traces in the mark and the color of whatever
+text they sit in. The first version of the site used emoji, which draw differently on every
+platform, so the page had one face on a phone and another on the lobby screen. Adding a
+shape means adding it to the reference render first.
+
+An icon never appears without a label. Where a label already sits beside it in the
+interface the icon is decoration and says so, which is the common case. The dial is the one
+place an icon carries its own name.
+
+### Mark
+
+The mark, drawn rather than loaded as an image. It is never recolored, outlined, rotated or
+placed inside a container, and the one variation it takes is white, on the kiosk and on the
+night sky, where its own teal would disappear. An image cannot be given that white, which
+is why the mark is inline. Its teal is the `--mark` token.
 
 ## Buttons (`.btn`)
 
@@ -107,6 +136,10 @@ There is no box around a field.
 A 54 by 22 px control: a 2 px track and a 12 px pad. Off: the track is strong line, the pad
 is faint at the left. On: the track is the Current gradient, the pad is primary at the
 right. The pad slides over 200 ms.
+
+The state is in where the pad is and in what the control reports, as well as in the color of
+the track, because meaning never rides on color alone. It answers the space bar and the
+enter key.
 
 ## Dial (`.dial`)
 
@@ -147,7 +180,8 @@ cut 14 px, lamp from the top left. Rows are 6 px apart and settle on load.
 - Side: a status highlight, or the now tag (breathing signal pad and "Happening now" in the
   display face at 13.5 px, signal text).
 - Live (`.now`): the lamp becomes signal at 20 percent.
-- Cancelled (`.cancel`): well background, title struck through in muted, no description.
+- Cancelled (`.cancel`): well background, title struck through in muted, no description and
+  no tags. The status highlight in the side column says it is cancelled.
 
 ## Event page parts
 
@@ -167,7 +201,9 @@ member, a well colored panel cut at 14 px with the board's actions.
 
 ### Term ribbon (`.ribbon`)
 
-One cell per week of the term, 4 px apart, 64 px tall, cut 10 px. Each cell's background
+One cell per week of the term, 4 px apart, 64 px tall, cut 10 px. The number of columns is
+the `--weeks` custom property, because a term at Illinois runs about sixteen weeks and the
+reference render draws nine. Each cell's background
 warms from well toward signal with the number of exams in the week, and shows the count at
 22 px condensed 800 and the week's date in mono. This week carries a breathing signal pad
 at its top right. A cell with three or more exams shows its count in signal text.

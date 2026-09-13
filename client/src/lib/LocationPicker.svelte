@@ -1,7 +1,6 @@
 <script>
   import { searchVenues } from '../api/venues.js';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
+  import { Field, Button, Icon, Pad } from './components/ui/index.js';
 
   /** Label of a location already chosen, shown instead of the search box. */
   export let initialLabel = '';
@@ -26,8 +25,8 @@
 
   const roomLabel = (room) => `${room.building} ${room.room_number}`;
 
-  // The shared Input component exposes bind:value rather than forwarding
-  // on:input, so the search is driven by the value changing.
+  // The field exposes bind:value rather than forwarding on:input, so the search
+  // is driven by the value changing.
   $: schedule(term);
 
   function schedule(value) {
@@ -74,46 +73,44 @@
   }
 </script>
 
-<div class="space-y-2">
-  <Label htmlFor="location-search">Location</Label>
-
+<div class="place">
   {#if chosenLabel}
-    <div class="flex items-center gap-2 text-sm">
-      <span class="rounded-md border px-2 py-1">📍 {chosenLabel}</span>
-      <button type="button" class="text-xs text-muted-foreground hover:text-foreground" on:click={clear}>
-        clear
-      </button>
-    </div>
+    <span class="name">Location</span>
+    <p class="chosen">
+      <Icon name="pin" />
+      <span>{chosenLabel}</span>
+    </p>
+    <Button variant="quiet" size="sm" onclick={clear}>Clear the location</Button>
   {:else}
-    <Input
+    <Field
+      label="Location"
       id="location-search"
       bind:value={term}
       placeholder="Room, building or building code, or anywhere else"
       autocomplete="off"
+      help="Optional. Leave it empty if the location is not decided yet."
+      class="wide"
     />
 
     {#if searching}
-      <p class="text-xs text-muted-foreground">Searching...</p>
+      <p class="quiet">Searching for a room.</p>
     {:else if error}
-      <p class="text-xs text-destructive">{error}</p>
+      <p class="wrong">{error}</p>
     {:else if searched}
       {#if results.length}
-        <ul class="border rounded-md divide-y max-h-56 overflow-y-auto">
+        <ul class="rooms">
           {#each results as room (room.location_id)}
             <li>
-              <button
-                type="button"
-                class="w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                on:click={() => chooseRoom(room)}
-              >
-                {roomLabel(room)}
-                <span class="text-xs text-muted-foreground ml-2">seats {room.max_capacity}</span>
+              <button type="button" class="room" on:click={() => chooseRoom(room)}>
+                <Pad hollow />
+                <span class="where">{roomLabel(room)}</span>
+                <span class="seats mono">seats {room.max_capacity}</span>
               </button>
             </li>
           {/each}
         </ul>
       {:else}
-        <p class="text-xs text-muted-foreground">No room matches that.</p>
+        <p class="quiet">No room matches that.</p>
       {/if}
     {/if}
 
@@ -124,17 +121,106 @@
       when the network is the thing that failed.
     -->
     {#if term.trim()}
-      <button
-        type="button"
-        class="text-xs underline text-muted-foreground hover:text-foreground"
-        on:click={chooseFreeText}
-      >
+      <Button variant="quiet" size="sm" onclick={chooseFreeText}>
         Use "{term.trim()}" as the location
-      </button>
+      </Button>
     {/if}
-
-    <p class="text-xs text-muted-foreground">
-      Optional. Leave it empty if the location is not decided yet.
-    </p>
   {/if}
 </div>
+
+<style>
+  .place {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+  }
+
+  .place :global(.fld.wide) {
+    max-width: 560px;
+  }
+
+  .name {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  /*
+   * A chosen room is the pin and the words, on paper. It was a rounded
+   * rectangle with a hairline around it and a pin emoji, which drew differently
+   * on every platform the site is read on.
+   */
+  .chosen {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    color: var(--ink);
+  }
+
+  .quiet {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  /* An error is a sentence in the danger colour, never a red box. */
+  .wrong {
+    font-size: 12.5px;
+    color: var(--danger);
+  }
+
+  /*
+   * The results are a listing, the way the exam listing is a listing: hairlines
+   * between the rows and nothing around the outside.
+   */
+  .rooms {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 560px;
+    max-height: 224px;
+    overflow-y: auto;
+  }
+
+  .rooms li + li .room {
+    border-top: 1px solid var(--line);
+  }
+
+  .room {
+    font: inherit;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 9px 4px;
+    min-height: 32px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .room:hover .where,
+  .room:focus-visible .where {
+    color: var(--primary);
+  }
+
+  .room:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+
+  .where {
+    flex: 1;
+  }
+
+  .seats {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>

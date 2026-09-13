@@ -1,25 +1,73 @@
 <script>
   import { locationLabel } from '../lib/locationLabel.js';
   import { campusDate, campusTime } from '../lib/campusTime.js';
+  import { LIGHT, DARK, DEFAULT_ACCENT, paletteOn, isDark } from '../lib/posterPalette.js';
+  import { organizationColor } from '../lib/organizationColor.js';
+  import { resolvedTheme } from '../stores/theme.js';
   import { onMount } from 'svelte';
   import { navigate } from '../lib/router.js';
   import { getEvent } from '../api/events.js';
   import { getRso } from '../api/rsos.js';
   import { showToast } from '../stores/ui.js';
   import QRCode from 'qrcode';
+  import { Button, Field, Pad, Switch } from '../lib/components/ui/index.js';
+
+  /**
+   * The four pieces of the poster a board can leave off, held as one list so
+   * that each is drawn as a switch rather than as four hand written toggles.
+   */
+  const PIECES = [
+    { key: 'description', label: 'Description' },
+    { key: 'dateAndTime', label: 'Date and time' },
+    { key: 'location',    label: 'Location' },
+    { key: 'tags',        label: 'Tags' },
+  ];
+
+  /** Which theme is which, in the words a board would use. */
+  const THEMES = [
+    { key: 'clean',   label: 'Clean' },
+    { key: 'dark',    label: 'Dark' },
+    { key: 'branded', label: 'The organization colour' },
+  ];
+
+  /** Where an uploaded image sits on the poster. */
+  const PLACES = [
+    { key: 'body',   label: 'In the body' },
+    { key: 'header', label: 'Across the header' },
+  ];
+
+  function setPiece(key, on) {
+    if (key === 'description') showDesc = on;
+    if (key === 'dateAndTime') showDateTime = on;
+    if (key === 'location') showLocation = on;
+    if (key === 'tags') showTags = on;
+  }
+
+  const pieceIsOn = (key, desc, when, where, tagged) =>
+    key === 'description' ? desc
+    : key === 'dateAndTime' ? when
+    : key === 'location' ? where
+    : tagged;
 
   const urlParams = new URLSearchParams(window.location.search);
   const eventId   = parseInt(urlParams.get('event'));
   const rsoId     = parseInt(urlParams.get('rso'));
 
   let event = null, rso = null, loading = true, generating = false;
-  let rsoAccentDefault = '#6366f1';
+  /**
+   * A poster is downloaded as an image and pinned up, so it is the one surface
+   * that cannot take its colours from the stylesheet. They come from
+   * client/src/lib/posterPalette.js, which is held against the token file by a
+   * test. This used to draw in an indigo and a set of slate greys that appear
+   * nowhere else on VIA.
+   */
+  let rsoAccentDefault = DEFAULT_ACCENT;
   let previewCanvas;
   let renderTimer;
 
   // ── Design config ─────────────────────────────────────────────────────────
-  let accentColor  = '#6366f1';
-  let bgColor      = '#f9fafb';
+  let accentColor  = DEFAULT_ACCENT;
+  let bgColor      = LIGHT.ground;
   let fontKey      = 'system-sans';
   let activeTheme  = 'clean';
   let showDesc     = true;
@@ -89,16 +137,18 @@
   $: if (activeTheme === 'branded') bgColor = accentColor;
   function applyTheme(t) {
     activeTheme = t;
-    if      (t === 'dark')    bgColor = '#0f172a';
+    if      (t === 'dark')    bgColor = DARK.ground;
     else if (t === 'branded') bgColor = accentColor;
-    else                      bgColor = '#f9fafb';
+    else                      bgColor = LIGHT.ground;
   }
 
-  $: bodyText    = isColorDark(bgColor)     ? '#f1f5f9' : '#111827';
-  $: bodyMuted   = isColorDark(bgColor)     ? '#94a3b8' : '#6b7280';
-  $: headerText  = isColorDark(accentColor) ? '#ffffff' : '#111827';
-  $: qrDark      = isColorDark(bgColor)     ? '#f1f5f9' : '#111827';
-  $: dividerColor = isColorDark(bgColor)    ? '#1e293b' : '#e2e8f0';
+  $: ground      = paletteOn(bgColor);
+  $: onAccent    = paletteOn(accentColor);
+  $: bodyText    = ground.ink;
+  $: bodyMuted   = ground.muted;
+  $: headerText  = onAccent.ink;
+  $: qrDark      = ground.ink;
+  $: dividerColor = ground.line;
   $: tags        = event?.tags ? event.tags.split(',').filter(Boolean) : [];
   $: eventUrl    = `${window.location.origin}/events/${eventId}`;
   $: accentRgb   = hexToRgb(accentColor);
@@ -114,15 +164,10 @@
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  function isColorDark(hex) {
-    const c = (hex || '#000').replace('#', '');
-    if (c.length < 6) return true;
-    const r = parseInt(c.substr(0,2),16), g = parseInt(c.substr(2,2),16), b = parseInt(c.substr(4,2),16);
-    return (0.299*r + 0.587*g + 0.114*b) < 140;
-  }
+  const isColorDark = isDark;
   function hexToRgb(hex) {
-    const c = (hex||'#6366f1').replace('#','');
-    if (c.length < 6) return '99,102,241';
+    const c = String(hex ?? '').replace('#', '');
+    if (c.length < 6) return hexToRgb(DEFAULT_ACCENT);
     return `${parseInt(c.substr(0,2),16)},${parseInt(c.substr(2,2),16)},${parseInt(c.substr(4,2),16)}`;
   }
   const fmtDate = d => campusDate(d, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -288,11 +333,14 @@
     ctx.font = `21px ${fc}`;
     ctx.fillStyle = bodyMuted;
     if (showDateTime) {
-      ctx.fillText(`📅  ${fmtDate(event.start_time)}`, M, y); y += 38;
-      ctx.fillText(`🕐  ${fmtTime(event.start_time)} to ${fmtTime(event.end_time)}`, M, y); y += 38;
+      // The date, the hour and the room are set as words. They used to be
+      // prefixed with emoji, which draw differently on every platform the
+      // poster is opened on, and the poster is a file somebody else opens.
+      ctx.fillText(fmtDate(event.start_time), M, y); y += 38;
+      ctx.fillText(`${fmtTime(event.start_time)} to ${fmtTime(event.end_time)}`, M, y); y += 38;
     }
     if (showLocation) {
-      ctx.fillText(`📍  ${locationLabel(event)}`, M, y); y += 38;
+      ctx.fillText(locationLabel(event), M, y); y += 38;
     }
 
     // Description
@@ -309,7 +357,7 @@
       y = Math.max(y + 12, Math.min(y + 12, 795));
       ctx.font = `bold 14px ${fc}`;
       ctx.fillStyle = accentColor;
-      ctx.fillText(tags.join('  ·  '), M, y);
+      ctx.fillText(tags.join(',   '), M, y);
     }
 
     // Custom note
@@ -341,7 +389,12 @@
     try {
       const [{ event: e }, { rso: r }] = await Promise.all([getEvent(eventId), getRso(rsoId)]);
       event = e; rso = r;
-      rsoAccentDefault = r?.logo_color || '#6366f1';
+      /**
+       * An organization's colour is never shown as it was given, here least of
+       * all: a poster is pinned up beside other posters, so a neon that the feed
+       * would have calmed down would shout across a corridor.
+       */
+      rsoAccentDefault = organizationColor(r?.logo_color, 'mark', $resolvedTheme);
       accentColor = rsoAccentDefault;
     } catch (err) { showToast(err.message, 'error'); }
     finally { loading = false; }
@@ -378,7 +431,7 @@
   }
 
   function resetAll() {
-    accentColor = rsoAccentDefault; bgColor = '#f9fafb';
+    accentColor = rsoAccentDefault; bgColor = LIGHT.ground;
     fontKey = 'system-sans'; activeTheme = 'clean';
     showDesc = showDateTime = showLocation = showTags = true;
     callout = ''; customNote = '';
@@ -387,205 +440,413 @@
 </script>
 
 <svelte:head>
-  <title>{event ? `Poster for ${event.title}` : 'Event Poster'}: VIA</title>
+  <title>{event ? `A poster for ${event.title}` : 'The poster designer'}: VIA</title>
 </svelte:head>
 
-<button
-  class="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors mb-5"
-  on:click={() => navigate('/dashboard')}
->
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-  Back to Dashboard
-</button>
+<div class="designer">
+  <div class="head">
+    <Button variant="quiet" size="sm" icon="back" onclick={() => navigate('/dashboard')}>
+      Back to the logistics dashboard
+    </Button>
+    <h1 class="title">The poster designer</h1>
+    <p class="about">
+      The poster is drawn as you change it, and what you see here is what downloads.
+    </p>
+  </div>
 
-<div class="flex flex-col lg:flex-row gap-8 items-start">
+  <div class="both">
 
-  <!-- ── Controls ─────────────────────────────────────────────────────────── -->
-  <div class="w-full lg:w-68 shrink-0 lg:sticky lg:top-20 space-y-5 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto lg:pb-4" style="min-width:260px;max-width:280px">
-
-    <div class="flex items-center justify-between gap-2">
-      <h1 class="text-xl font-bold">Poster Editor</h1>
-      <button class="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2" on:click={resetAll}>Reset</button>
-    </div>
-
-    <!-- Theme -->
-    <div class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Theme</p>
-      <div class="flex gap-1.5">
-        {#each [['clean','Clean'],['dark','Dark'],['branded','Branded']] as [k, lbl]}
-          <button
-            class="flex-1 text-xs py-1.5 rounded border transition-colors
-              {activeTheme === k ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
-            on:click={() => applyTheme(k)}
-          >{lbl}</button>
-        {/each}
+    <!-- ── What the poster is made of ─────────────────────────────────────── -->
+    <div class="asking">
+      <div class="resetting">
+        <Button variant="quiet" size="sm" onclick={resetAll}>Put everything back as it was</Button>
       </div>
-    </div>
 
-    <!-- Colors -->
-    <div class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Colors</p>
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-sm">Accent</span>
-          <div class="flex items-center gap-2">
+      <fieldset class="group">
+        <legend>Theme</legend>
+        <div class="choices">
+          {#each THEMES as theme}
+            <button
+              type="button" class="check" aria-pressed={activeTheme === theme.key}
+              on:click={() => applyTheme(theme.key)}
+            >
+              <Pad hollow={activeTheme !== theme.key} />
+              <span>{theme.label}</span>
+            </button>
+          {/each}
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Colours</legend>
+        <div class="fld">
+          <label for="poster-accent">Accent</label>
+          <div class="in">
+            <Pad />
+            <input id="poster-accent" type="color" class="swatch" bind:value={accentColor} />
+            <span class="mono hex">{accentColor}</span>
             {#if accentColor !== rsoAccentDefault}
-              <button class="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                on:click={() => { accentColor = rsoAccentDefault; if (activeTheme === 'branded') bgColor = rsoAccentDefault; }}>
-                Reset
-              </button>
+              <Button
+                variant="quiet" size="sm"
+                onclick={() => { accentColor = rsoAccentDefault; if (activeTheme === 'branded') bgColor = rsoAccentDefault; }}
+              >Back to the organization colour</Button>
             {/if}
-            <input type="color" bind:value={accentColor} class="h-7 w-12 rounded border cursor-pointer" />
           </div>
         </div>
-        <div class="flex items-center justify-between">
-          <span class="text-sm">Background</span>
-          <input type="color" bind:value={bgColor} class="h-7 w-12 rounded border cursor-pointer"
-            on:input={() => activeTheme = ''} />
+        <div class="fld">
+          <label for="poster-bg">Background</label>
+          <div class="in">
+            <Pad />
+            <input
+              id="poster-bg" type="color" class="swatch" bind:value={bgColor}
+              on:input={() => activeTheme = ''}
+            />
+            <span class="mono hex">{bgColor}</span>
+          </div>
         </div>
-      </div>
-    </div>
+      </fieldset>
 
-    <!-- Font -->
-    <div class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Font</p>
-      <select
-        bind:value={fontKey}
-        class="w-full border rounded-md px-3 py-1.5 text-sm bg-background"
-        style="font-family: {selectedFont.css}"
-      >
-        {#each FONT_GROUPS as group}
-          <optgroup label={group.label}>
-            {#each group.fonts as font}
-              <option value={font.key} style="font-family: {font.css}">{font.name}</option>
-            {/each}
-          </optgroup>
-        {/each}
-      </select>
-      <p class="text-xs text-muted-foreground pl-0.5" style="font-family: {selectedFont.css}">
-        The quick brown fox jumps over the lazy dog
-      </p>
-    </div>
-
-    <!-- Custom image -->
-    <div class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Custom Image</p>
-      {#if customImageSrc}
-        <div class="relative rounded overflow-hidden border">
-          <img src={customImageSrc} alt="Custom" class="w-full h-20 object-cover" />
-          <button
-            class="absolute top-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded hover:bg-black/80"
-            on:click={clearImage}
-          >✕ Remove</button>
+      <fieldset class="group">
+        <legend>Typeface</legend>
+        <div class="fld">
+          <label for="poster-font">The face the poster is set in</label>
+          <div class="in">
+            <Pad />
+            <select
+              id="poster-font" bind:value={fontKey}
+              style="font-family: {selectedFont.css}; background: var(--paper)"
+            >
+              {#each FONT_GROUPS as group}
+                <optgroup label={group.label}>
+                  {#each group.fonts as font}
+                    <option value={font.key} style="font-family: {font.css}">{font.name}</option>
+                  {/each}
+                </optgroup>
+              {/each}
+            </select>
+          </div>
+          <p class="help" style="font-family: {selectedFont.css}">
+            The quick brown fox jumps over the lazy dog.
+          </p>
         </div>
-        <div class="space-y-1">
-          <p class="text-xs text-muted-foreground">Placement</p>
-          <div class="flex gap-1.5">
-            {#each [['body','Body'],['header','Header band']] as [k, lbl]}
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>An image of your own</legend>
+        {#if customImageSrc}
+          <img src={customImageSrc} alt="What this poster carries" class="shown" />
+          <Button variant="secondary" size="sm" onclick={clearImage}>Take the image off</Button>
+          <div class="choices">
+            {#each PLACES as place}
               <button
-                class="flex-1 text-xs py-1.5 rounded border transition-colors
-                  {imagePosition === k ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
-                on:click={() => imagePosition = k}
-              >{lbl}</button>
+                type="button" class="check" aria-pressed={imagePosition === place.key}
+                on:click={() => imagePosition = place.key}
+              >
+                <Pad hollow={imagePosition !== place.key} />
+                <span>{place.label}</span>
+              </button>
             {/each}
           </div>
+        {:else}
+          <label class="upload">
+            <span>Add an image</span>
+            <input type="file" accept="image/*" on:change={handleImageUpload} />
+          </label>
+        {/if}
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>What the poster carries</legend>
+        <div class="settings">
+          {#each PIECES as piece}
+            {@const on = pieceIsOn(piece.key, showDesc, showDateTime, showLocation, showTags)}
+            <div class="setting">
+              <Switch label={piece.label} checked={on} onchange={next => setPiece(piece.key, next)} />
+              <span>{piece.label}</span>
+            </div>
+          {/each}
         </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Words of your own</legend>
+        <Field
+          label="Callout" id="poster-callout" bind:value={callout} maxlength="60"
+          placeholder="Free food from six"
+          help="Set large on the poster, in the accent colour."
+        />
+        <Field
+          label="A note at the foot" id="poster-note" bind:value={customNote} maxlength="90"
+          placeholder="Open to every student"
+          help="Set small, near the bottom of the poster."
+        />
+      </fieldset>
+    </div>
+
+    <!-- ── The poster itself ──────────────────────────────────────────────── -->
+    <div class="showing">
+      <div class="tools">
+        <Button
+          variant="primary" icon="arrow"
+          disabled={!event || generating || loading}
+          busy={generating}
+          onclick={downloadPoster}
+        >
+          {generating ? 'Drawing the poster' : 'Download the poster'}
+        </Button>
+      </div>
+
+      {#if loading}
+        <div class="bone" aria-hidden="true"></div>
+      {:else if event}
+        <canvas
+          bind:this={previewCanvas}
+          class="poster-preview"
+          style="border-color: {accentColor}"
+          aria-label="The poster as it will download"
+        ></canvas>
+        <p class="help">800 by 1050 pixels, which prints and posts well.</p>
       {:else}
-        <label class="flex items-center justify-center gap-2 w-full border-2 border-dashed rounded-md py-3 text-sm text-muted-foreground hover:border-primary hover:text-primary cursor-pointer transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          Upload image
-          <input type="file" accept="image/*" class="hidden" on:change={handleImageUpload} />
-        </label>
+        <p class="help">That event is not on VIA, so there is nothing to make a poster of.</p>
       {/if}
     </div>
-
-    <!-- Content toggles -->
-    <div class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Content</p>
-      <div class="space-y-2">
-        {#each [
-          ['showDesc',     'Description'],
-          ['showDateTime', 'Date & time'],
-          ['showLocation', 'Location'],
-          ['showTags',     'Tags'],
-        ] as [key, label]}
-          {@const checked = key === 'showDesc' ? showDesc : key === 'showDateTime' ? showDateTime : key === 'showLocation' ? showLocation : showTags}
-          <label class="flex items-center justify-between cursor-pointer select-none">
-            <span class="text-sm">{label}</span>
-            <button
-              role="switch"
-              aria-checked={checked}
-              class="relative inline-flex rounded-full transition-colors flex-shrink-0
-                {checked ? 'bg-primary' : 'bg-muted'}"
-              style="width:34px;height:18px;"
-              on:click={() => {
-                if (key === 'showDesc')     showDesc     = !showDesc;
-                if (key === 'showDateTime') showDateTime = !showDateTime;
-                if (key === 'showLocation') showLocation = !showLocation;
-                if (key === 'showTags')     showTags     = !showTags;
-              }}
-            >
-              <span
-                class="absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform"
-                style="left: 2px; transform: translateX({checked ? '16px' : '0'})"
-              ></span>
-            </button>
-          </label>
-        {/each}
-      </div>
-    </div>
-
-    <!-- Custom text -->
-    <div class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Custom Text</p>
-      <div class="space-y-2">
-        <div class="space-y-1">
-          <label class="text-xs text-muted-foreground">Callout <span class="opacity-60">(big, accent color)</span></label>
-          <input class="w-full border rounded px-2.5 py-1.5 text-sm bg-background"
-            placeholder='e.g. "Free food! 🍕"' bind:value={callout} maxlength="60" />
-        </div>
-        <div class="space-y-1">
-          <label class="text-xs text-muted-foreground">Extra note <span class="opacity-60">(small, near bottom)</span></label>
-          <input class="w-full border rounded px-2.5 py-1.5 text-sm bg-background"
-            placeholder="e.g. Open to all students" bind:value={customNote} maxlength="90" />
-        </div>
-      </div>
-    </div>
-
   </div>
-
-  <!-- ── Preview ───────────────────────────────────────────────────────────── -->
-  <div class="flex-1 min-w-0 space-y-4">
-    <div class="flex items-center justify-between gap-3 flex-wrap">
-      <p class="text-sm text-muted-foreground">Live preview: what you see is what downloads</p>
-      <button
-        class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md
-               hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0"
-        disabled={!event || generating || loading}
-        on:click={downloadPoster}
-      >
-        {#if generating}
-          <svg class="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-          Generating…
-        {:else}
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download PNG
-        {/if}
-      </button>
-    </div>
-
-    {#if loading}
-      <div class="rounded-xl border-2 border-border animate-pulse bg-card" style="aspect-ratio: 800/1050; max-width: 520px;"></div>
-    {:else if event}
-      <canvas
-        bind:this={previewCanvas}
-        class="block rounded-xl shadow-xl border-2"
-        style="width:100%; max-width:520px; border-color:{accentColor}; display:block;"
-      ></canvas>
-      <p class="text-xs text-muted-foreground">800 × 1050 px, suitable for print and social media.</p>
-    {:else}
-      <p class="text-sm text-muted-foreground">Event not found.</p>
-    {/if}
-  </div>
-
 </div>
+
+<style>
+  .designer {
+    display: grid;
+    gap: 24px;
+    align-content: start;
+  }
+
+  .head {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+  }
+
+  /* A board tool carries its title at forty pixels, not fifty six. */
+  .title {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 40px;
+    line-height: 1.05;
+    letter-spacing: .006em;
+    margin: 0;
+  }
+
+  .about {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14.5px;
+    max-width: 62ch;
+  }
+
+  .both {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
+  }
+
+  .asking {
+    display: grid;
+    gap: 26px;
+    align-content: start;
+  }
+
+  .resetting {
+    justify-self: start;
+  }
+
+  .group {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    justify-items: start;
+  }
+
+  /*
+   * The name of a group is a label on the group, in the display face at the
+   * size a field label takes. It used to be set in small uppercase above the
+   * group, which is the eyebrow label the design does not use.
+   */
+  .group legend {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 0;
+  }
+
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+  }
+
+  .check {
+    font: inherit;
+    font-size: 14.5px;
+    background: none;
+    border: 0;
+    padding: 0;
+    gap: 10px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .check[aria-pressed="false"] span {
+    color: var(--muted);
+  }
+
+  .check:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  .fld {
+    width: 100%;
+  }
+
+  .fld .in select {
+    font: inherit;
+    font-size: 16px;
+    border: 0;
+    color: var(--ink);
+    outline: 0;
+    width: 100%;
+    padding: 2px 0;
+  }
+
+  .swatch {
+    width: 44px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    flex: none;
+  }
+
+  .hex {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .help {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 0;
+    max-width: 52ch;
+  }
+
+  .settings {
+    display: grid;
+    gap: 10px;
+  }
+
+  .setting {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14.5px;
+  }
+
+  /*
+   * The upload target is the field's line rather than a dashed rectangle, and
+   * the input itself is taken out of the flow but left reachable by keyboard.
+   */
+  .upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 32px;
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--primary);
+    border-bottom: 2px solid var(--line-strong);
+    padding: 6px 0;
+    cursor: pointer;
+  }
+
+  .upload:focus-within {
+    border-bottom-color: var(--primary);
+  }
+
+  .upload input {
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    position: absolute;
+  }
+
+  .shown {
+    width: 100%;
+    max-height: 96px;
+    object-fit: cover;
+  }
+
+  .showing {
+    display: grid;
+    gap: 16px;
+    justify-items: start;
+    min-width: 0;
+  }
+
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    align-items: center;
+  }
+
+  /*
+   * The poster floats above the page while it is being worked on, which is the
+   * one thing on a board tool that carries a shadow.
+   */
+  .poster-preview {
+    display: block;
+    width: 100%;
+    max-width: 520px;
+    border: 2px solid var(--line-strong);
+  }
+
+  /* Loading draws the shape of the poster in the well colour, with no shimmer. */
+  .bone {
+    width: 100%;
+    max-width: 520px;
+    aspect-ratio: 800 / 1050;
+    background: var(--well);
+  }
+
+  @media (max-width: 900px) {
+    .both {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /*
+   * A field written out here rather than taken from the Field component still
+   * has to carry the state on its line, so the rule and the pad turn primary
+   * when whatever sits between them has the focus.
+   */
+  .fld .in:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 2px 0 0 var(--primary);
+  }
+
+  .fld .in:focus-within :global(.pad) {
+    --h: var(--primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+</style>

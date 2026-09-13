@@ -1,38 +1,84 @@
 <script>
-  import { locationLabel } from '../lib/locationLabel.js';
-  import { campusDate, campusTime } from '../lib/campusTime.js';
   import { onMount } from 'svelte';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
   import QRCode from 'qrcode';
+  import { Poster, Pad, Button } from '../lib/components/ui/index.js';
   import { getEvent } from '../api/events.js';
-  import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import { getRso } from '../api/rsos.js';
+  import { locationLabel } from '../lib/locationLabel.js';
+  import { recurrenceLabel } from '../lib/recurrenceLabel.js';
+  import { campusDate, campusTime, toInstant } from '../lib/campusTime.js';
+  import { organizationColors } from '../lib/organizationColor.js';
+  import { resolvedTheme } from '../stores/theme.js';
   import { navigate } from '../lib/router.js';
   import { showToast } from '../stores/ui.js';
 
+  /**
+   * The event page.
+   *
+   * A poster, as docs/design/08-surfaces.md asks for: the organization's light
+   * across the top, the title at poster size, the time as a number you could
+   * read from the door, and the actions down the right with no box around them.
+   *
+   * The poster carries what a passer by needs. What the platform knows beyond
+   * that, the description as it was written, how the event repeats, how many
+   * people said they were interested, how much room there is, and who is
+   * hosting, is set below it in the same measure.
+   */
   export let id;
 
-  let event    = null;
-  let rso      = null;
-  let loading  = true;
-  let error    = null;
-  let showQr   = false;
+  let event     = null;
+  let rso       = null;
+  let loading   = true;
+  let error     = null;
   let qrDataUrl = '';
 
   $: canonicalUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/events/${id}`
     : `/events/${id}`;
-  $: tags = event?.tags ? event.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
   $: repeats = recurrenceLabel(event);
   $: formattedDate      = campusDate(event?.start_time, { weekday: 'long', month: 'long', day: 'numeric' });
   $: formattedStartTime = campusTime(event?.start_time);
-  $: formattedEndTime   = campusTime(event?.end_time);
   // The count that stands in for the RSVPs that were removed. Nothing is said
   // until somebody has shown interest, because a zero reads as a verdict.
   $: interestSentence = !event?.interest_count ? null
     : event.interest_count === 1 ? '1 person is interested'
     : `${event.interest_count} people are interested`;
+
+  $: hostColors = organizationColors(rso?.logo_color, $resolvedTheme);
+
+  /**
+   * The event as the poster reads it.
+   *
+   * The poster prints a room and the building under it. A location is optional
+   * on VIA and takes three forms, so what goes in the room slot is the one
+   * sentence the rest of the site already writes for all three, and the
+   * organizer's note about the door goes under it where the building name sits.
+   *
+   * The description is held back, because the poster sets plain paragraphs and
+   * organizers write markdown.
+   */
+  $: posterEvent = event && {
+    ...event,
+    rso_color: rso?.logo_color ?? null,
+    building: locationLabel(event),
+    room_number: null,
+    building_name: event.location_note ?? null,
+    description: null,
+  };
+
+  $: descriptionHtml = event?.description
+    ? DOMPurify.sanitize(marked.parse(event.description))
+    : '';
+
+  /** The sentences the poster has no place for, in the order they matter. */
+  $: alsoTrue = event ? [
+    repeats,
+    interestSentence,
+    event.max_capacity ? `There is room for ${event.max_capacity} people.` : null,
+    event.is_private ? `This event is internal to ${event.rso_name} and is not listed publicly.` : null,
+  ].filter(Boolean) : [];
 
   onMount(async () => {
     try {
@@ -40,13 +86,22 @@
       event = ev;
 
       // The organiser is worth showing, and an event that has one VIA cannot
-      // load is still worth reading, so a failure here leaves the card out
+      // load is still worth reading, so a failure here leaves the host out
       // rather than the page.
       try {
         const { rso: host } = await getRso(ev.rso_id);
         rso = host;
       } catch {
         rso = null;
+      }
+
+      // The poster draws the code beside the link, so it is made as soon as
+      // there is something to encode. A browser that cannot draw it leaves the
+      // block where it is and the link is still there to copy.
+      try {
+        qrDataUrl = await QRCode.toDataURL(canonicalUrl, { width: 200, margin: 2 });
+      } catch {
+        qrDataUrl = '';
       }
     } catch (e) {
       error = e.message;
@@ -55,21 +110,92 @@
     }
   });
 
+  /** A time as a calendar file writes it. */
+  const stamp = value => {
+    const at = toInstant(value);
+    return at ? at.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
+  };
+
+  /** Semicolons, commas and line breaks carry meaning in a calendar file. */
+  const escaped = text => String(text ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+
+  function calendarFile() {
+    return [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//VIA//Virtually Integrated Agenda//EN',
+      'BEGIN:VEVENT',
+      `UID:via-event-${event.event_id}@viaillinois.com`,
+      `DTSTAMP:${stamp(new Date())}`,
+      `DTSTART:${stamp(event.start_time)}`,
+      ...(event.end_time ? [`DTEND:${stamp(event.end_time)}`] : []),
+      `SUMMARY:${escaped(event.title)}`,
+      `LOCATION:${escaped(locationLabel(event))}`,
+      `DESCRIPTION:${escaped(`${event.rso_name} on VIA. ${canonicalUrl}`)}`,
+      `URL:${canonicalUrl}`,
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+  }
+
+  function googleCalendarUrl() {
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: event.title,
+      dates: `${stamp(event.start_time)}/${stamp(event.end_time ?? event.start_time)}`,
+      details: `${event.rso_name} on VIA. ${canonicalUrl}`,
+      location: locationLabel(event),
+    });
+    return `https://calendar.google.com/calendar/render?${params}`;
+  }
+
+  /** Hand a file to the reader without leaving the page. */
+  function save(name, href) {
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(canonicalUrl);
-      showToast('Link copied!');
+      showToast('Link copied.');
     } catch {
-      showToast('Could not copy link', 'error');
+      showToast('The link could not be copied.', 'error');
     }
   }
 
-  async function toggleQr() {
-    showQr = !showQr;
-    if (showQr && !qrDataUrl) {
-      qrDataUrl = await QRCode.toDataURL(canonicalUrl, { width: 200, margin: 2 });
+  /** What each of the poster's actions does. */
+  function addToCalendar() {
+    try {
+      window.open(googleCalendarUrl(), '_blank', 'noopener');
+    } catch {
+      showToast('Google Calendar could not be opened.', 'error');
     }
   }
+
+  function downloadCalendarFile() {
+    save(
+      `via-event-${event.event_id}.ics`,
+      `data:text/calendar;charset=utf-8,${encodeURIComponent(calendarFile())}`,
+    );
+  }
+
+  function downloadCode() {
+    if (!qrDataUrl) {
+      showToast('The QR code is not ready yet.', 'error');
+      return;
+    }
+    save(`via-event-${event.event_id}.png`, qrDataUrl);
+  }
+
 </script>
 
 <svelte:head>
@@ -81,158 +207,223 @@
   {/if}
 </svelte:head>
 
-<div class="max-w-3xl mx-auto space-y-4">
+{#if loading}
+  <!-- The shape of the poster in well colour, with no shimmer. -->
+  <div class="waiting" aria-hidden="true">
+    <div class="block back"></div>
+    <div class="block title"></div>
+    <div class="block org"></div>
+    <div class="block when"></div>
+    <div class="block line"></div>
+    <div class="block line short"></div>
+  </div>
 
-  <button
-    class="text-sm text-muted-foreground hover:text-foreground transition-colors"
-    on:click={() => navigate('/')}
-  >← All events</button>
+{:else if error}
+  <p class="bad">This event did not load. Try again in a moment.</p>
+  <p class="why">{error}</p>
+  <p class="way"><Button variant="quiet" onclick={() => navigate('/')}>Back to the event feed</Button></p>
 
-  {#if loading}
-    <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3 animate-pulse">
-      <div class="h-8 bg-muted rounded w-3/4"></div>
-      <div class="h-4 bg-muted rounded w-1/3"></div>
-      <div class="flex gap-2">
-        <div class="h-5 bg-muted rounded-full w-16"></div>
-        <div class="h-5 bg-muted rounded-full w-20"></div>
-      </div>
-    </div>
-    <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2 animate-pulse">
-      <div class="h-4 bg-muted rounded w-1/2"></div>
-      <div class="h-4 bg-muted rounded w-1/3"></div>
-    </div>
-    <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2 animate-pulse">
-      <div class="h-4 bg-muted rounded w-full"></div>
-      <div class="h-4 bg-muted rounded w-5/6"></div>
-      <div class="h-4 bg-muted rounded w-4/5"></div>
-    </div>
+{:else if event}
+  {#if event.cancelled_at}
+    <!-- Above everything else, because it changes what everything else means. -->
+    <p class="called-off">
+      <b>This event was cancelled.</b>
+      It was scheduled for {formattedDate} at {formattedStartTime}. The details below are kept for reference.
+    </p>
+  {/if}
 
-  {:else if error}
-    <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
-      <p class="text-destructive text-sm">{error}</p>
-      <button class="text-sm text-muted-foreground hover:text-foreground" on:click={() => navigate('/')}>
-        Back to events
-      </button>
-    </div>
+  <Poster
+    event={posterEvent}
+    theme={$resolvedTheme}
+    url={canonicalUrl}
+    onnavigate={navigate}
+    onaddToCalendar={addToCalendar}
+    ondownloadCalendarFile={downloadCalendarFile}
+    oncopyLink={copyLink}
+    ondownloadCode={downloadCode}
+    onmakePoster={() => navigate(`/poster?event=${event.event_id}`)}
+  >
+    {#snippet describe()}
+      {#if descriptionHtml}{@html descriptionHtml}{/if}
+    {/snippet}
 
-  {:else if event}
+    {#snippet code()}
+      {#if qrDataUrl}
+        <img class="qr code" src={qrDataUrl} alt="A code that opens this page on a phone" />
+      {:else}
+        <div class="qr" aria-hidden="true"></div>
+      {/if}
+    {/snippet}
+  </Poster>
 
-    <!-- 0. Cancellation notice, above everything else, because it changes what everything else means -->
-    {#if event.cancelled_at}
-      <div class="rounded-xl p-4 border border-destructive/40 bg-destructive/10 text-sm">
-        <p class="font-medium text-destructive">This event was cancelled.</p>
-        <p class="text-muted-foreground mt-1">It was scheduled for {formattedDate}. The details below are kept for reference.</p>
+  <div class="below">
+    {#if alsoTrue.length}
+      <div class="also">
+        {#each alsoTrue as said (said)}<p>{said}</p>{/each}
       </div>
     {/if}
 
-    <!-- 1. Header card -->
-    <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
-      <div class="flex items-start justify-between gap-3">
-        <h1 class="text-2xl font-bold leading-tight">{event.title}</h1>
-        <div class="flex gap-1 shrink-0 mt-1">
-          {#if event.cancelled_at}
-            <span class="text-xs bg-destructive/15 text-destructive rounded px-2 py-1">Cancelled</span>
-          {/if}
-          {#if event.is_private}
-            <span class="text-xs bg-secondary text-secondary-foreground rounded px-2 py-1">Private</span>
-          {/if}
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        {#if rso}
-          <span class="inline-block w-3 h-3 rounded-full shrink-0" style="background-color: {rso.logo_color}"></span>
-        {/if}
-        <span class="text-sm text-muted-foreground">{event.rso_name}</span>
-      </div>
-      {#if tags.length}
-        <div class="flex flex-wrap gap-1.5">
-          {#each tags as tag}
-            <span class="text-xs border rounded-full px-2 py-0.5">{tag}</span>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <!-- 2. Details strip -->
-    <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
-      <div class="flex items-center gap-2 text-sm">
-        <span>📅</span>
-        <span>{formattedDate}, {formattedStartTime} to {formattedEndTime}</span>
-      </div>
-      <div class="flex items-center gap-2 text-sm">
-        <span>📍</span>
-        <span>{locationLabel(event)}</span>
-      </div>
-      {#if event.location_note}
-        <p class="text-sm text-muted-foreground pl-7">{event.location_note}</p>
-      {/if}
-      {#if interestSentence}
-        <div class="flex items-center gap-2 text-sm">
-          <span>⭐</span>
-          <span>{interestSentence}</span>
-        </div>
-      {/if}
-      {#if repeats}
-        <div class="flex items-center gap-2 text-sm">
-          <span>🔁</span>
-          <span>{repeats}</span>
-        </div>
-      {/if}
-      {#if event.max_capacity}
-        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>👥</span>
-          <span>Capacity: {event.max_capacity}</span>
-        </div>
-      {/if}
-    </div>
-
-    <!-- 3. Description card -->
-    {#if event.description}
-      <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border">
-        <div class="text-sm text-muted-foreground leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-foreground [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-1 [&_a]:underline [&_a]:underline-offset-2 [&_p]:mt-2 first:[&_p]:mt-0">
-          {@html DOMPurify.sanitize(marked.parse(event.description))}
-        </div>
-      </div>
-    {/if}
-
-    <!-- 4. Hosted by card -->
     {#if rso}
-      <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
-        <h2 class="text-base font-semibold">Hosted by</h2>
-        <div class="flex items-center gap-2">
-          <span class="inline-block w-4 h-4 rounded-full shrink-0" style="background-color: {rso.logo_color}"></span>
-          <span class="font-medium">{rso.rso_name}</span>
-          {#if rso.founded_year}
-            <span class="text-xs text-muted-foreground">est. {rso.founded_year}</span>
-          {/if}
-        </div>
-        {#if rso.description}
-          <p class="text-sm text-muted-foreground leading-relaxed">{rso.description}</p>
-        {/if}
-        <p class="text-xs text-muted-foreground">
+      <section class="host">
+        <h2>Hosted by</h2>
+        <p class="who">
+          <Pad tone={hostColors.mark} />
+          <b style="color: {hostColors.text}">{rso.rso_name}</b>
+          {#if rso.founded_year}<span>Founded in {rso.founded_year}</span>{/if}
+        </p>
+        {#if rso.description}<p class="txt">{rso.description}</p>{/if}
+        <p class="count">
           {rso.event_count ?? 0} event{(rso.event_count ?? 0) !== 1 ? 's' : ''} on VIA
         </p>
-      </div>
+      </section>
     {/if}
+  </div>
+{/if}
 
-    <!-- 5. Share card -->
-    <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
-      <h2 class="text-base font-semibold">Share this event</h2>
-      <p class="text-sm text-muted-foreground font-mono break-all">{canonicalUrl}</p>
-      <div class="flex gap-2 flex-wrap">
-        <button
-          class="text-sm px-3 py-1.5 rounded border hover:bg-accent transition-colors"
-          on:click={copyLink}
-        >Copy link</button>
-        <button
-          class="text-sm px-3 py-1.5 rounded border hover:bg-accent transition-colors"
-          on:click={toggleQr}
-        >{showQr ? 'Hide QR code' : 'Create QR code'}</button>
-      </div>
-      {#if showQr && qrDataUrl}
-        <img src={qrDataUrl} alt="QR code for {event.title}" class="w-40 h-40 rounded" />
-      {/if}
-    </div>
+<style>
+  /* The shape of the poster while it is on its way, in well colour. */
+  .waiting {
+    display: grid;
+    gap: 14px;
+    justify-items: start;
+    padding-top: 10px;
+  }
 
-  {/if}
-</div>
+  .block {
+    background: var(--well);
+  }
+
+  .block.back  { width: 110px; height: 14px; }
+  .block.title { width: min(100%, 560px); height: 76px; }
+  .block.org   { width: 260px; height: 17px; }
+  .block.when  { width: 380px; height: 56px; }
+  .block.line  { width: min(100%, 58ch); height: 15px; }
+  .block.line.short { width: min(100%, 36ch); }
+
+  /* An error is a sentence in danger text, never a red box. */
+  .bad {
+    color: var(--danger);
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  .why {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 6px;
+  }
+
+  .way {
+    margin-top: 16px;
+  }
+
+  .called-off {
+    color: var(--danger);
+    font-size: 14.5px;
+    max-width: 58ch;
+    padding: 0 28px 10px;
+  }
+
+  .called-off b {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 800;
+  }
+
+  /* The code the poster draws beside the link. */
+  .code {
+    width: 96px;
+    height: 96px;
+    display: block;
+    background: none;
+    opacity: 1;
+  }
+
+  .below {
+    padding: 0 28px;
+    display: grid;
+    gap: 26px;
+    justify-items: start;
+  }
+
+  /* The same measure and the same ink the poster sets its own paragraphs in. */
+  .txt {
+    max-width: 58ch;
+    color: var(--ink-2);
+    font-size: 15.5px;
+  }
+
+  .read :global(p + p),
+  .read :global(ul),
+  .read :global(ol) {
+    margin-top: 10px;
+  }
+
+  .read :global(h1),
+  .read :global(h2),
+  .read :global(h3) {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 800;
+    font-size: 22px;
+    color: var(--ink);
+    margin-top: 16px;
+  }
+
+  .read :global(strong) {
+    color: var(--ink);
+  }
+
+  .read :global(ul) { list-style: disc; padding-left: 20px; }
+  .read :global(ol) { list-style: decimal; padding-left: 20px; }
+  .read :global(li) { margin-top: 4px; }
+
+  .read :global(a) {
+    color: var(--primary);
+    text-underline-offset: 2px;
+  }
+
+  .also {
+    display: grid;
+    gap: 6px;
+    color: var(--ink-2);
+    font-size: 14.5px;
+    max-width: 58ch;
+  }
+
+  .host h2 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 800;
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  .host .who {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 15px;
+    color: var(--ink-2);
+  }
+
+  .host .who b {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 800;
+    font-size: 17px;
+  }
+
+  .host .txt {
+    margin-top: 10px;
+  }
+
+  .host .count {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+</style>
