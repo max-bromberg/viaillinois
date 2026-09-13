@@ -17,4 +17,14 @@
   <title>Updates: VIA</title>
 </svelte:head>
 
-<p class="text-sm text-muted-foreground">Taking you to the updates.</p>
+<p>Taking you to the updates.</p>
+
+<style>
+  p {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 62ch;
+  }
+</style>

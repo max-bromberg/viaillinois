@@ -1,9 +1,8 @@
 <script>
   import { tagNames } from './tagList.js';
+  import { tagHue } from './tagHue.js';
   import { createEventDispatcher } from 'svelte';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
-  import { Button } from '$lib/components/ui/button';
+  import { Button, Field, Switch, Pad, Highlight } from './components/ui/index.js';
   import LocationPicker from './LocationPicker.svelte';
   import DatePicker from './DatePicker.svelte';
   import MultiDatePicker from './MultiDatePicker.svelte';
@@ -63,7 +62,7 @@
   let locationId   = initial.location_id   || null;
   let locationText = initial.location_text || null;
   let locationNote = initial.location_note || '';
-  let isPrivate   = initial.is_private  || false;
+  let isPrivate   = !!initial.is_private;
   let selectedTags = initial.tags ? initial.tags.split(',').filter(Boolean) : [];
 
   let repeat = initialRecurrence ? 'weekly' : 'none';
@@ -87,6 +86,19 @@
   $: pickerMonth = /^\d{4}-\d{2}/.test(startTime) ? startTime.slice(0, 7) : undefined;
 
   /**
+   * The three numbers the repeat panel collects, as numbers.
+   *
+   * The field draws its input with the type it was given rather than with a
+   * fixed one, so what comes back out of it is the text that was typed. A rule
+   * carrying "15" where the API expects 15 is a rule the platform reads as a
+   * missing date, so the reading happens once, here.
+   */
+  const asNumber = value =>
+    value === null || value === undefined || value === '' ? null : Number(value);
+
+  $: monthDayNumber = asNumber(monthDay);
+
+  /**
    * The rule as the API takes it.
    *
    * A monthly rule carries either a date in the month or a weekday of it, and
@@ -100,15 +112,15 @@
     : repeat === 'monthly'
       ? {
           frequency: 'monthly',
-          interval_months: Number(intervalMonths) || 1,
+          interval_months: asNumber(intervalMonths) || 1,
           ends_on: repeatUntil || undefined,
           ...(monthlyShape === 'day'
-            ? { month_day: monthDay }
+            ? { month_day: monthDayNumber }
             : { month_week: monthWeek, days_of_week: repeatDays.slice(0, 1) }),
         }
       : {
           frequency: 'weekly',
-          interval_weeks: Number(intervalWeeks) || 1,
+          interval_weeks: asNumber(intervalWeeks) || 1,
           days_of_week: repeatDays,
           ends_on: repeatUntil || undefined,
         };
@@ -134,7 +146,7 @@
   function fillMonthlyFromStart() {
     const day = /^\d{4}-\d{2}-\d{2}/.test(startTime) ? Number(startTime.slice(8, 10)) : null;
     if (day === null) return;
-    if (monthDay === null) monthDay = day;
+    if (monthDayNumber === null) monthDay = day;
     if (monthWeek === null) monthWeek = Math.ceil(day / 7);
     if (repeatDays.length === 0 && startDay) repeatDays = [startDay];
   }
@@ -166,7 +178,7 @@
   $: canSubmit = title && startTime && endTime && endTime > startTime
     && (repeat === 'none'
         || (repeat === 'dates' && pickedDates.length > 0)
-        || (repeat === 'monthly' && (monthlyShape === 'day' ? monthDay !== null : repeatDays.length > 0))
+        || (repeat === 'monthly' && (monthlyShape === 'day' ? monthDayNumber !== null : repeatDays.length > 0))
         || (repeat === 'weekly' && repeatDays.length > 0));
 
   function toggleTag(tag) {
@@ -194,154 +206,168 @@
   }
 </script>
 
-<form on:submit|preventDefault={submit} class="space-y-5">
-  <!-- Title -->
-  <div class="space-y-1">
-    <Label htmlFor="title">Event Title *</Label>
-    <Input id="title" bind:value={title} placeholder="e.g. IEEE Weekly Meeting" required />
-  </div>
+<form on:submit|preventDefault={submit} class="form">
+  <Field
+    label="Event title"
+    id="title"
+    bind:value={title}
+    required
+    placeholder="IEEE weekly meeting"
+    class="wide"
+  />
 
-  <!-- Description -->
-  <div class="space-y-1">
-    <Label htmlFor="description">Description</Label>
-    <textarea
-      id="description"
-      bind:value={description}
-      rows="3"
-      placeholder="What's this event about?"
-      class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-    ></textarea>
-  </div>
-
-  <!-- Date/Time -->
-  <div class="grid grid-cols-2 gap-4">
-    <div class="space-y-1">
-      <Label htmlFor="startTime">Start Time *</Label>
-      <Input id="startTime" type="datetime-local" bind:value={startTime} required />
-    </div>
-    <div class="space-y-1">
-      <Label htmlFor="endTime">End Time *</Label>
-      <Input id="endTime" type="datetime-local" bind:value={endTime} required />
+  <div class="fld wide">
+    <label for="description">Description</label>
+    <div class="in">
+      <Pad />
+      <textarea
+        id="description"
+        bind:value={description}
+        rows="3"
+        placeholder="What happens at this event, in a sentence or two."
+      ></textarea>
     </div>
   </div>
 
-  <!-- Repeat -->
+  <div class="pair">
+    <Field label="Start time" id="startTime" type="datetime-local" bind:value={startTime} required />
+    <Field label="End time" id="endTime" type="datetime-local" bind:value={endTime} required />
+  </div>
+
   {#if canRepeat}
-    <div class="space-y-2">
-      <Label>Repeat</Label>
-      <div class="flex flex-wrap gap-2">
+    <fieldset class="group">
+      <legend>Repeat</legend>
+      <div class="choices">
         {#each REPEATS as option}
           <button
             type="button"
+            class="check"
             aria-pressed={isChosen(option)}
-            class="text-xs px-3 py-1 rounded-full border transition-colors
-              {isChosen(option)
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-border hover:bg-accent'}"
             on:click={() => chooseRepeat(option.value, option.interval)}
           >
-            {option.label}
+            <Pad hollow={!isChosen(option)} />
+            <span>{option.label}</span>
           </button>
         {/each}
       </div>
 
       {#if repeat !== 'none'}
-        <div class="rounded-md border p-3 space-y-3 bg-muted/30">
+        <div class="panel cut" style="--cut: 14px">
 
           {#if repeat === 'weekly'}
-            <div class="space-y-1">
-              <Label htmlFor="intervalWeeks">Repeat every how many weeks</Label>
-              <Input id="intervalWeeks" type="number" min="1" max="8" bind:value={intervalWeeks} class="w-24" />
-            </div>
+            <Field
+              label="Repeat every how many weeks"
+              id="intervalWeeks"
+              type="number"
+              min="1"
+              max="8"
+              bind:value={intervalWeeks}
+              class="narrow"
+            />
           {/if}
 
           {#if repeat === 'monthly'}
-            <div class="space-y-1">
-              <Label>What once a month means</Label>
-              <div class="flex flex-wrap gap-2">
+            <fieldset class="group">
+              <legend>What once a month means</legend>
+              <div class="choices">
                 {#each MONTHLY_SHAPES as shape}
                   <button
                     type="button"
+                    class="check"
                     aria-pressed={monthlyShape === shape.value}
-                    class="text-xs px-3 py-1 rounded-full border transition-colors
-                      {monthlyShape === shape.value
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border hover:bg-accent'}"
                     on:click={() => monthlyShape = shape.value}
-                  >{shape.label}</button>
+                  >
+                    <Pad hollow={monthlyShape !== shape.value} />
+                    <span>{shape.label}</span>
+                  </button>
                 {/each}
               </div>
-            </div>
+            </fieldset>
 
-            <div class="flex flex-wrap gap-4">
-              <div class="space-y-1">
-                <Label htmlFor="intervalMonths">Repeat every how many months</Label>
-                <Input id="intervalMonths" type="number" min="1" max="12" bind:value={intervalMonths} class="w-24" />
-              </div>
+            <div class="pair">
+              <Field
+                label="Repeat every how many months"
+                id="intervalMonths"
+                type="number"
+                min="1"
+                max="12"
+                bind:value={intervalMonths}
+                class="narrow"
+              />
               {#if monthlyShape === 'day'}
-                <div class="space-y-1">
-                  <Label htmlFor="monthDay">Which date of the month</Label>
-                  <Input id="monthDay" type="number" min="1" max="31" bind:value={monthDay} class="w-24" />
-                </div>
+                <Field
+                  label="Which date of the month"
+                  id="monthDay"
+                  type="number"
+                  min="1"
+                  max="31"
+                  bind:value={monthDay}
+                  class="narrow"
+                  help="A month that has no such date is left out rather than moved to the next one."
+                />
               {:else}
-                <div class="space-y-1">
-                  <Label htmlFor="monthWeek">Which one in the month</Label>
-                  <select id="monthWeek" bind:value={monthWeek} class="border rounded-md px-3 py-2 text-sm bg-background">
-                    <option value={1}>First</option>
-                    <option value={2}>Second</option>
-                    <option value={3}>Third</option>
-                    <option value={4}>Fourth</option>
-                    <option value={5}>Fifth</option>
-                    <option value={-1}>Last</option>
-                  </select>
+                <div class="fld narrow">
+                  <label for="monthWeek">Which one in the month</label>
+                  <div class="in">
+                    <Pad />
+                    <select id="monthWeek" bind:value={monthWeek} style="background: var(--card)">
+                      <option value={1}>First</option>
+                      <option value={2}>Second</option>
+                      <option value={3}>Third</option>
+                      <option value={4}>Fourth</option>
+                      <option value={5}>Fifth</option>
+                      <option value={-1}>Last</option>
+                    </select>
+                  </div>
                 </div>
               {/if}
             </div>
-            {#if monthlyShape === 'day'}
-              <p class="text-xs text-muted-foreground">
-                A month that has no such date is left out rather than moved to the next one.
-              </p>
-            {/if}
           {/if}
 
           {#if repeat === 'dates'}
-            <div class="space-y-1">
-              <Label>Pick the dates</Label>
+            <fieldset class="group">
+              <legend>Pick the dates</legend>
               <MultiDatePicker
                 bind:value={pickedDates}
                 month={pickerMonth}
                 min={startTime.slice(0, 10)}
               />
-              <p class="text-xs text-muted-foreground">
+              <p class="note">
                 Each date takes the hour and the length above. Nothing is left out, because
                 these are the dates you chose rather than dates a rule produced.
               </p>
-            </div>
+            </fieldset>
           {:else if repeat === 'weekly' || monthlyShape === 'weekday'}
-            <div class="space-y-1">
-              <Label>{repeat === 'monthly' ? 'On this day' : 'On these days'}</Label>
-              <div class="flex flex-wrap gap-1.5">
+            <fieldset class="group">
+              <legend>{repeat === 'monthly' ? 'On this day' : 'On these days'}</legend>
+              <div class="choices days">
                 {#each WEEKDAYS as day}
                   <button
                     type="button"
+                    class="check"
                     aria-pressed={repeatDays.includes(day)}
-                    class="text-xs w-11 py-1 rounded border transition-colors
-                      {repeatDays.includes(day)
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border hover:bg-accent'}"
                     on:click={() => repeat === 'monthly' ? repeatDays = [day] : toggleDay(day)}
-                  >{day}</button>
+                  >
+                    <Pad hollow={!repeatDays.includes(day)} />
+                    <span>{day}</span>
+                  </button>
                 {/each}
               </div>
-            </div>
+            </fieldset>
           {/if}
 
           {#if repeat !== 'dates'}
-            <div class="space-y-1">
-              <Label htmlFor="repeatUntil">Until</Label>
-              <DatePicker bind:value={repeatUntil} placeholder="Last date" min={startTime.slice(0, 10)} />
+            <div class="group">
+              <span class="name" id="repeat-until">Until</span>
+              <DatePicker
+                bind:value={repeatUntil}
+                label="Until"
+                describedBy="repeat-until"
+                placeholder="Last date"
+                min={startTime.slice(0, 10)}
+              />
               {#if semester}
-                <p class="text-xs text-muted-foreground">
+                <p class="help">
                   {semester.label} instruction ends on {semester.instruction_end}. Weeks with no classes are left out.
                 </p>
               {/if}
@@ -349,74 +375,217 @@
           {/if}
 
           {#if repeatSentence}
-            <p class="text-xs font-medium">{repeatSentence}</p>
+            <p class="says">{repeatSentence}</p>
           {/if}
         </div>
       {/if}
-    </div>
+    </fieldset>
   {:else if seriesSentence}
-    <div class="space-y-1">
-      <Label>Repeat</Label>
-      <p class="text-sm text-muted-foreground">{seriesSentence}</p>
+    <div class="told">
+      <span class="name">Repeat</span>
+      <p>{seriesSentence}</p>
     </div>
   {/if}
 
-  <!-- Tags -->
-  <div class="space-y-2">
-    <Label>Tags</Label>
-    <div class="flex flex-wrap gap-2">
+  <fieldset class="group">
+    <legend>Tags</legend>
+    <div class="hlrow">
       {#each $ALL_TAGS as tag}
-        <button
-          type="button"
-          class="text-xs px-3 py-1 rounded-full border transition-colors
-            {selectedTags.includes(tag)
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'border-border hover:bg-accent'}"
-          on:click={() => toggleTag(tag)}
-        >
-          {tag}
-        </button>
+        <Highlight
+          tone={tagHue(tag)}
+          off={!selectedTags.includes(tag)}
+          pressed={selectedTags.includes(tag)}
+          onclick={() => toggleTag(tag)}
+        >{tag}</Highlight>
       {/each}
     </div>
-  </div>
+  </fieldset>
 
-  <!-- Location -->
   <LocationPicker initialLabel={initialLocationLabel} onChange={handleLocationChange} />
 
-  <!-- Location note: the small thing that changes at the door, kept apart from the room itself -->
-  <div class="space-y-1.5">
-    <Label htmlFor="locationNote">Location note</Label>
-    <Input
-      id="locationNote"
-      bind:value={locationNote}
-      maxlength="500"
-      placeholder="Use the north entrance, or ask at the front desk."
-    />
-    <p class="text-xs text-muted-foreground">Shown beside the room on the event page and in Discord.</p>
+  <!-- The small thing that changes at the door, kept apart from the room itself. -->
+  <Field
+    label="Location note"
+    id="locationNote"
+    bind:value={locationNote}
+    maxlength="500"
+    placeholder="Use the north entrance, or ask at the front desk."
+    help="Shown beside the room on the event page and in Discord."
+    class="wide"
+  />
+
+  <div class="private">
+    <Switch label="Members only" bind:checked={isPrivate} />
+    <span class="name">Members only</span>
+    <p class="help">
+      A members only event is shown to the organization and is kept off the public feed.
+    </p>
   </div>
 
-  <!-- Private toggle -->
-  <div class="flex items-center gap-2">
-    <input
-      id="isPrivate"
-      type="checkbox"
-      bind:checked={isPrivate}
-      class="rounded border-gray-300 text-primary focus:ring-primary"
-    />
-    <Label htmlFor="isPrivate" class="cursor-pointer font-normal">Private event (members only)</Label>
-  </div>
-
-  <!-- Submit -->
-  <div class="flex gap-3 pt-2">
-    <Button type="submit" disabled={!canSubmit || loading}>
+  <div class="actions">
+    <Button type="submit" variant="primary" disabled={!canSubmit || loading}>
       {#if loading}
         {isEditMode ? 'Saving…' : 'Creating…'}
       {:else}
         {isEditMode ? 'Update event' : 'Create event'}
       {/if}
     </Button>
-    <Button type="button" variant="ghost" on:click={() => dispatch('cancel')}>
-      Cancel
+    <Button type="button" variant="quiet" onclick={() => dispatch('cancel')}>
+      Close without saving
     </Button>
   </div>
 </form>
+
+<style>
+  .form {
+    display: grid;
+    gap: 22px;
+  }
+
+  /*
+   * A field holds itself to 320 px, which is right for a time and wrong for a
+   * title, so the two that carry a sentence are told they may run wider.
+   */
+  .form :global(.fld.wide) {
+    max-width: 560px;
+  }
+
+  .form :global(.fld.narrow) {
+    max-width: 190px;
+  }
+
+  /* Two fields side by side, and one under the other when there is no room. */
+  .pair {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 26px;
+  }
+
+  /*
+   * A group of controls is a fieldset, so that the name of the group reaches a
+   * screen reader as the name of the group rather than as a line of text above
+   * it. The browser's own box and inset are taken off.
+   */
+  .group {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+
+  .group legend,
+  .name {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 0;
+  }
+
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+  }
+
+  .choices .check {
+    font: inherit;
+    font-size: 14.5px;
+    background: none;
+    border: 0;
+    padding: 0;
+    gap: 10px;
+    color: var(--ink);
+  }
+
+  .choices .check[aria-pressed="true"] span {
+    font-weight: 600;
+  }
+
+  .choices .check[aria-pressed="false"] span {
+    color: var(--muted);
+  }
+
+  /* The seven days read as a row of equal words rather than as a sentence. */
+  .days .check span {
+    min-width: 28px;
+  }
+
+  /*
+   * The repeat panel is the one container on the form, and it is the well
+   * colour cut at fourteen pixels, the way the board's panel is drawn on the
+   * event page. It is not a rounded rectangle with a hairline around it.
+   */
+  .panel {
+    background: var(--well);
+    padding: 18px 20px;
+    display: grid;
+    gap: 18px;
+  }
+
+  .note,
+  .help {
+    font-size: 12.5px;
+    color: var(--muted);
+    max-width: 52ch;
+  }
+
+  .says {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .told {
+    display: grid;
+    gap: 4px;
+  }
+
+  .told p {
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  /* A textarea takes the same line the field's input takes. */
+  .fld .in textarea {
+    font: inherit;
+    font-size: 16px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    outline: 0;
+    width: 100%;
+    resize: vertical;
+  }
+
+  .fld .in select {
+    font: inherit;
+    font-size: 16px;
+    border: 0;
+    color: var(--ink);
+    outline: 0;
+    width: 100%;
+    padding: 2px 0;
+  }
+
+  .private {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 6px 12px;
+  }
+
+  .private .help {
+    grid-column: 2;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+    padding-top: 4px;
+  }
+</style>

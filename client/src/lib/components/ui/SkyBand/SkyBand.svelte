@@ -3,7 +3,7 @@
   import { Nav } from '../Nav/index.js';
   import { Greeting } from '../Greeting/index.js';
   import { Clock } from '../Clock/index.js';
-  import { campusFields } from '../../../campusTime.js';
+  import { campusFields, campusSky } from '../../../campusTime.js';
 
   /**
    * The sky band.
@@ -20,8 +20,11 @@
    * See docs/design/08-surfaces.md.
    */
   let {
-    /** Which sky. The campus hour chooses it. */
-    sky = 'afternoon',
+    /**
+     * Which sky. Left unset the band reads the campus hour itself, which is what
+     * every page does; the kiosk is the one surface that names a sky outright.
+     */
+    sky = null,
     /** Where the site can go. */
     links = [],
     /** Which path is open. */
@@ -48,13 +51,20 @@
     ...rest
   } = $props();
 
-  const night = $derived(sky === 'night');
+  /**
+   * The band is the site's clock, so it reads the hour from campusTime rather
+   * than being told what time it is. The greeting and the line under the clock
+   * read the same hour, so the three never disagree.
+   */
+  const overhead = $derived(campusSky(at ?? new Date()));
+  const showing = $derived(sky ?? overhead.sky);
+  const night = $derived(showing === 'night' || (!sky && overhead.next === 'night' && overhead.blend > 0.5));
   const hour = $derived(campusFields(at ?? new Date())?.hour ?? 12);
 </script>
 
-<Sky {sky} as="header" class={className} {...rest}>
+<Sky {sky} {at} as="header" class={className} {...rest}>
   <Nav {links} {here} onDark={night} {onnavigate}>{@render controls?.()}</Nav>
   <Greeting {hour} {name} {title} {tonight} {where} {week} {midterm}>
-    <Clock {at} sky={night ? 'night' : sky} />
+    <Clock {at} sky={showing} />
   </Greeting>
 </Sky>

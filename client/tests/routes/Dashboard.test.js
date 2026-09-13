@@ -360,3 +360,63 @@ describe('Dashboard calendar import', () => {
     await waitFor(() => expect(getRso.mock.calls.length).toBeGreaterThan(before));
   });
 });
+
+/**
+ * The dashboard in the design system.
+ *
+ * A board tool follows the same rules as the rest of the site with less
+ * ceremony: the page title in the condensed display face, tables built like the
+ * exam listing, a status as a highlighted word, and one primary button on the
+ * screen. See docs/design/08-surfaces.md.
+ */
+describe('Dashboard, drawn in the design system', () => {
+  it('names the organization as the page title', async () => {
+    const { findByRole } = render(Dashboard);
+    expect(await findByRole('heading', { level: 1, name: 'IEEE' })).toBeTruthy();
+  });
+
+  it('draws the organization mark as a pad in the colour the site adapted', async () => {
+    const { organizationColor } = await import('../../src/lib/organizationColor.js');
+    getRso.mockResolvedValue({ rso: {
+      rso_id: 1, name: 'IEEE', logo_color: '#00b2a9', members: [], events: [],
+    } });
+    const { container, findByRole } = render(Dashboard);
+    await findByRole('heading', { level: 1, name: 'IEEE' });
+    const pad = container.querySelector('.orgmark');
+    expect(pad).toBeTruthy();
+    expect(pad.getAttribute('style')).toContain(organizationColor('#00b2a9', 'mark', 'light'));
+  });
+
+  it('carries one primary button on the events tab', async () => {
+    const { container, findByRole } = render(Dashboard);
+    await findByRole('button', { name: 'Add an event' });
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  it('still carries only one primary button while the event form is open', async () => {
+    const { container, findByRole } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  it('draws a cancelled event as a highlighted word rather than as a filled pill', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, name: 'IEEE', members: [],
+      events: [{ ...ONE_OFF, cancelled_at: '2026-09-04 09:00:00' }] } });
+    const { findByText } = render(Dashboard);
+    expect((await findByText('Cancelled')).classList.contains('hl')).toBe(true);
+  });
+
+  it('lists its events as rows on hairlines rather than inside a bordered card', async () => {
+    const { container, findByText } = render(Dashboard);
+    await findByText('Career fair');
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.querySelectorAll('.listing .row[role="row"]').length).toBe(2);
+  });
+
+  it('says what to do next when the organization has nothing on', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, name: 'IEEE', members: [], events: [] } });
+    const { container, findByText } = render(Dashboard);
+    await findByText(/Nothing on the feed yet/);
+    expect(container.querySelector('.empty')).toBeTruthy();
+  });
+});

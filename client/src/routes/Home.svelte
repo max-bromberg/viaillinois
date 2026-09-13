@@ -2,97 +2,118 @@
   import { onMount } from 'svelte';
   import { getEvents } from '../api/events.js';
   import { getRsos } from '../api/rsos.js';
-  import EventCard from '../lib/EventCard.svelte';
-  import TagFilter from '../lib/TagFilter.svelte';
-  import EventCardSkeleton from '../lib/EventCardSkeleton.svelte';
+  import FilterRail from '../lib/FilterRail.svelte';
   import Pagination from '../lib/Pagination.svelte';
   import UpdatesWidget from '../lib/UpdatesWidget.svelte';
-  import { adminRsoIds } from '../stores/auth.js';
+  import EventCardSkeleton from '../lib/EventCardSkeleton.svelte';
+  import { DayGroup, EventRow, EmptyState, Button } from '../lib/components/ui/index.js';
+  import { groupByDay } from '../lib/agenda.js';
+  import { adminRsoIds, currentUser, isGlobalAdmin } from '../stores/auth.js';
+  import { resolvedTheme } from '../stores/theme.js';
   import { navigate } from '../lib/router.js';
+  import { toInstant } from '../lib/campusTime.js';
 
+  /**
+   * The feed, which is an agenda.
+   *
+   * Events read top to bottom, grouped by day, with the time set as the largest
+   * thing in each row, so a week can be scanned without reading a single title.
+   * Where the feed used to be a grid of identical bordered cards, learning when
+   * anything was happening meant reading every card, which is the opposite of an
+   * agenda.
+   *
+   * See docs/design/08-surfaces.md.
+   */
   const PAGE_SIZE = 18;
 
-  let loading = false;
-  let error = null;
-  let filters = { keyword: '', tags: [], startDate: '', endDate: '', timeframe: 'upcoming' };
-  let selectedRsoIds = [];
-  let showInternal = true;
-  let page = 1;
-  let rsos = [];
+  let loading = $state(false);
+  let error = $state(null);
+  let filters = $state({ keyword: '', tags: [], startDate: '', endDate: '', timeframe: 'upcoming' });
+  let selectedRsoIds = $state([]);
+  let showInternal = $state(true);
+  let page = $state(1);
+  let rsos = $state([]);
+  let events = $state([]);
+  let serverTotal = $state(0);
+  let now = $state(new Date());
 
-  // One page of events, as the server built it. Every filter the panel offers
-  // is applied by the query, so this is already the page the reader asked for.
-  let rawEvents = [];
-  let serverTotal = 0; // every filter is applied by the server, so this counts them all
+  /**
+   * The timeframe keeps the name the API gives it, and the Discord companion
+   * reads the same name. What a reader is shown is past, because that is what
+   * happened to those events.
+   */
+  const past = $derived(filters.timeframe === 'archived');
+  const heading = $derived(past ? 'Past' : 'Upcoming');
+  const theme = $derived($resolvedTheme);
 
-  // The timeframe keeps the name the API gives it. What a reader is shown is
-  // past, because that is what has happened to those events.
-  $: past = filters.timeframe === 'archived';
-  $: heading = past ? 'Past Events' : 'Upcoming Events';
+  const rsoByName = $derived(Object.fromEntries(rsos.map(rso => [rso.name, rso])));
+  const days = $derived(groupByDay(events));
+  const totalPages = $derived(Math.max(1, Math.ceil(serverTotal / PAGE_SIZE)));
 
-  $: rsoColorByName = Object.fromEntries(rsos.map(r => [r.name, r.logo_color || null]));
-  $: rsoIdByName = Object.fromEntries(rsos.map(r => [r.name, r.rso_id]));
+  /** Whether the reader may be shown where an internal event is. */
+  function canSeeRoom(event) {
+    if (!event.is_private) return true;
+    if ($isGlobalAdmin) return true;
+    const rsoId = rsoByName[event.rso_name]?.rso_id ?? null;
+    return $currentUser?.memberships?.some(membership => membership.rso_id === rsoId) ?? false;
+  }
 
-  // Both filter panel controls are answered by the server, so one page of
-  // results is one query. They used to be applied here, which meant the feed
-  // asked for every matching event in the term before it could draw eighteen of
-  // them, and the count under the pager was worked out from whatever subset had
-  // arrived.
-  $: displayedEvents = rawEvents;
-  $: totalPages = Math.max(1, Math.ceil(serverTotal / PAGE_SIZE));
+  /** Whether an event is running right now, which is what the signal colour is for. */
+  function isLive(event) {
+    const start = toInstant(event.start_time);
+    const end = toInstant(event.end_time);
+    if (!start) return false;
+    const at = now.getTime();
+    return start.getTime() <= at && (end ? at < end.getTime() : false);
+  }
 
   function readPageFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    const n = parseInt(params.get('page'));
-    return Number.isFinite(n) && n >= 1 ? n : 1;
+    const asked = parseInt(params.get('page'));
+    return Number.isFinite(asked) && asked >= 1 ? asked : 1;
   }
 
-  function pushPage(p) {
+  function pushPage(which) {
     const params = new URLSearchParams(window.location.search);
-    if (p === 1) {
-      params.delete('page');
-    } else {
-      params.set('page', String(p));
-    }
-    const qs = params.toString();
-    history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+    if (which === 1) params.delete('page');
+    else params.set('page', String(which));
+    const query = params.toString();
+    history.replaceState(null, '', query ? `?${query}` : window.location.pathname);
   }
 
   async function fetchEvents() {
     loading = true;
     error = null;
-    // Read directly from the variables rather than from a reactive statement,
-    // since fetchEvents is called synchronously after they are assigned.
     try {
-      const { events, total: t } = await getEvents({
+      const { events: page_, total } = await getEvents({
         ...filters,
         rsoIds: selectedRsoIds,
         excludePrivate: !showInternal,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
-      rawEvents = events;
-      serverTotal = t ?? 0;
-    } catch (e) {
-      error = e.message;
-      rawEvents = [];
+      events = page_ ?? [];
+      serverTotal = total ?? 0;
+    } catch (failure) {
+      error = failure.message;
+      events = [];
     } finally {
       loading = false;
     }
   }
 
-  function handleFiltersChange(e) {
-    const { selectedRsoIds: rsoIds, showInternal: si, ...rest } = e.detail;
+  function onFilters(change) {
+    const { selectedRsoIds: chosen, showInternal: internal, ...rest } = change;
     filters = rest;
-    selectedRsoIds = rsoIds;
-    showInternal = si;
+    selectedRsoIds = chosen;
+    showInternal = internal;
     page = 1;
     pushPage(1);
     fetchEvents();
   }
 
-  function handlePageChange(e) {
-    page = e.detail;
+  function onPage(event) {
+    page = event.detail;
     pushPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     fetchEvents();
@@ -101,73 +122,118 @@
   onMount(async () => {
     page = readPageFromUrl();
     fetchEvents();
+    // The agenda says what is on right now, so it has to know what right now is
+    // for longer than the moment the page was drawn.
+    const tick = setInterval(() => { now = new Date(); }, 60000);
     try {
-      const { rsos: rsoList } = await getRsos();
-      rsos = rsoList || [];
+      const { rsos: list } = await getRsos();
+      rsos = list ?? [];
     } catch {
       rsos = [];
     }
+    return () => clearInterval(tick);
   });
 </script>
 
 <svelte:head>
   <title>Events: VIA</title>
-  <meta name="description" content="Browse and filter upcoming ECE RSO events at UIUC, from every student organization in the department, in one feed." />
+  <meta name="description" content="Browse and filter upcoming ECE student organization events at Illinois, from every organization in the department, in one feed." />
 </svelte:head>
 
-<div class="flex flex-col gap-4 md:flex-row md:gap-6">
-  <div class="flex flex-col gap-4 w-full md:w-56 md:shrink-0">
-    <TagFilter {rsos} on:change={handleFiltersChange} />
+<div class="page">
+  <!--
+    The rail and what is new sit in the same column. The updates were on the feed
+    before the conversion and a reader who never opens About would otherwise have
+    no way to them, so they stay.
+  -->
+  <div class="left">
+    <FilterRail {rsos} onchange={onFilters} />
     <UpdatesWidget />
   </div>
 
-  <div class="flex-1 space-y-4">
-    <!--
-      A board member reading the feed had no way from it to the place events
-      are created, so the answer to seeing an empty week was to go and find the
-      dashboard. The way in belongs beside the feed the gap shows up in.
-    -->
-    <div class="flex items-center justify-between gap-3 flex-wrap">
-      <h1 class="text-2xl font-bold">{heading}</h1>
-      {#if $adminRsoIds.length > 0}
-        <button
-          on:click={() => navigate('/scheduler')}
-          class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-          Schedule an event
-        </button>
-      {/if}
+  <div class="agenda">
+    <div class="feedhead">
+      <h1>{heading}</h1>
+      <span>{serverTotal} {serverTotal === 1 ? 'event' : 'events'}</span>
     </div>
 
-    {#if past}
-      <p class="text-sm text-muted-foreground">These events have already happened. Switch back to upcoming to see what is on next.</p>
+    <!--
+      A board member reading the feed had no way from it to the place events are
+      created, so the way in belongs beside the feed the gap shows up in.
+    -->
+    {#if $adminRsoIds.length > 0}
+      <div class="lead">
+        <Button variant="primary" icon="bolt" onclick={() => navigate('/scheduler')}>Schedule an event</Button>
+      </div>
     {/if}
 
-    <Pagination currentPage={page} {totalPages} on:change={handlePageChange} />
+    {#if past}
+      <p class="said">These events have already happened. Switch back to upcoming to see what is on next.</p>
+    {/if}
+
+    <Pagination currentPage={page} {totalPages} on:change={onPage} />
 
     {#if error}
-      <p class="text-sm text-destructive">{error}</p>
+      <p class="wrong">The feed did not load. Try again in a moment.</p>
     {:else if loading}
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {#each Array(PAGE_SIZE) as _}
-          <EventCardSkeleton />
-        {/each}
+      <!-- The shape of the rows, in the well colour, with no shimmer. -->
+      <div class="waiting">
+        {#each Array(6) as _, at (at)}<EventCardSkeleton />{/each}
       </div>
-    {:else if displayedEvents.length === 0}
-      <p class="text-muted-foreground text-sm">
-        {past ? 'No past events found. Try adjusting your filters.' : 'No events found. Try adjusting your filters.'}
-      </p>
+    {:else if days.length === 0}
+      <EmptyState
+        lead={past ? 'Nothing back there.' : 'Nothing on.'}
+        say={past
+          ? 'No event in this range has happened yet. Switch back to upcoming to see what is on next.'
+          : 'Nothing matches what you have asked for. If you expected more here, clear a tag or two.'}
+      />
     {:else}
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {#each displayedEvents as event (event.event_id)}
-          <EventCard {event} rsoColor={rsoColorByName[event.rso_name] ?? null} rsoId={rsoIdByName[event.rso_name] ?? null} />
-        {/each}
-      </div>
+      {#each days as group (group.day)}
+        <DayGroup day={group.events[0].start_time} {now}>
+          {#each group.events as event (event.event_id)}
+            <EventRow
+              {event}
+              {theme}
+              live={isLive(event)}
+              showRoom={canSeeRoom(event)}
+              onnavigate={navigate}
+            />
+          {/each}
+        </DayGroup>
+      {/each}
     {/if}
 
-    <Pagination currentPage={page} {totalPages} on:change={handlePageChange} />
+    <Pagination currentPage={page} {totalPages} on:change={onPage} />
   </div>
 </div>
+
+<style>
+  .left {
+    display: grid;
+    gap: 26px;
+    align-content: start;
+  }
+
+  .lead {
+    margin: 14px 0 4px;
+  }
+
+  .said {
+    color: var(--muted);
+    font-size: 13.5px;
+    margin: 10px 0 0;
+    max-width: 58ch;
+  }
+
+  /* An error is a sentence in danger text under the thing that failed. */
+  .wrong {
+    color: var(--danger);
+    font-size: 14px;
+    margin: 18px 0;
+  }
+
+  .waiting {
+    display: grid;
+    gap: 6px;
+  }
+</style>

@@ -52,7 +52,7 @@ describe('App, before it knows who is looking', () => {
   it('draws the feed without waiting to find out', async () => {
     getMe.mockReturnValue(new Promise(() => {}));   // never answers
     const { findByRole } = render(App);
-    expect(await findByRole('heading', { name: 'Upcoming Events' })).toBeTruthy();
+    expect(await findByRole('heading', { name: 'Upcoming' })).toBeTruthy();
     await waitFor(() => expect(getEvents).toHaveBeenCalled());
   });
 
@@ -65,7 +65,7 @@ describe('App, before it knows who is looking', () => {
     getMe.mockReturnValue(new Promise(() => {}));
     path.store.set('/dashboard');
     const { container, queryByRole } = render(App);
-    expect(queryByRole('heading', { name: 'Upcoming Events' })).toBeNull();
+    expect(queryByRole('heading', { name: 'Upcoming' })).toBeNull();
     expect(container.querySelector('.shimmer, .animate-pulse')).toBeTruthy();
   });
 

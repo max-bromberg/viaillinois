@@ -19,6 +19,12 @@
   let {
     /** What the field is called. */
     label,
+    /**
+     * Keep the name for a screen reader but draw no label. The filter rail heads
+     * its search with a word of its own, and a second one under it would be a
+     * label above a heading, which the look does not have.
+     */
+    labelHidden = false,
     /** The value, which the caller may bind to. */
     value = $bindable(''),
     /** What kind of input. */
@@ -46,7 +52,7 @@
 </script>
 
 <div class={classes}>
-  <label for={inputId}>{label}{#if required}<span class="need"> (required)</span>{/if}</label>
+  <label for={inputId} class:hidden={labelHidden}>{label}{#if required}<span class="need"> (required)</span>{/if}</label>
   <div class="in">
     <Pad />
     <input
@@ -72,6 +78,19 @@
    * set in the reading face beside the label rather than in the display face, so
    * that it reads as a note and not as part of the name.
    */
+  /*
+   * Out of sight and still spoken. Left as display:none it would be out of the
+   * accessibility tree too, and the field would have no name at all.
+   */
+  .hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .need {
     font-family: var(--sans);
     font-stretch: normal;

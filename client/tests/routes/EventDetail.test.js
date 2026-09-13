@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/svelte';
+import { render, waitFor, fireEvent } from '@testing-library/svelte';
 import EventDetail from '../../src/routes/EventDetail.svelte';
 
 vi.mock('../../src/api/events.js', () => ({
@@ -185,5 +185,125 @@ describe('EventDetail, cancellation, the location note and interest', () => {
     const { findByRole, queryByText } = render(EventDetail, { id: 1 });
     await findByRole('heading', { name: 'IEEE Workshop' });
     expect(queryByText(/interested/)).toBeNull();
+  });
+});
+
+/**
+ * The event page is a poster, built from the design system's own part.
+ *
+ * See docs/design/07-components.md "Event page parts" and
+ * docs/design/08-surfaces.md "The event page".
+ */
+describe('EventDetail, as a poster', () => {
+  it('draws the page as a poster', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.querySelector('.poster')).toBeTruthy();
+  });
+
+  it('lights the poster in the organization adapted colour, never the stored one', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    await waitFor(() => {
+      const style = container.querySelector('.poster').getAttribute('style');
+      expect(style).toMatch(/--h: #/);
+      expect(style.toLowerCase()).not.toContain('#006eb6');
+    });
+  });
+
+  it('draws the tags as words with a stroke rather than as pills', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    const tags = [...container.querySelectorAll('.poster .tags .hl')].map(tag => tag.textContent);
+    expect(tags).toEqual(['Workshop', 'Free Food']);
+  });
+
+  it('offers one primary action and no more', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  it('draws icons rather than emoji', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.textContent).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+  });
+
+  it('keeps the description as the markdown it was written in', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.querySelector('.txt strong')?.textContent).toBe('PCB design');
+  });
+
+  it('keeps the board tools away from a reader who is not on that board', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.querySelector('.poster .board')).toBeNull();
+  });
+});
+
+/**
+ * The poster draws its actions; the page is what makes them happen. Each of
+ * these pins the label the component prints, so that a label changing in the
+ * component is a failing test here rather than a control that quietly does
+ * nothing.
+ */
+describe('EventDetail, the actions on the poster', () => {
+  const press = async (findByRole, name) => {
+    const button = await findByRole('button', { name });
+    await fireEvent.click(button);
+  };
+
+  it('copies the link to this page', async () => {
+    const written = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: written }, configurable: true });
+    const { showToast } = await import('../../src/stores/ui.js');
+    const { findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    await press(findByRole, 'Copy link');
+    await waitFor(() => expect(written).toHaveBeenCalledWith(expect.stringContaining('/events/1')));
+    expect(showToast).toHaveBeenCalledWith('Link copied.');
+  });
+
+  it('says so when the link could not be copied', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockRejectedValue(new Error('no')) }, configurable: true,
+    });
+    const { showToast } = await import('../../src/stores/ui.js');
+    const { findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    await press(findByRole, 'Copy link');
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('The link could not be copied.', 'error'));
+  });
+
+  it('hands over the event as a calendar file', async () => {
+    const saved = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function () { saved.push(this.getAttribute('href')); });
+    const { findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    await press(findByRole, 'Download .ics');
+    expect(saved[0]).toContain('text/calendar');
+    expect(decodeURIComponent(saved[0])).toContain('SUMMARY:IEEE Workshop');
+    click.mockRestore();
+  });
+
+  it('opens the event in Google Calendar', async () => {
+    const opened = vi.fn();
+    window.open = opened;
+    const { findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    await press(findByRole, 'Add to Google Calendar');
+    expect(opened).toHaveBeenCalled();
+    expect(opened.mock.calls[0][0]).toContain('calendar.google.com');
+  });
+
+  it('sends a board member to the poster designer for this event', async () => {
+    const { navigate } = await import('../../src/lib/router.js');
+    const { findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    await press(findByRole, 'Make a poster');
+    expect(navigate).toHaveBeenCalledWith('/poster?event=1');
   });
 });

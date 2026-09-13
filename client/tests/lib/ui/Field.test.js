@@ -71,6 +71,14 @@ describe('Field', () => {
     expect(container.querySelector('input').getAttribute('type')).toBe('datetime-local');
   });
 
+  it('can keep its name for a screen reader while drawing no label', () => {
+    const { container } = render(Field, { label: 'Search the agenda', labelHidden: true });
+    const label = container.querySelector('label');
+    expect(label.classList.contains('hidden')).toBe(true);
+    // Out of sight and still spoken: the input keeps its name.
+    expect(label.getAttribute('for')).toBe(container.querySelector('input').getAttribute('id'));
+  });
+
   it('says it is required both in the label and to a screen reader', () => {
     const { container } = render(Field, { label: 'Event title', required: true });
     expect(container.querySelector('input').required).toBe(true);

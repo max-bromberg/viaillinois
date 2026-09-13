@@ -6,7 +6,7 @@
   import { themeMode } from './stores/theme.js';
   import { getMe } from './api/users.js';
   import { takeAfterSignIn } from './lib/afterSignIn.js';
-  import NavBar      from './lib/NavBar.svelte';
+  import AppChrome   from './lib/AppChrome.svelte';
   // The feed is what most visits are for, so it travels with the first
   // download. Every other page is its own file, fetched when somebody opens it,
   // which keeps the logistics dashboard, the scheduler and the poster designer
@@ -17,6 +17,11 @@
   import Footer      from './lib/Footer.svelte';
   import { toast } from './stores/ui.js';
   import CircuitBackground from './lib/CircuitBackground.svelte';
+  import { Toast } from './lib/components/ui/index.js';
+  import { apiFetch } from './api/base.js';
+  import { greetingCounts } from './lib/greeting.js';
+  import { getEvents } from './api/events.js';
+  import { getConfirmedMidterms } from './api/midterms.js';
 
   let authLoading = true;
   $: dynamicRoute = matchRoute($currentPath);
@@ -47,7 +52,34 @@
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   }
 
+  /**
+   * What the greeting says. The feed asks for the events it is about to draw
+   * anyway, so the counts come from one more small request rather than from a
+   * number the client makes up, and a count that has not arrived is left out.
+   */
+  let greeting = { tonight: null, week: null, midterm: null };
+
+  async function readGreeting() {
+    const [events, midterms] = await Promise.allSettled([
+      getEvents({ timeframe: 'upcoming', limit: 100, offset: 0 }),
+      getConfirmedMidterms(),
+    ]);
+    greeting = greetingCounts({
+      events: events.status === 'fulfilled' ? events.value.events ?? [] : [],
+      midterms: midterms.status === 'fulfilled' ? midterms.value.midterms ?? [] : [],
+    });
+  }
+
+  async function signOut() {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' });
+    } catch {}
+    currentUser.set(null);
+    navigate('/');
+  }
+
   onMount(async () => {
+    readGreeting();
     // Theme: subscribe to store and system preference. Guarded, because
     // whether the reader prefers a dark page is not worth holding the page
     // itself for: a browser without media query support used to leave the
@@ -95,15 +127,29 @@
   <CircuitBackground />
 
   {#if $toast}
-    <div class="fixed top-4 right-4 z-50 rounded-md px-4 py-2 text-sm font-medium shadow-md
-      {$toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}">
-      {$toast.message}
+    <div class="toast-corner">
+      <!--
+        An error stays until it is dismissed, because a sentence saying the feed
+        did not load should still be there when the reader looks up.
+      -->
+      <Toast
+        message={$toast.message}
+        tone={$toast.type === 'error' ? 'signal' : 'primary'}
+        duration={$toast.type === 'error' ? 0 : 6000}
+        ondismiss={() => toast.set(null)}
+      />
     </div>
   {/if}
 
-  <div class="min-h-screen bg-background/60 text-foreground relative z-10 flex flex-col">
-    <NavBar />
-    <main class="container mx-auto px-4 py-6 flex-1">
+  <div class="min-h-screen relative z-10 flex flex-col">
+    <a class="skip" href="#agenda">Skip to the agenda</a>
+    <AppChrome
+      here={$currentPath}
+      counts={greeting}
+      onnavigate={navigate}
+      onsignout={signOut}
+    />
+    <main id="agenda" class="page-body flex-1">
       {#if $currentPath === '/'}
         <Home />
       {:else if $currentPath === '/dashboard'}
@@ -152,3 +198,47 @@
     <Footer />
   </div>
 {/if}
+
+<style>
+  /*
+   * The band is the first thing on the page and it is tall, so anybody moving
+   * by keyboard gets a way past it to the agenda. It shows itself when it is
+   * reached and stays out of the way otherwise.
+   */
+  .skip {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 60;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 16px;
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 700;
+  }
+
+  .skip:focus {
+    left: 0;
+  }
+
+  .page-body {
+    max-width: 1180px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 28px 32px 34px;
+  }
+
+  @media (max-width: 640px) {
+    .page-body {
+      padding: 20px 16px 28px;
+    }
+  }
+
+  .toast-corner {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 50;
+  }
+</style>

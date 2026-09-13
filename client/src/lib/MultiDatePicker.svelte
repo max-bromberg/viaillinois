@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { campusToday } from './campusTime.js';
+  import { Icon, Pad } from './components/ui/index.js';
 
   /**
    * Picking a set of dates that follow no rule.
@@ -63,22 +64,20 @@
   }
 </script>
 
-<div class="rounded-md border p-3 space-y-2 bg-background">
-  <div class="flex items-center justify-between">
-    <button
-      type="button" aria-label="Previous month" on:click={() => step(-1)}
-      class="px-2 py-1 text-sm border rounded-md hover:bg-accent transition-colors"
-    >‹</button>
-    <span class="text-sm font-medium">{MONTHS[viewMonth]} {viewYear}</span>
-    <button
-      type="button" aria-label="Next month" on:click={() => step(1)}
-      class="px-2 py-1 text-sm border rounded-md hover:bg-accent transition-colors"
-    >›</button>
+<div class="picker">
+  <div class="nav">
+    <button type="button" class="step" aria-label="Previous month" on:click={() => step(-1)}>
+      <Icon name="back" />
+    </button>
+    <span class="month">{MONTHS[viewMonth]} {viewYear}</span>
+    <button type="button" class="step" aria-label="Next month" on:click={() => step(1)}>
+      <Icon name="arrow" />
+    </button>
   </div>
 
-  <div class="grid grid-cols-7 gap-0.5 text-center">
+  <div class="grid">
     {#each DOW as day}
-      <span class="text-[10px] uppercase tracking-wide text-muted-foreground py-1">{day}</span>
+      <span class="dow">{day}</span>
     {/each}
     {#each cells as day}
       {#if day === null}
@@ -86,20 +85,135 @@
       {:else}
         <button
           type="button"
+          class="day"
           aria-pressed={chosen.has(dateOf(day))}
           aria-label="{MONTHS[viewMonth]} {day}, {viewYear}"
           disabled={disabled(day)}
           on:click={() => toggle(day)}
-          class="text-xs h-8 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed
-            {chosen.has(dateOf(day))
-              ? 'bg-primary text-primary-foreground font-medium'
-              : 'hover:bg-accent'}"
-        >{day}</button>
+        >
+          <span class="n">{day}</span>
+          <span class="mark">{#if chosen.has(dateOf(day))}<Pad />{/if}</span>
+        </button>
       {/if}
     {/each}
   </div>
 
-  <p class="text-xs text-muted-foreground">
+  <p class="count">
     {value.length === 1 ? '1 date chosen' : `${value.length} dates chosen`}
   </p>
 </div>
+
+<style>
+  .picker {
+    display: grid;
+    gap: 10px;
+    width: 268px;
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .month {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .step {
+    font: inherit;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    min-width: 32px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .step:hover,
+  .step:focus-visible {
+    color: var(--ink);
+  }
+
+  .step:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    text-align: center;
+  }
+
+  .dow {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    padding-bottom: 2px;
+  }
+
+  /*
+   * A day is the number and, under it, the pad that says it was chosen. The
+   * chosen day used to be a filled rectangle, which is the one shape the
+   * design does not use for a state.
+   */
+  .day {
+    font: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    min-height: 32px;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    padding: 2px 0;
+    color: var(--ink);
+  }
+
+  .day .n {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .day .mark {
+    height: 8px;
+    display: block;
+  }
+
+  .day[aria-pressed="true"] .n {
+    color: var(--primary);
+  }
+
+  .day:hover:not(:disabled) .n,
+  .day:focus-visible .n {
+    color: var(--primary);
+  }
+
+  .day:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .day:disabled {
+    cursor: default;
+    color: var(--faint);
+  }
+
+  .count {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+</style>
