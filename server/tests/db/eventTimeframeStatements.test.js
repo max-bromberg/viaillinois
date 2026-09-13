@@ -63,30 +63,43 @@ describe.each([...listers, ...counters])('%s', (_name, run) => {
     expect(parameterFor('AND e.start_time >= ?')).toBe(campusStartOfToday());
   });
 
-  it('bounds an archived request below the start of the campus day', async () => {
+  /**
+   * A cancelled event is not coming up, whatever its date says. It belongs in
+   * the archive, marked, where the people who planned to go can still find it.
+   */
+  it('leaves cancelled events out of an upcoming request', async () => {
+    await run({ timeframe: 'upcoming' });
+    expect(lastStatement().sql).toContain('AND e.start_time >= ? AND e.cancelled_at IS NULL');
+  });
+
+  it('bounds an archived request below the start of the campus day, or at a cancellation', async () => {
     await run({ timeframe: 'archived' });
-    expect(parameterFor('AND e.start_time < ?')).toBe(campusStartOfToday());
+    expect(parameterFor('AND (e.start_time < ? OR e.cancelled_at IS NOT NULL)')).toBe(campusStartOfToday());
   });
 
   it('leaves the whole range open when asked for every event', async () => {
     await run({ timeframe: 'all' });
     const { sql } = lastStatement();
     expect(sql).not.toContain('AND e.start_time >= ?');
-    expect(sql).not.toContain('AND e.start_time < ?');
+    expect(sql).not.toContain('e.start_time < ?');
+    expect(sql).not.toContain('cancelled_at IS');
   });
 
   it('leaves the whole range open when no timeframe is named', async () => {
     await run({});
     const { sql } = lastStatement();
     expect(sql).not.toContain('AND e.start_time >= ?');
-    expect(sql).not.toContain('AND e.start_time < ?');
+    expect(sql).not.toContain('e.start_time < ?');
+    expect(sql).not.toContain('cancelled_at IS');
   });
 
   it('still honours a date range alongside the timeframe', async () => {
     await run({ timeframe: 'upcoming', startDate: '2026-09-10', endDate: '2026-09-20' });
     const { params } = lastStatement();
-    expect(params).toContain('2026-09-10');
-    expect(params).toContain('2026-09-20');
+    // Each end of the range is read as the whole day it names, which is what
+    // tests/db/eventDateRange.test.js pins.
+    expect(params).toContain('2026-09-10 00:00:00');
+    expect(params).toContain('2026-09-20 23:59:59');
     expect(parameterFor('AND e.start_time >= ?')).toBe(campusStartOfToday());
   });
 });
@@ -106,11 +119,11 @@ describe.each(listers)('%s ordering', (_name, run) => {
 describe('a member with no memberships', () => {
   it('carries the timeframe through to the public statement', async () => {
     await getVisibleEvents({ timeframe: 'archived' }, []);
-    expect(parameterFor('AND e.start_time < ?')).toBe(campusStartOfToday());
+    expect(parameterFor('AND (e.start_time < ? OR e.cancelled_at IS NOT NULL)')).toBe(campusStartOfToday());
   });
 
   it('carries the timeframe through to the public count', async () => {
     await countVisibleEvents({ timeframe: 'archived' }, []);
-    expect(parameterFor('AND e.start_time < ?')).toBe(campusStartOfToday());
+    expect(parameterFor('AND (e.start_time < ? OR e.cancelled_at IS NOT NULL)')).toBe(campusStartOfToday());
   });
 });

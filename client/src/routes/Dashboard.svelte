@@ -5,13 +5,17 @@
   import { currentUser, adminRsoIds, boardRsoIds } from '../stores/auth.js';
   import { getMe } from '../api/users.js';
   import { getRso, updateRso, addMember, removeMember, getRsoStats } from '../api/rsos.js';
-  import { createEvent, createEventSeries, updateEvent, deleteEvent } from '../api/events.js';
+  import { createEvent, createEventSeries, updateEvent, deleteEvent, cancelEvent, restoreEvent } from '../api/events.js';
   import { getCurrentSemester } from '../api/semester.js';
   import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import EventForm from '../lib/EventForm.svelte';
   import CalendarImport from '../lib/CalendarImport.svelte';
   import { navigate } from '../lib/router.js';
   import { showToast } from '../stores/ui.js';
+  import { resolvedTheme } from '../stores/theme.js';
+  import { organizationColor } from '../lib/organizationColor.js';
+  import { tagHue } from '../lib/tagHue.js';
+  import { Button, Field, Pad, Highlight, Numeral, EmptyState, Icon } from '../lib/components/ui/index.js';
 
   $: if (!$currentUser) navigate('/login');
 
@@ -32,6 +36,14 @@
   // ── Events tab state ──────────────────────────────────────────────────────
   let events = [];
   let showCreateForm = false;
+  /**
+   * The calendar importer.
+   *
+   * It used to be drawn only while the manual entry form was open, so a board
+   * importing a term of events had to open a form for an event nobody was
+   * entering in order to find it.
+   */
+  let showImport = false;
   let editingEvent = null;
   let semester = null;
   /**
@@ -66,17 +78,36 @@
   // ── Helpers ───────────────────────────────────────────────────────────────
   const fmtDate = d => campusDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
   const fmtTime = d => campusTime(d);
-  function roleBadgeClass(role) {
-    if (role === 'Board')  return 'bg-primary/15 text-primary';
-    if (role === 'Editor') return 'bg-amber-500/15 text-amber-700 dark:text-amber-400';
-    return 'bg-muted text-muted-foreground';
+  /**
+   * What colour a role is read in. A role is a status, so it is a highlighted
+   * word rather than a filled pill, and the colour is the one the rest of the
+   * site reads that meaning in.
+   */
+  function roleTone(role) {
+    if (role === 'Board')  return 'var(--primary)';
+    if (role === 'Editor') return 'var(--cat-4)';
+    return 'var(--muted)';
   }
+
+  /**
+   * The organization's colour, bent into the site's range for the theme the
+   * page is actually in. The stored colour is never drawn as it was stored.
+   */
+  $: orgMark = organizationColor(selectedRso?.logo_color, 'mark', $resolvedTheme);
+  $: chosenMark = organizationColor(detailsForm.logo_color, 'mark', $resolvedTheme);
+
+  /** The tags an event carries, which arrive as one comma separated string. */
+  const tagsOf = event => String(event.tags ?? '').split(',').map(one => one.trim()).filter(Boolean);
+
+  /** Whether a form is open, which decides where the screen's one primary button is. */
+  $: formOpen = showCreateForm || !!editingEvent;
 
   // ── Load RSO ──────────────────────────────────────────────────────────────
   async function loadRso(rsoId) {
     loading = true;
     editingEvent = null;
     showCreateForm = false;
+    showImport = false;
     confirmRemoveNetId = null;
     try {
       const { rso } = await getRso(rsoId);
@@ -181,12 +212,68 @@
     }
   }
 
+  /**
+   * Cancelling is a state, not a delete. The event keeps its page so the
+   * people who planned to go can be told, and the same row offers to put it
+   * back if the cancellation was the mistake.
+   */
+  function setCancelled(event, cancelled) {
+    // An occurrence of a repeat could mean this week, this week onwards, or
+    // every week, which is the same question an edit and a delete ask.
+    if (event.series_id) {
+      pendingScope = { kind: cancelled ? 'cancel' : 'restore', event };
+      return;
+    }
+    applyCancellation(event, cancelled, 'one');
+  }
+
+  async function applyCancellation(event, cancelled, scope) {
+    loading = true;
+    try {
+      if (cancelled) await cancelEvent(event.event_id, scope);
+      else await restoreEvent(event.event_id, scope);
+      showToast(
+        scope === 'one'
+          ? (cancelled ? 'Event cancelled' : 'Event restored')
+          : (cancelled ? 'Events cancelled' : 'Events restored'),
+      );
+      await loadRso(selectedRso.rso_id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      loading = false;
+    }
+  }
+
+  /** What the prompt says it is about to do, in the board's own words. */
+  const SCOPE_TITLES = {
+    delete: 'Delete a repeating event',
+    update: 'Change a repeating event',
+    cancel: 'Cancel a repeating event',
+    restore: 'Restore a repeating event',
+  };
+
   async function chooseScope(scope) {
     const asked = pendingScope;
     pendingScope = null;
     if (!asked) return;
     if (asked.kind === 'delete') return applyDelete(asked.event.event_id, scope);
+    if (asked.kind === 'cancel') return applyCancellation(asked.event, true, scope);
+    if (asked.kind === 'restore') return applyCancellation(asked.event, false, scope);
     return applyUpdate(asked.event.event_id, asked.payload, scope);
+  }
+
+  /**
+   * A calendar file has landed, so the table behind the panel is out of date.
+   *
+   * Without this the import reported what it had written and the listing went
+   * on showing what was there before it, which reads as an import that did
+   * nothing.
+   */
+  async function handleImported(e) {
+    const { created = 0, updated = 0 } = e.detail ?? {};
+    await loadRso(selectedRso.rso_id);
+    showToast(`Imported ${created} ${created === 1 ? 'event' : 'events'}, updated ${updated}.`);
   }
 
   // ── Member handlers ───────────────────────────────────────────────────────
@@ -243,416 +330,952 @@
 </script>
 
 {#if !$currentUser}
-  <div class="flex items-center justify-center min-h-[60vh]">
-    <p class="text-muted-foreground">Redirecting to login…</p>
-  </div>
+  <p class="waiting">Taking you to the sign in page.</p>
 {:else if $adminRsoIds.length === 0}
-  <div class="max-w-lg mx-auto mt-20 text-center space-y-3">
-    <h2 class="text-xl font-semibold">No RSO Access</h2>
-    <p class="text-muted-foreground text-sm">
-      You are not listed as a Board member or Editor of any RSO.
-      Contact your RSO's board to be added.
-    </p>
-  </div>
+  <EmptyState
+    lead="Nothing to manage here yet."
+    say="You are not on the board of an organization and you are not listed as one of its editors. Ask the board to add you, and this page fills with their events the next time you sign in."
+  />
 {:else}
-  <div class="max-w-5xl mx-auto px-4 py-8 space-y-5">
+  <div class="dash">
 
-    <!-- Header -->
-    <div class="flex items-start justify-between gap-4 flex-wrap">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          {#if selectedRso?.logo_color}
-            <span class="w-4 h-4 rounded-sm flex-shrink-0" style="background-color: {selectedRso.logo_color}"></span>
-          {/if}
-          <h1 class="text-2xl font-bold truncate">{selectedRso?.name ?? 'Dashboard'}</h1>
-          {#if userRole}
-            <span class="text-xs px-2 py-0.5 rounded-full font-medium {roleBadgeClass(userRole)}">{userRole}</span>
-          {/if}
-        </div>
-        {#if selectedRso?.description}
-          <p class="text-sm text-muted-foreground mt-0.5">{selectedRso.description}</p>
-        {/if}
+    <!--
+      The header.
+
+      The organization switcher used to sit beside the name and the description
+      in one row, so an organization with a long description, which ECESAC has,
+      pushed the switcher across the header and moved the control under the
+      pointer of somebody halfway through clicking it. The switcher has its own
+      row above the name, where nothing else decides where it sits, and the
+      description is held to a readable measure.
+    -->
+    {#if dashboardMemberships.length > 1}
+      <div class="switcher">
+        {#each dashboardMemberships as m}
+          <button
+            type="button"
+            class="check"
+            aria-pressed={selectedRso?.rso_id === m.rso_id}
+            on:click={() => switchRso(m.rso_id)}
+          >
+            <Pad
+              tone={organizationColor(m.logo_color, 'mark', $resolvedTheme)}
+              hollow={selectedRso?.rso_id !== m.rso_id}
+            />
+            <span>{m.name}</span>
+          </button>
+        {/each}
       </div>
+    {/if}
 
-      <!-- RSO selector pills -->
-      {#if dashboardMemberships.length > 1}
-        <div class="flex gap-2 flex-wrap">
-          {#each dashboardMemberships as m}
-            <button
-              class="text-sm px-3 py-1 rounded-full border transition-colors
-                {selectedRso?.rso_id === m.rso_id
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-border hover:bg-accent'}"
-              on:click={() => switchRso(m.rso_id)}
-            >{m.name}</button>
-          {/each}
-        </div>
+    <div class="head">
+      <h1 class="title">
+        {#if selectedRso?.logo_color}<Pad tone={orgMark} class="orgmark" />{/if}
+        {selectedRso?.name ?? 'The logistics dashboard'}
+      </h1>
+      {#if userRole}
+        <p class="role"><Highlight tone={roleTone(userRole)}>{userRole}</Highlight></p>
+      {/if}
+      {#if selectedRso?.description}
+        <p class="about">{selectedRso.description}</p>
       {/if}
     </div>
 
-    <!-- Tabs -->
     {#if selectedRso}
-      <div class="flex gap-1 border-b">
+      <div class="tabs">
         <button
-          class="px-4 py-2 text-sm font-medium transition-colors
-            {activeTab === 'events' ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
+          type="button" class="tab" aria-pressed={activeTab === 'events'}
           on:click={() => { activeTab = 'events'; editingEvent = null; showCreateForm = false; }}
         >Events</button>
         <button
-          class="px-4 py-2 text-sm font-medium transition-colors
-            {activeTab === 'insights' ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
+          type="button" class="tab" aria-pressed={activeTab === 'insights'}
           on:click={() => { activeTab = 'insights'; if (!insights) loadInsights(selectedRso.rso_id); }}
         >Insights</button>
         {#if isBoard}
           <button
-            class="px-4 py-2 text-sm font-medium transition-colors
-              {activeTab === 'members' ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
+            type="button" class="tab" aria-pressed={activeTab === 'members'}
             on:click={() => { activeTab = 'members'; confirmRemoveNetId = null; }}
           >Members</button>
           <button
-            class="px-4 py-2 text-sm font-medium transition-colors
-              {activeTab === 'details' ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
+            type="button" class="tab" aria-pressed={activeTab === 'details'}
             on:click={() => activeTab = 'details'}
           >RSO Details</button>
         {/if}
       </div>
     {/if}
 
-    <!-- ── Events Tab ─────────────────────────────────────────────────────── -->
+    <!-- ── Events ─────────────────────────────────────────────────────────── -->
     {#if activeTab === 'events' && selectedRso}
-      <div class="space-y-4">
-        <div class="flex justify-end gap-2">
-          <button
-            class="px-3 py-1.5 text-sm border border-input rounded-md hover:bg-accent transition-colors disabled:opacity-50"
-            disabled={loading || showCreateForm || !!editingEvent}
-            on:click={() => { showCreateForm = true; editingEvent = null; }}
-          >+ Manual entry</button>
-          <button
-            class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex items-center gap-1.5"
-            on:click={() => navigate('/scheduler')}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-            </svg>
-            Smart Scheduler
-          </button>
+      <div class="tabbody">
+        <div class="tools">
+          <Button
+            variant={formOpen ? 'secondary' : 'primary'}
+            disabled={loading || formOpen}
+            onclick={() => { showCreateForm = true; editingEvent = null; }}
+          >Add an event</Button>
+          <Button variant="secondary" onclick={() => showImport = !showImport}>
+            {showImport ? 'Close the importer' : 'Import calendar'}
+          </Button>
+          <Button variant="quiet" icon="bolt" onclick={() => navigate('/scheduler')}>
+            Open the scheduler
+          </Button>
         </div>
 
-        <!-- Create form -->
         {#if showCreateForm}
-          <section class="border rounded-lg p-6 bg-card shadow-sm space-y-4">
-            <div class="flex items-center justify-between">
-              <h2 class="text-base font-semibold">New Event</h2>
-              <button class="text-sm text-muted-foreground hover:text-foreground" on:click={() => showCreateForm = false}>✕ Close</button>
+          <section class="panel cut" style="--cut: 14px">
+            <div class="panelhead">
+              <h2>A new event</h2>
+              <Button variant="quiet" size="sm" onclick={() => showCreateForm = false}>Close the form</Button>
             </div>
             <EventForm rsoId={selectedRso.rso_id} {semester} {loading} on:submit={handleCreate} on:cancel={() => showCreateForm = false} />
           </section>
         {/if}
 
-        <!-- Import from a calendar file -->
-        {#if showCreateForm}
-          <section class="border rounded-lg p-6 bg-card shadow-sm">
-            <CalendarImport kind="events" rsoId={selectedRso.rso_id} />
+        {#if showImport}
+          <section data-calendar-import class="panel cut" style="--cut: 14px">
+            <CalendarImport
+              kind="events"
+              rsoId={selectedRso.rso_id}
+              on:imported={handleImported}
+            />
           </section>
         {/if}
 
-        <!-- Edit form -->
         {#if editingEvent}
-          <section class="border rounded-lg p-6 bg-card shadow-sm space-y-4">
-            <div class="flex items-center justify-between">
-              <h2 class="text-base font-semibold">Edit Event</h2>
-              <button class="text-sm text-muted-foreground hover:text-foreground" on:click={() => editingEvent = null}>✕ Close</button>
+          <section class="panel cut" style="--cut: 14px">
+            <div class="panelhead">
+              <h2>Change this event</h2>
+              <Button variant="quiet" size="sm" onclick={() => editingEvent = null}>Close the form</Button>
             </div>
             <EventForm rsoId={selectedRso.rso_id} initial={editingEvent} {semester} {loading} on:submit={handleUpdate} on:cancel={() => editingEvent = null} />
           </section>
         {/if}
 
-        <!-- Events table -->
+        <!--
+          The listing, built the way the exam listing is built: rows on
+          hairlines, with nothing drawn around the outside.
+        -->
         {#if loading && events.length === 0}
-          <div class="border rounded-lg overflow-hidden bg-card">
+          <div class="listing" aria-hidden="true">
             {#each Array(4) as _}
-              <div class="px-4 py-3 border-b flex gap-4">
-                <div class="shimmer h-4 w-48 rounded"></div>
-                <div class="shimmer h-4 w-24 rounded"></div>
-                <div class="shimmer h-4 w-32 rounded"></div>
+              <div class="row settling">
+                <span class="bone wide"></span>
+                <span class="bone"></span>
+                <span class="bone"></span>
+                <span class="bone"></span>
+                <span class="bone"></span>
+                <span class="bone"></span>
               </div>
             {/each}
           </div>
         {:else if events.length === 0 && !showCreateForm}
-          <div class="text-center py-16 text-muted-foreground space-y-2">
-            <p>No events yet.</p>
-            <p class="text-sm">Click <strong>+ New Event</strong> to get started.</p>
-          </div>
+          <EmptyState
+            lead="Nothing on the feed yet."
+            say="Add an event and it is on the feed, in the calendar and in the Discord companion straight away. A calendar file from the board's own calendar fills a whole term in one go."
+          />
         {:else if events.length > 0}
-          <div class="border rounded-lg overflow-hidden bg-card">
-            <table class="w-full text-sm text-left">
-              <thead class="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th class="px-4 py-2.5">Title</th>
-                  <th class="px-4 py-2.5 hidden sm:table-cell">Type</th>
-                  <th class="px-4 py-2.5 hidden md:table-cell">Date</th>
-                  <th class="px-4 py-2.5 hidden lg:table-cell">Location</th>
-                  <th class="px-4 py-2.5 hidden lg:table-cell">Tags</th>
-                  <th class="px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each events as event (event.event_id)}
-                  <tr class="border-t hover:bg-muted/40 transition-colors {editingEvent?.event_id === event.event_id ? 'bg-primary/5' : ''}">
-                    <td class="px-4 py-2.5 font-medium max-w-[12rem] truncate">
-                      {event.title}
-                      {#if event.series_id}
-                        <span
-                          class="ml-1 align-middle text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary"
-                          title={recurrenceLabel(event)}
-                        >Repeats</span>
-                      {/if}
-                    </td>
-                    <td class="px-4 py-2.5 hidden sm:table-cell">
-                      <span class="text-xs px-1.5 py-0.5 rounded {event.is_private ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400' : 'bg-sky-500/15 text-sky-700 dark:text-sky-400'}">
-                        {event.is_private ? 'Internal' : 'Public'}
-                      </span>
-                    </td>
-                    <td class="px-4 py-2.5 hidden md:table-cell text-muted-foreground whitespace-nowrap">
-                      {fmtDate(event.start_time)}<br/>
-                      <span class="text-xs">{fmtTime(event.start_time)} to {fmtTime(event.end_time)}</span>
-                    </td>
-                    <td class="px-4 py-2.5 hidden lg:table-cell text-muted-foreground">
-                      {locationLabel(event)}
-                    </td>
-                    <td class="px-4 py-2.5 hidden lg:table-cell max-w-[10rem]">
-                      {#if event.tags}
-                        <span class="text-xs text-muted-foreground truncate block">{event.tags}</span>
-                      {/if}
-                    </td>
-                    <td class="px-4 py-2.5 text-right">
-                      <div class="flex gap-1.5 justify-end">
-                        <button
-                          class="text-xs px-2.5 py-1 rounded border hover:bg-accent transition-colors"
-                          on:click={() => { editingEvent = event; showCreateForm = false; }}
-                        >Edit</button>
-                        <button
-                          title="Create poster"
-                          class="text-xs px-2.5 py-1 rounded border border-teal-500/50 text-teal-700 dark:text-teal-400 hover:bg-teal-500/10 transition-colors flex items-center gap-1"
-                          on:click={() => navigate(`/poster?event=${event.event_id}&rso=${selectedRso.rso_id}`)}
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                          Poster
-                        </button>
-                        <button
-                          class="text-xs px-2.5 py-1 rounded border border-destructive/50 text-destructive hover:bg-destructive/10 transition-colors"
-                          on:click={() => handleDelete(event)}
-                        >Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+          <div class="listing" role="table" aria-label="Events this organization has filed">
+            <div class="row head" role="row">
+              <span role="columnheader">Title</span>
+              <span role="columnheader">Who can see it</span>
+              <span role="columnheader">When</span>
+              <span role="columnheader">Where</span>
+              <span role="columnheader">Tags</span>
+              <span role="columnheader" class="doing">What you can do</span>
+            </div>
+            {#each events as event (event.event_id)}
+              <div class="row" class:editing={editingEvent?.event_id === event.event_id} role="row">
+                <span class="ttl" role="cell">
+                  <span class="name" class:struck={event.cancelled_at}>{event.title}</span>
+                  <span class="marks">
+                    {#if event.cancelled_at}
+                      <Highlight tone="var(--danger)">Cancelled</Highlight>
+                    {/if}
+                    {#if event.series_id}
+                      <Highlight tone="var(--primary)" title={recurrenceLabel(event)}>Repeats</Highlight>
+                    {/if}
+                  </span>
+                </span>
+                <span class="seen" role="cell">
+                  <Highlight tone={event.is_private ? 'var(--plum)' : 'var(--cat-6)'}>
+                    {event.is_private ? 'Internal' : 'Public'}
+                  </Highlight>
+                </span>
+                <span class="tm" role="cell">
+                  {fmtDate(event.start_time)}
+                  <small>{fmtTime(event.start_time)} to {fmtTime(event.end_time)}</small>
+                </span>
+                <span class="rm" role="cell">{locationLabel(event)}</span>
+                <span class="tags" role="cell">
+                  {#each tagsOf(event) as tag}
+                    <Highlight tone={tagHue(tag)}>{tag}</Highlight>
+                  {/each}
+                </span>
+                <span class="doing" role="cell">
+                  <Button variant="secondary" size="sm" on="card"
+                    onclick={() => { editingEvent = event; showCreateForm = false; }}
+                  >Edit</Button>
+                  <Button variant="secondary" size="sm" on="card" icon="share"
+                    onclick={() => navigate(`/poster?event=${event.event_id}&rso=${selectedRso.rso_id}`)}
+                  >Make a poster</Button>
+                  {#if event.cancelled_at}
+                    <Button variant="secondary" size="sm" on="card"
+                      onclick={() => setCancelled(event, false)}
+                    >Restore event</Button>
+                  {:else}
+                    <Button variant="secondary" size="sm" on="card"
+                      onclick={() => setCancelled(event, true)}
+                    >Cancel event</Button>
+                  {/if}
+                  <Button variant="danger" size="sm" onclick={() => handleDelete(event)}>Delete</Button>
+                </span>
+              </div>
+            {/each}
           </div>
         {/if}
       </div>
     {/if}
 
     {#if pendingScope}
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
-        <div class="w-full max-w-md rounded-xl border bg-card p-6 space-y-4 shadow-lg">
-          <div class="space-y-1">
-            <h2 class="text-base font-semibold">
-              {pendingScope.kind === 'delete' ? 'Delete a repeating event' : 'Change a repeating event'}
-            </h2>
-            <p class="text-sm text-muted-foreground">{recurrenceLabel(pendingScope.event)}.</p>
+      <div class="over">
+        <div class="ask cut" style="--cut: 14px" role="dialog" aria-modal="true" aria-labelledby="scope-asked">
+          <h2 id="scope-asked">{SCOPE_TITLES[pendingScope.kind] ?? SCOPE_TITLES.update}</h2>
+          <p>{recurrenceLabel(pendingScope.event)}.</p>
+          <div class="choices">
+            <Button variant="secondary" on="card" onclick={() => chooseScope('one')}>This event only</Button>
+            <Button variant="secondary" on="card" onclick={() => chooseScope('following')}>This and all later events</Button>
+            <Button variant="secondary" on="card" onclick={() => chooseScope('all')}>All events in the series</Button>
           </div>
-          <div class="flex flex-col gap-2">
-            <button class="text-sm px-3 py-2 rounded border hover:bg-accent transition-colors text-left"
-              on:click={() => chooseScope('one')}>This event only</button>
-            <button class="text-sm px-3 py-2 rounded border hover:bg-accent transition-colors text-left"
-              on:click={() => chooseScope('following')}>This and all later events</button>
-            <button class="text-sm px-3 py-2 rounded border hover:bg-accent transition-colors text-left"
-              on:click={() => chooseScope('all')}>All events in the series</button>
-          </div>
-          <button class="text-xs text-muted-foreground hover:text-foreground" on:click={() => pendingScope = null}>
-            Cancel
-          </button>
+          <Button variant="quiet" size="sm" onclick={() => pendingScope = null}>Leave it as it is</Button>
         </div>
       </div>
     {/if}
 
-    <!-- ── Insights Tab ──────────────────────────────────────────────────── -->
+    <!-- ── Insights ───────────────────────────────────────────────────────── -->
     {#if activeTab === 'insights' && selectedRso}
-      <div class="space-y-6">
+      <div class="tabbody insights">
         {#if insightsLoading}
-          <p class="text-sm text-muted-foreground">Loading insights…</p>
+          <p class="quiet">Reading the numbers for this organization.</p>
         {:else if insights}
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <section>
+            <h3>Members by role</h3>
+            {#if insights.memberBreakdown.length === 0}
+              <p class="quiet">Nobody is a member yet.</p>
+            {:else}
+              <ul class="counts">
+                {#each insights.memberBreakdown as row}
+                  <li><Numeral value={row.count} unit={` ${row.role.toLowerCase()}`} size={22} /></li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
 
-            <!-- Member Breakdown -->
-            <div class="border rounded-lg p-5 bg-card shadow-sm space-y-3">
-              <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Members by Role</h3>
-              {#if insights.memberBreakdown.length === 0}
-                <p class="text-sm text-muted-foreground">No members yet.</p>
-              {:else}
-                <ul class="space-y-2">
-                  {#each insights.memberBreakdown as row}
-                    <li class="flex items-center justify-between text-sm">
-                      <span class="font-medium">{row.role}</span>
-                      <span class="tabular-nums text-muted-foreground">{row.count}</span>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
+          <section>
+            <h3>Top tags</h3>
+            {#if insights.topTags.length === 0}
+              <p class="quiet">No event carries a tag yet.</p>
+            {:else}
+              <ul class="counts">
+                {#each insights.topTags as row}
+                  <li>
+                    <Highlight tone={tagHue(row.tag_name)}>{row.tag_name}</Highlight>
+                    <Numeral value={row.usage_count} unit={row.usage_count === 1 ? ' event' : ' events'} size={22} />
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
 
-            <!-- Top Tags -->
-            <div class="border rounded-lg p-5 bg-card shadow-sm space-y-3">
-              <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Top Tags</h3>
-              {#if insights.topTags.length === 0}
-                <p class="text-sm text-muted-foreground">No events with tags yet.</p>
-              {:else}
-                <ul class="space-y-2">
-                  {#each insights.topTags as row}
-                    <li class="flex items-center justify-between text-sm">
-                      <span class="font-medium">{row.tag_name}</span>
-                      <span class="tabular-nums text-muted-foreground">{row.usage_count} event{row.usage_count !== 1 ? 's' : ''}</span>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
+          <!-- The count that replaced RSVPs, from Discord's own controls and the companion's buttons. -->
+          <section class="whole">
+            <h3>Interest in upcoming events</h3>
+            {#if !insights.interest || insights.interest.length === 0}
+              <p class="quiet">Nobody has shown interest in an upcoming event yet.</p>
+            {:else}
+              <ul class="lines">
+                {#each insights.interest as row (row.event_id)}
+                  <li>
+                    <span class="what">
+                      <span class="name">{row.title}</span>
+                      <small>{fmtDate(row.start_time)}</small>
+                    </span>
+                    <Numeral value={row.interest_count} unit=" interested" size={22} />
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
 
-          </div>
+          <!-- The average, the count and the comments, and never a rater. -->
+          <section class="whole">
+            <h3>What people thought</h3>
+            <p class="quiet">
+              Ratings and comments are anonymous. VIA never tells you who gave which rating.
+            </p>
+            {#if !insights.feedback || insights.feedback.length === 0}
+              <p class="quiet">Nobody has rated an event yet.</p>
+            {:else}
+              <ul class="lines said">
+                {#each insights.feedback as row (row.event_id)}
+                  <li>
+                    <div class="top">
+                      <span class="what">
+                        <span class="name">{row.title}</span>
+                        <small>{fmtDate(row.start_time)}</small>
+                      </span>
+                      {#if row.rating_count > 0}
+                        <span class="score mono">
+                          {row.average_rating} out of 5, from {row.rating_count} rating{row.rating_count === 1 ? '' : 's'}
+                        </span>
+                      {/if}
+                    </div>
+                    {#if row.rating_count === 0}
+                      <p class="quiet">Nobody has rated this event yet.</p>
+                    {:else if row.comments.length === 0}
+                      <p class="quiet">Nobody left a comment on this event.</p>
+                    {:else}
+                      <ul class="comments">
+                        {#each row.comments as comment, index (index)}
+                          <li><Pad hollow /><span>{comment}</span></li>
+                        {/each}
+                      </ul>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
         {:else}
-          <p class="text-sm text-muted-foreground">Click Insights to load stats.</p>
+          <p class="quiet">Open Insights to read the numbers for this organization.</p>
         {/if}
       </div>
     {/if}
 
-    <!-- ── Members Tab (Board only) ───────────────────────────────────────── -->
+    <!-- ── Members, for the board ─────────────────────────────────────────── -->
     {#if activeTab === 'members' && selectedRso && isBoard}
-      <div class="space-y-4">
-        <!-- Members table -->
-        <div class="border rounded-lg overflow-hidden bg-card">
-          <table class="w-full text-sm text-left">
-            <thead class="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th class="px-4 py-2.5">Name</th>
-                <th class="px-4 py-2.5 hidden sm:table-cell">NetID</th>
-                <th class="px-4 py-2.5">Role</th>
-                <th class="px-4 py-2.5 hidden md:table-cell">Joined</th>
-                <th class="px-4 py-2.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#if !selectedRso.members || selectedRso.members.length === 0}
-                <tr><td colspan="5" class="px-4 py-8 text-center text-muted-foreground">No members yet.</td></tr>
-              {:else}
-                {#each selectedRso.members as member (member.net_id)}
-                  <tr class="border-t hover:bg-muted/40 transition-colors">
-                    <td class="px-4 py-2.5 font-medium">
-                      {member.full_name || member.net_id}
-                      {#if member.invited_at}
-                        <span class="ml-2 text-xs font-normal px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">
-                          invited
-                        </span>
-                      {/if}
-                    </td>
-                    <td class="px-4 py-2.5 hidden sm:table-cell text-muted-foreground">{member.net_id}</td>
-                    <td class="px-4 py-2.5">
-                      <span class="text-xs px-1.5 py-0.5 rounded font-medium {roleBadgeClass(member.role)}">{member.role}</span>
-                    </td>
-                    <td class="px-4 py-2.5 hidden md:table-cell text-muted-foreground text-xs">
-                      {member.joined_at ? fmtDate(member.joined_at) : 'unknown'}
-                    </td>
-                    <td class="px-4 py-2.5 text-right">
-                      {#if confirmRemoveNetId === member.net_id}
-                        <span class="flex items-center gap-1.5 justify-end">
-                          <span class="text-xs text-destructive">Remove?</span>
-                          <button class="text-xs px-2 py-1 rounded bg-destructive text-white hover:bg-destructive/90 transition-colors"
-                            on:click={() => handleRemoveMember(member.net_id)}>Yes</button>
-                          <button class="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors"
-                            on:click={() => confirmRemoveNetId = null}>Cancel</button>
-                        </span>
-                      {:else}
-                        <button
-                          class="text-xs px-2.5 py-1 rounded border border-destructive/50 text-destructive hover:bg-destructive/10 transition-colors"
-                          on:click={() => confirmRemoveNetId = member.net_id}
-                        >Remove</button>
-                      {/if}
-                    </td>
-                  </tr>
-                {/each}
-              {/if}
-            </tbody>
-          </table>
+      <div class="tabbody">
+        <div class="listing members" role="table" aria-label="The people in this organization">
+          <div class="row head" role="row">
+            <span role="columnheader">Name</span>
+            <span role="columnheader">NetID</span>
+            <span role="columnheader">Role</span>
+            <span role="columnheader">Joined</span>
+            <span role="columnheader" class="doing">What you can do</span>
+          </div>
+          {#if !selectedRso.members || selectedRso.members.length === 0}
+            <p class="quiet none">Nobody is a member of this organization yet.</p>
+          {:else}
+            {#each selectedRso.members as member (member.net_id)}
+              <div class="row" role="row">
+                <span class="ttl" role="cell">
+                  <span class="name">{member.full_name || member.net_id}</span>
+                  {#if member.invited_at}
+                    <span class="marks"><Highlight tone="var(--muted)">Invited</Highlight></span>
+                  {/if}
+                </span>
+                <span class="rm" role="cell">{member.net_id}</span>
+                <span role="cell"><Highlight tone={roleTone(member.role)}>{member.role}</Highlight></span>
+                <span class="rm" role="cell">{member.joined_at ? fmtDate(member.joined_at) : 'not recorded'}</span>
+                <span class="doing" role="cell">
+                  {#if confirmRemoveNetId === member.net_id}
+                    <span class="sure">Taking them off removes their access.</span>
+                    <Button variant="danger" size="sm" onclick={() => handleRemoveMember(member.net_id)}>
+                      Yes, remove them
+                    </Button>
+                    <Button variant="quiet" size="sm" onclick={() => confirmRemoveNetId = null}>Keep them</Button>
+                  {:else}
+                    <Button variant="secondary" size="sm" onclick={() => confirmRemoveNetId = member.net_id}>
+                      Remove from the organization
+                    </Button>
+                  {/if}
+                </span>
+              </div>
+            {/each}
+          {/if}
         </div>
 
-        <!-- Add member form -->
-        <div class="border rounded-lg p-4 bg-card space-y-3">
-          <p class="text-sm font-medium">Add Member</p>
-          <div class="flex gap-2 flex-wrap">
-            <input
-              class="border rounded-md px-3 py-1.5 text-sm bg-background flex-1 min-w-32"
-              placeholder="NetID, or paste a list of NetIDs or Illinois addresses"
-              bind:value={memberForm.netId}
-            />
-            <select class="border rounded-md px-3 py-1.5 text-sm bg-background" bind:value={memberForm.role}>
-              <option value="Member">Member</option>
-              <option value="Editor">Editor</option>
-              <option value="Board">Board</option>
-            </select>
-            <button
-              class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-              on:click={handleAddMember}
-            >Add</button>
+        <div class="adding">
+          <Field
+            label="NetID"
+            id="member-net-id"
+            bind:value={memberForm.netId}
+            placeholder="NetID, or paste a list of NetIDs or Illinois addresses"
+            help="A person who has never signed in is invited, and finds themselves a member the first time they do."
+            class="wide"
+          />
+          <div class="fld role">
+            <label for="member-role">Role</label>
+            <div class="in">
+              <Pad />
+              <select id="member-role" bind:value={memberForm.role} style="background: var(--card)">
+                <option value="Member">Member</option>
+                <option value="Editor">Editor</option>
+                <option value="Board">Board</option>
+              </select>
+            </div>
           </div>
-          <p class="text-xs text-muted-foreground">
-            <strong>Member</strong>: view access only ·
-            <strong>Editor</strong>: can create and manage events ·
-            <strong>Board</strong>: full RSO management
-          </p>
+          <Button variant="primary" onclick={handleAddMember}>Add to the organization</Button>
         </div>
+        <p class="quiet measure">
+          A member sees the organization's internal events. An editor can create and manage
+          events as well. A board member can do all of that and can add and remove people.
+        </p>
       </div>
     {/if}
 
-    <!-- ── RSO Details Tab (Board only) ──────────────────────────────────── -->
+    <!-- ── The organization's own details, for the board ──────────────────── -->
     {#if activeTab === 'details' && selectedRso && isBoard}
-      <div class="border rounded-lg p-6 bg-card shadow-sm space-y-4 max-w-lg">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1 sm:col-span-2">
-            <label class="text-xs font-medium text-muted-foreground">Name</label>
-            <input class="w-full border rounded-md px-3 py-1.5 text-sm bg-background"
-              bind:value={detailsForm.name} on:input={() => detailsDirty = true} />
-          </div>
-          <div class="space-y-1 sm:col-span-2">
-            <label class="text-xs font-medium text-muted-foreground">Description</label>
+      <div class="tabbody details">
+        <!--
+          The handler is a property rather than an event directive. The field is
+          its own component now, and a component does not forward a browser
+          event unless it is written to; given as a property it is spread onto
+          the input the field draws, which is where the typing happens.
+        -->
+        <Field label="Name" id="rso-name" bind:value={detailsForm.name} oninput={() => detailsDirty = true} class="wide" />
+
+        <div class="fld wide">
+          <label for="rso-description">Description</label>
+          <div class="in">
+            <Pad />
             <textarea
+              id="rso-description"
               rows="3"
-              class="w-full border rounded-md px-3 py-1.5 text-sm bg-background resize-none"
               bind:value={detailsForm.description}
               on:input={() => detailsDirty = true}
             ></textarea>
           </div>
-          <div class="space-y-1">
-            <label class="text-xs font-medium text-muted-foreground">Founded Year</label>
-            <input class="w-full border rounded-md px-3 py-1.5 text-sm bg-background" type="number"
-              placeholder="e.g. 2018" bind:value={detailsForm.founded_year} on:input={() => detailsDirty = true} />
-          </div>
-          <div class="space-y-1">
-            <label class="text-xs font-medium text-muted-foreground">Brand Color</label>
-            <div class="flex items-center gap-2">
-              <input type="color" class="h-8 w-12 rounded border cursor-pointer"
-                bind:value={detailsForm.logo_color} on:input={() => detailsDirty = true} />
-              <span class="text-sm text-muted-foreground">{detailsForm.logo_color}</span>
-            </div>
-          </div>
+          <p class="help">One or two sentences, shown on the feed and on the event page.</p>
         </div>
-        <button
-          class="px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
-          disabled={!detailsDirty || loading}
-          on:click={handleSaveDetails}
-        >{loading ? 'Saving…' : 'Save changes'}</button>
+
+        <Field
+          label="Founded year" id="rso-founded" type="number" placeholder="2018"
+          bind:value={detailsForm.founded_year} oninput={() => detailsDirty = true}
+        />
+
+        <div class="fld">
+          <label for="rso-color">Organization color</label>
+          <div class="in">
+            <Pad tone={chosenMark} />
+            <input
+              id="rso-color" type="color" class="swatch"
+              bind:value={detailsForm.logo_color} on:input={() => detailsDirty = true}
+            />
+            <span class="mono hex">{detailsForm.logo_color}</span>
+          </div>
+          <p class="help">
+            VIA bends this colour into its own range before it draws it, so the pad beside
+            the picker is what the feed shows rather than the colour as it is stored.
+          </p>
+        </div>
+
+        <div class="tools">
+          <Button variant="primary" disabled={!detailsDirty || loading} onclick={handleSaveDetails}>
+            {loading ? 'Saving…' : 'Save the details'}
+          </Button>
+        </div>
       </div>
     {/if}
 
   </div>
 {/if}
+
+<style>
+  .dash {
+    display: grid;
+    gap: 22px;
+    align-content: start;
+  }
+
+  .waiting,
+  .quiet {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .measure {
+    max-width: 62ch;
+  }
+
+  /* The board tools carry the page title at forty pixels, not fifty six. */
+  .title {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 40px;
+    line-height: 1.05;
+    letter-spacing: .006em;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .head {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+  }
+
+  .role,
+  .about {
+    margin: 0;
+  }
+
+  .about {
+    color: var(--muted);
+    font-size: 14.5px;
+    max-width: 62ch;
+  }
+
+  .switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 22px;
+  }
+
+  .switcher .check,
+  .tab {
+    font: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .switcher .check {
+    font-size: 14.5px;
+    gap: 10px;
+  }
+
+  .switcher .check[aria-pressed="false"] span {
+    color: var(--muted);
+  }
+
+  /*
+   * The tabs are words, and the one that is open is underlined by the Current
+   * gradient, which is how the feed says which of Upcoming and Past is on.
+   */
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px;
+  }
+
+  .tab {
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--muted);
+    position: relative;
+    min-height: 32px;
+    padding-bottom: 8px;
+    margin-bottom: -9px;
+  }
+
+  .tab[aria-pressed="true"] {
+    color: var(--ink);
+  }
+
+  .tab[aria-pressed="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--g-current);
+  }
+
+  .tab:focus-visible,
+  .switcher .check:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  .tabbody {
+    display: grid;
+    gap: 20px;
+    align-content: start;
+  }
+
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+  }
+
+  /*
+   * The one container on the page: the well colour, cut at fourteen pixels, the
+   * way the board's panel is drawn on the event page. It is not a rounded
+   * rectangle with a hairline around it and it carries no shadow.
+   */
+  .panel {
+    background: var(--well);
+    padding: 22px 24px;
+    display: grid;
+    gap: 18px;
+  }
+
+  .panelhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+  }
+
+  .panelhead h2,
+  .insights h3 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 800;
+    font-size: 22px;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  /* ── The listing ───────────────────────────────────────────────────────── */
+
+  .listing {
+    display: grid;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) 110px 150px minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .members .row {
+    grid-template-columns: minmax(0, 1.2fr) 140px 110px 120px auto;
+  }
+
+  .row.head {
+    border-top: 0;
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: var(--muted);
+    padding-bottom: 6px;
+  }
+
+  .row.editing {
+    background: var(--well);
+  }
+
+  .row .ttl {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .row .ttl .name {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .row .ttl .name.struck {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+
+  .marks,
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    font-size: 13px;
+    min-width: 0;
+  }
+
+  .row .tm {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .row .tm small {
+    display: block;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .row .rm {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .row .seen {
+    font-size: 13px;
+  }
+
+  .doing {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px 12px;
+  }
+
+  .sure {
+    font-size: 12.5px;
+    color: var(--danger);
+  }
+
+  .none {
+    padding: 26px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  /* Loading draws the shape of the rows in the well colour, with no shimmer. */
+  .bone {
+    display: block;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--well);
+  }
+
+  .bone.wide {
+    height: 18px;
+  }
+
+  /* ── Insights ──────────────────────────────────────────────────────────── */
+
+  .insights {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px 40px;
+  }
+
+  .insights section {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+  }
+
+  .insights .whole {
+    grid-column: 1 / -1;
+  }
+
+  .counts,
+  .lines,
+  .comments {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  .counts li,
+  .lines li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 18px;
+  }
+
+  .lines .what {
+    min-width: 0;
+  }
+
+  .lines .name {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .lines .what small {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-left: 10px;
+  }
+
+  .lines .score {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .said > li {
+    display: grid;
+    gap: 6px;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .said .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 18px;
+  }
+
+  /*
+   * A comment is somebody's own words. It is set in, with a pad at its left, so
+   * that it reads as quoted without a stripe down its edge.
+   */
+  .comments li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+
+  /* ── Asking which weeks a change is for ────────────────────────────────── */
+
+  .over {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: color-mix(in srgb, var(--ink) 55%, transparent);
+  }
+
+  /* The one thing on the page that floats, so the one thing with a shadow. */
+  .ask {
+    width: 100%;
+    max-width: 420px;
+    background: var(--card);
+    box-shadow: var(--shadow-float);
+    padding: 24px;
+    display: grid;
+    gap: 14px;
+    justify-items: start;
+  }
+
+  .ask h2 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 800;
+    font-size: 26px;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .ask p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .ask .choices {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+  }
+
+  /* ── Forms on the members and details tabs ─────────────────────────────── */
+
+  .adding,
+  .details {
+    display: grid;
+    gap: 18px;
+    justify-items: start;
+  }
+
+  .adding {
+    grid-auto-flow: row;
+  }
+
+  .tabbody :global(.fld.wide) {
+    max-width: 560px;
+  }
+
+  .fld .in textarea {
+    font: inherit;
+    font-size: 16px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    outline: 0;
+    width: 100%;
+    resize: vertical;
+  }
+
+  .fld .in select {
+    font: inherit;
+    font-size: 16px;
+    border: 0;
+    color: var(--ink);
+    outline: 0;
+    padding: 2px 0;
+  }
+
+  .help {
+    font-size: 12.5px;
+    color: var(--muted);
+    max-width: 52ch;
+  }
+
+  .swatch {
+    width: 44px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .hex {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 900px) {
+    .row,
+    .members .row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .row.head {
+      display: none;
+    }
+
+    .doing {
+      justify-content: flex-start;
+    }
+  }
+
+  /*
+   * A field written out here rather than taken from the Field component still
+   * has to carry the state on its line, so the rule and the pad turn primary
+   * when whatever sits between them has the focus.
+   */
+  .fld .in:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 2px 0 0 var(--primary);
+  }
+
+  .fld .in:focus-within :global(.pad) {
+    --h: var(--primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+</style>

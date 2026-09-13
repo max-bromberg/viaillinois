@@ -15,7 +15,17 @@ import { sendBusy, busyHtml } from '../lib/busyResponse.js';
 /** Which tier a request belongs to. Lower is refused sooner. */
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/**
+ * The Discord bot's prefix. The bot carries no cookie, so by the rules below
+ * it would be the cheapest anonymous traffic, and it is not: it is answering
+ * a person who pressed a button in Discord, or posting an announcement a
+ * board is waiting on. It is refused only at the worst level, alongside a
+ * signed in write, and it honours the wait the busy answer names.
+ */
+const INTERNAL_PREFIX = '/internal/';
+
 function tierOf(req) {
+  if (req.path?.startsWith(INTERNAL_PREFIX)) return 4;
   const signedIn = Boolean(req.user);
   const reading = READ_METHODS.has(req.method);
   if (!signedIn && reading) return 1;

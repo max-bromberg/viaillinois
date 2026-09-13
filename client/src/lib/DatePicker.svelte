@@ -1,11 +1,16 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
-  import { campusToday } from './campusTime.js';
+  import { campusDate, campusToday } from './campusTime.js';
+  import { Icon, Pad } from './components/ui/index.js';
 
   export let value = '';        // YYYY-MM-DD string
   export let placeholder = 'Pick a date';
   export let min = '';
   export let max = '';
+  /** What the control is called, for somebody who cannot see the words beside it. */
+  export let label = 'Pick a date';
+  /** The id of the words that name it, when a name already sits above it. */
+  export let describedBy = undefined;
 
   const dispatch = createEventDispatcher();
 
@@ -15,7 +20,7 @@
   let el;
 
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   function initView() {
     // Opening on no value opens on the current month on campus, which is the
@@ -61,10 +66,14 @@
     else viewMonth++;
   }
 
+  /**
+   * A day with no hour on it is a day on campus, so it is read at noon there.
+   * Read as an instant instead it is midnight in UTC, which is the evening
+   * before on campus, and the picker would show the day before the one chosen.
+   */
   function formatDisplay(v) {
     if (!v) return null;
-    const d = new Date(v + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return campusDate(`${v} 12:00`, { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   function isSelected(day) {
@@ -94,91 +103,249 @@
   });
 </script>
 
-<div class="relative" bind:this={el}>
-  <!-- Trigger button -->
+<div class="picker" bind:this={el}>
+  <!--
+    The trigger is the field's line: a pad, the date, and a rule under them.
+    It was a rounded rectangle with a hairline around it, which is the one
+    container shape the design does not use.
+  -->
   <button
     type="button"
-    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left border rounded-md bg-background
-      hover:bg-accent transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30
-      {value ? 'text-foreground' : 'text-muted-foreground'}"
+    class="trigger"
+    class:empty={!value}
+    aria-label={label}
+    aria-describedby={describedBy}
+    aria-expanded={open}
     on:click={() => open = !open}
   >
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-      stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-muted-foreground">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-      <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-    </svg>
-    <span class="flex-1 truncate">{formatDisplay(value) ?? placeholder}</span>
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-      stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-muted-foreground transition-transform {open ? 'rotate-180' : ''}">
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
+    <Pad hollow={!value} />
+    <span class="said">{formatDisplay(value) ?? placeholder}</span>
+    <Icon name="cal" />
   </button>
 
-  <!-- Calendar dropdown -->
   {#if open}
-    <div class="absolute z-50 mt-1.5 bg-card border rounded-xl shadow-xl p-3 w-64 select-none"
-      style="left: 0; top: 100%;">
-
-      <!-- Month / year nav -->
-      <div class="flex items-center justify-between mb-3">
-        <button
-          type="button"
-          class="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-          on:click={prevMonth}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    <div class="sheet cut" style="--cut: 14px">
+      <div class="nav">
+        <button type="button" class="step" aria-label="Previous month" on:click={prevMonth}>
+          <Icon name="back" />
         </button>
-        <span class="text-sm font-semibold">{MONTHS[viewMonth]} {viewYear}</span>
-        <button
-          type="button"
-          class="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-          on:click={nextMonth}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <span class="month">{MONTHS[viewMonth]} {viewYear}</span>
+        <button type="button" class="step" aria-label="Next month" on:click={nextMonth}>
+          <Icon name="arrow" />
         </button>
       </div>
 
-      <!-- Day-of-week headers -->
-      <div class="grid grid-cols-7 mb-1">
+      <div class="grid">
         {#each DOW as d}
-          <div class="text-center text-[10px] font-semibold text-muted-foreground py-1">{d}</div>
+          <span class="dow">{d}</span>
         {/each}
-      </div>
-
-      <!-- Day cells -->
-      <div class="grid grid-cols-7 gap-y-0.5">
         {#each calendarDays as day}
           {#if day === null}
-            <div></div>
+            <span></span>
           {:else}
             <button
               type="button"
+              class="day"
+              class:on={isSelected(day)}
+              class:now={isToday(day)}
+              aria-pressed={isSelected(day)}
+              aria-label="{MONTHS[viewMonth]} {day}, {viewYear}"
               disabled={isDisabled(day)}
-              class="h-8 w-full rounded-md text-xs font-medium transition-colors focus:outline-none
-                {isSelected(day)
-                  ? 'bg-primary text-primary-foreground'
-                  : isToday(day)
-                  ? 'border border-primary text-primary hover:bg-primary/10'
-                  : isDisabled(day)
-                  ? 'text-muted-foreground/40 cursor-not-allowed'
-                  : 'hover:bg-accent text-foreground'}"
               on:click={() => selectDay(day)}
-            >{day}</button>
+            >
+              <span class="n">{day}</span>
+              <span class="mark">{#if isSelected(day)}<Pad />{/if}</span>
+            </button>
           {/if}
         {/each}
       </div>
 
-      <!-- Clear button if value set -->
       {#if value}
-        <div class="mt-2 pt-2 border-t">
-          <button
-            type="button"
-            class="w-full text-xs text-muted-foreground hover:text-foreground py-1 transition-colors"
-            on:click={() => { value = ''; dispatch('change', ''); open = false; }}
-          >Clear</button>
-        </div>
+        <button
+          type="button"
+          class="clear"
+          on:click={() => { value = ''; dispatch('change', ''); open = false; }}
+        >Clear the date</button>
       {/if}
     </div>
   {/if}
 </div>
+
+<style>
+  .picker {
+    position: relative;
+    width: 268px;
+    max-width: 100%;
+  }
+
+  .trigger {
+    font: inherit;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid var(--line-strong);
+    padding: 6px 0;
+    min-height: 32px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .trigger.empty .said {
+    color: var(--muted);
+  }
+
+  .trigger:focus-visible {
+    outline: none;
+    border-bottom-color: var(--primary);
+    box-shadow: 0 2px 0 0 var(--primary);
+  }
+
+  .said {
+    flex: 1;
+  }
+
+  /* The sheet floats above the page, which is the one thing that takes a shadow. */
+  .sheet {
+    position: absolute;
+    left: 0;
+    top: 100%;
+    z-index: 50;
+    margin-top: 6px;
+    width: 268px;
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    background: var(--card);
+    box-shadow: var(--shadow-float);
+    user-select: none;
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .month {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .step {
+    font: inherit;
+    font-size: 16px;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    min-width: 32px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .step:hover,
+  .step:focus-visible {
+    color: var(--ink);
+  }
+
+  .step:focus-visible,
+  .clear:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    text-align: center;
+  }
+
+  .dow {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .day {
+    font: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    min-height: 32px;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    padding: 2px 0;
+    color: var(--ink);
+  }
+
+  .day .n {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .day .mark {
+    height: 8px;
+    display: block;
+  }
+
+  .day.on .n {
+    color: var(--primary);
+  }
+
+  /* Today's number is the signal colour, as it is on the calendar. */
+  .day.now .n {
+    color: var(--signal-text);
+  }
+
+  .day:hover:not(:disabled) .n,
+  .day:focus-visible .n {
+    color: var(--primary);
+  }
+
+  .day:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /*
+   * A day that cannot be chosen is still a word, and the design keeps words out
+   * of the faint gray, so it is the muted ink held back rather than the faint
+   * token.
+   */
+  .day:disabled {
+    cursor: default;
+    color: var(--muted);
+    opacity: .5;
+  }
+
+  .clear {
+    font: inherit;
+    font-size: 12.5px;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 8px 0 0;
+    min-height: 32px;
+  }
+
+  .clear:hover {
+    color: var(--ink);
+  }
+</style>

@@ -75,3 +75,19 @@ describe('the calls a repeating event needs', () => {
     expect(apiFetch.mock.calls.at(-1)[0]).toBe('/api/v1/events/5');
   });
 });
+
+/**
+ * Cancelling and restoring are their own requests rather than edits, because
+ * they are a state the server records with its own clock.
+ */
+describe('cancelEvent and restoreEvent', () => {
+  it('cancels through the event\'s own cancel address', async () => {
+    await eventsApi.cancelEvent(8);
+    expect(apiFetch).toHaveBeenLastCalledWith('/api/v1/events/8/cancel', { method: 'POST' });
+  });
+
+  it('restores through the event\'s own restore address', async () => {
+    await eventsApi.restoreEvent(8);
+    expect(apiFetch).toHaveBeenLastCalledWith('/api/v1/events/8/restore', { method: 'POST' });
+  });
+});

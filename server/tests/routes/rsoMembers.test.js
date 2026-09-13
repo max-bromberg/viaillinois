@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 
+vi.mock('../../db/queries/outbox.ts', async () =>
+  (await import('../support/outboxMock.js')).outboxMock());
+
 const addMember = vi.fn();
 const inviteUser = vi.fn();
 const getUserByNetId = vi.fn();
@@ -25,6 +28,12 @@ vi.mock('../../db/queries/events.js', () => ({
   deleteEvent: vi.fn(), findEventsByUid: vi.fn(), createEvent: vi.fn(),
 }));
 vi.mock('../../db/queries/advanced.js', () => ({ createEventTransactional: vi.fn(), callGetRSOStats: vi.fn() }));
+
+const pushFacts = vi.hoisted(() => vi.fn());
+vi.mock('../../services/linkedRoles.js', () => ({
+  pushFacts, clearFacts: vi.fn(), registerMetadata: vi.fn(),
+  isConfigured: () => true, METADATA_SCHEMA: [], PLATFORM_NAME: 'VIA',
+}));
 
 const app = (await import('../../app.js')).default;
 const { signToken } = await import('../../middleware/auth.js');
@@ -120,5 +129,39 @@ describe('POST /api/v1/rsos/:id/members', () => {
 
   it('still refuses an unknown role', async () => {
     expect((await post({ netId: 'abromb2', role: 'Overlord' })).status).toBe(400);
+  });
+});
+
+/**
+ * One of the three linked role facts is whether somebody sits on a board, so
+ * the fact has to be refreshed whenever that answer changes. The service
+ * passes over a person with no Discord authorization on its own, which is why
+ * this can be called for everybody rather than only for the linked.
+ */
+describe('the linked role facts, when a membership changes', () => {
+  beforeEach(() => {
+    pushFacts.mockReset().mockResolvedValue({ pushed: true });
+    addMember.mockReset().mockResolvedValue(undefined);
+    inviteUser.mockReset().mockResolvedValue(undefined);
+    getUserByNetId.mockReset().mockResolvedValue({ net_id: 'abromb2', full_name: 'A' });
+  });
+
+  it('refreshes them for somebody whose role changed', async () => {
+    const res = await post({ netId: 'abromb2', role: 'Editor' });
+    expect(res.status).toBe(201);
+    expect(pushFacts).toHaveBeenCalledWith('abromb2');
+  });
+
+  it('refreshes them for somebody removed', async () => {
+    const res = await request(app).delete('/api/v1/rsos/1/members/abromb2').set('Cookie', admin);
+    expect(res.status).toBe(200);
+    expect(pushFacts).toHaveBeenCalledWith('abromb2');
+  });
+
+  it('records the membership anyway when Discord cannot be reached', async () => {
+    pushFacts.mockRejectedValue(new Error('Discord is down'));
+    const res = await post({ netId: 'abromb2', role: 'Editor' });
+    expect(res.status).toBe(201);
+    expect(addMember).toHaveBeenCalledWith('abromb2', 1, 'Editor');
   });
 });

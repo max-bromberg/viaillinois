@@ -21,15 +21,23 @@
     <meta property="og:locale" content="en_US" />
     <meta name="twitter:card" content="summary" />
 
-    <!-- Apply dark class before first paint to prevent flash -->
+    <!--
+      Settle the theme before first paint, so nobody watches a light page turn
+      dark. The class is what the client has always toggled and what every
+      unconverted screen still reads. The attribute is what the design system's
+      stylesheet reads, and it also tells the dark media query in app.css to
+      stand aside for somebody who asked for the light theme on a system set to
+      dark. Both are written here so the two never disagree.
+    -->
     <script>
       (function () {
+        var root = document.documentElement;
         try {
           var m = localStorage.getItem('via-theme');
           var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (m === 'dark' || (m !== 'light' && prefersDark)) {
-            document.documentElement.classList.add('dark');
-          }
+          var dark = m === 'dark' || (m !== 'light' && prefersDark);
+          root.classList.toggle('dark', dark);
+          root.setAttribute('data-theme', dark ? 'dark' : 'light');
         } catch (e) {}
       })();
     </script>

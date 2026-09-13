@@ -5,13 +5,17 @@ const createEvent = vi.hoisted(() => vi.fn());
 const createEventSeries = vi.hoisted(() => vi.fn());
 const updateEvent = vi.hoisted(() => vi.fn());
 const deleteEvent = vi.hoisted(() => vi.fn());
+const cancelEvent = vi.hoisted(() => vi.fn());
+const restoreEvent = vi.hoisted(() => vi.fn());
+const getRsoStats = vi.hoisted(() => vi.fn());
 const getRso = vi.hoisted(() => vi.fn());
 const showToast = vi.hoisted(() => vi.fn());
+const importCalendar = vi.hoisted(() => vi.fn());
 
-vi.mock('../../src/api/events.js', () => ({ createEvent, createEventSeries, updateEvent, deleteEvent }));
+vi.mock('../../src/api/events.js', () => ({ createEvent, createEventSeries, updateEvent, deleteEvent, cancelEvent, restoreEvent }));
 vi.mock('../../src/api/rsos.js', () => ({
   getRso, updateRso: vi.fn(), addMember: vi.fn(), removeMember: vi.fn(),
-  getRsoStats: vi.fn().mockResolvedValue({ stats: {} }),
+  getRsoStats,
 }));
 vi.mock('../../src/api/users.js', () => ({ getMe: vi.fn().mockResolvedValue({ user: USER }) }));
 vi.mock('../../src/api/semester.js', () => ({
@@ -20,7 +24,8 @@ vi.mock('../../src/api/semester.js', () => ({
   }),
 }));
 vi.mock('../../src/api/venues.js', () => ({ searchVenues: vi.fn().mockResolvedValue({ venues: [] }) }));
-vi.mock('../../src/stores/ui.js', () => ({ showToast }));
+vi.mock('../../src/api/calendar.js', () => ({ importCalendar }));
+vi.mock('../../src/stores/ui.js', async importOriginal => ({ ...await importOriginal(), showToast }));
 vi.mock('../../src/lib/router.js', () => ({
   navigate: vi.fn(),
   currentPath: { subscribe: fn => { fn('/dashboard'); return () => {}; } },
@@ -57,6 +62,9 @@ beforeEach(() => {
   createEvent.mockResolvedValue({ event_id: 9 });
   updateEvent.mockResolvedValue({ ok: true });
   deleteEvent.mockResolvedValue({ ok: true });
+  cancelEvent.mockResolvedValue({ ok: true, cancelled_at: '2026-09-04T09:00:00-05:00' });
+  restoreEvent.mockResolvedValue({ ok: true, cancelled_at: null });
+  getRsoStats.mockResolvedValue({ memberBreakdown: [], topTags: [], interest: [] });
 });
 
 /**
@@ -72,11 +80,11 @@ describe('Dashboard, with repeating events', () => {
 
   it('creates a series in one request when the form asks for a repeat', async () => {
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
 
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Weekly meeting' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-09-01T18:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Weekly meeting' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-09-01T19:30' } });
     await fireEvent.click(getByRole('button', { name: 'Every week' }));
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
@@ -90,10 +98,10 @@ describe('Dashboard, with repeating events', () => {
   it('says how many events a repeat created', async () => {
     createEventSeries.mockResolvedValue({ series_id: 3, created: 14, skipped: [] });
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Weekly meeting' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-09-01T18:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Weekly meeting' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-09-01T19:30' } });
     await fireEvent.click(getByRole('button', { name: 'Every week' }));
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
@@ -103,10 +111,10 @@ describe('Dashboard, with repeating events', () => {
   it('names the weeks a repeat could not take, rather than dropping them quietly', async () => {
     createEventSeries.mockResolvedValue({ series_id: 3, created: 12, skipped: ['2026-10-06', '2026-11-03'] });
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Weekly meeting' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-09-01T18:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Weekly meeting' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-09-01T19:30' } });
     await fireEvent.click(getByRole('button', { name: 'Every week' }));
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
@@ -117,10 +125,10 @@ describe('Dashboard, with repeating events', () => {
 
   it('creates a single event when no repeat is asked for', async () => {
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
-    await fireEvent.click(await findByRole('button', { name: '+ Manual entry' }));
-    await fireEvent.input(getByLabelText(/Event Title/), { target: { value: 'Career fair' } });
-    await fireEvent.input(getByLabelText(/Start Time/), { target: { value: '2026-10-01T10:00' } });
-    await fireEvent.input(getByLabelText(/End Time/), { target: { value: '2026-10-01T14:00' } });
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Career fair' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-10-01T10:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-10-01T14:00' } });
     await fireEvent.click(getByRole('button', { name: 'Create event' }));
 
     await waitFor(() => expect(createEvent).toHaveBeenCalled());
@@ -165,5 +173,273 @@ describe('Dashboard, with repeating events', () => {
     expect(getByRole('button', { name: 'This event only' })).toBeTruthy();
     await fireEvent.click(getByRole('button', { name: 'This event only' }));
     await waitFor(() => expect(updateEvent).toHaveBeenCalledWith(5, expect.any(Object), 'one'));
+  });
+});
+
+/**
+ * Cancelling is a state, not a delete. The row says so, and the same place
+ * offers to put the event back.
+ */
+describe('Dashboard, cancelling an event', () => {
+  it('cancels an event from its row and reloads the list', async () => {
+    const { findAllByRole } = render(Dashboard);
+    const cancels = await findAllByRole('button', { name: 'Cancel event' });
+    await fireEvent.click(cancels[0]);
+    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(8, 'one'));
+    await waitFor(() => expect(getRso).toHaveBeenCalledTimes(2));
+    expect(showToast).toHaveBeenCalledWith('Event cancelled');
+  });
+
+  it('marks a cancelled event and offers to restore it instead', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, rso_name: 'IEEE', name: 'IEEE', members: [],
+      events: [{ ...ONE_OFF, cancelled_at: '2026-09-04 09:00:00' }] } });
+    const { findByText, findByRole, queryByRole } = render(Dashboard);
+    expect(await findByText('Cancelled')).toBeTruthy();
+    const restore = await findByRole('button', { name: 'Restore event' });
+    expect(queryByRole('button', { name: 'Cancel event' })).toBeNull();
+    await fireEvent.click(restore);
+    await waitFor(() => expect(restoreEvent).toHaveBeenCalledWith(8, 'one'));
+    expect(showToast).toHaveBeenCalledWith('Event restored');
+  });
+
+  /**
+   * A repeating event is cancelled a week at a time or a term at a time, and
+   * only the board knows which. Without the question, cancelling a term of
+   * meetings was one click per week and cancelling the wrong week was the
+   * likely outcome.
+   */
+  it('asks which weeks a cancellation means when the event repeats', async () => {
+    const { findAllByRole, findByRole } = render(Dashboard);
+    const cancels = await findAllByRole('button', { name: 'Cancel event' });
+    await fireEvent.click(cancels[1]);
+    expect(cancelEvent).not.toHaveBeenCalled();
+
+    await findByRole('heading', { name: /cancel a repeating event/i });
+    await fireEvent.click(await findByRole('button', { name: 'All events in the series' }));
+    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(5, 'all'));
+    expect(showToast).toHaveBeenCalledWith('Events cancelled');
+  });
+
+  it('cancels one week of a repeat when that is what the board chose', async () => {
+    const { findAllByRole, findByRole } = render(Dashboard);
+    const cancels = await findAllByRole('button', { name: 'Cancel event' });
+    await fireEvent.click(cancels[1]);
+    await fireEvent.click(await findByRole('button', { name: 'This event only' }));
+    await waitFor(() => expect(cancelEvent).toHaveBeenCalledWith(5, 'one'));
+    expect(showToast).toHaveBeenCalledWith('Event cancelled');
+  });
+
+  it('asks the same question before putting a repeating event back', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, rso_name: 'IEEE', name: 'IEEE', members: [],
+      events: [{ ...OCCURRENCE, cancelled_at: '2026-09-04 09:00:00' }] } });
+    const { findByRole } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Restore event' }));
+    expect(restoreEvent).not.toHaveBeenCalled();
+
+    await findByRole('heading', { name: /restore a repeating event/i });
+    await fireEvent.click(await findByRole('button', { name: 'This and all later events' }));
+    await waitFor(() => expect(restoreEvent).toHaveBeenCalledWith(5, 'following'));
+  });
+});
+
+/**
+ * Interest is what replaced the RSVP count, and the board reads it on the
+ * insights tab beside the members and the tags.
+ */
+describe('Dashboard, interest on the insights tab', () => {
+  it('lists how many people are interested in each upcoming event', async () => {
+    getRsoStats.mockResolvedValue({ memberBreakdown: [], topTags: [], interest: [
+      { event_id: 8, title: 'Career fair', start_time: '2026-10-01T10:00:00-05:00', interest_count: 12 },
+      { event_id: 5, title: 'IEEE Weekly Meeting', start_time: '2026-09-15T18:00:00-05:00', interest_count: 1 },
+    ] });
+    const { findByRole, container } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    await findByRole('heading', { name: /interest in upcoming events/i });
+    // The count and what it means travel together as one numeral, which is why
+    // they are read off the numeral rather than looked up as one text node.
+    const said = [...container.querySelectorAll('.numeral')]
+      .map(one => one.textContent.replace(/\s+/g, ' ').trim());
+    expect(said).toContain('12 interested');
+    expect(said).toContain('1 interested');
+  });
+
+  it('says so when nobody has shown interest yet', async () => {
+    const { findByRole, findByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    expect(await findByText('Nobody has shown interest in an upcoming event yet.')).toBeTruthy();
+  });
+});
+
+/**
+ * What people thought of an event they went to. The board reads the average,
+ * how many said something, and what they wrote, and never who wrote which,
+ * because a board that can work that out is a board nobody tells the truth to.
+ */
+describe('Dashboard, feedback on the insights tab', () => {
+  const FEEDBACK = [
+    {
+      event_id: 8, title: 'Career fair', start_time: '2026-10-01T10:00:00-05:00',
+      average_rating: 4.5, rating_count: 2,
+      comments: ['The pizza arrived on time.', 'Too loud in the hallway.'],
+    },
+    {
+      event_id: 5, title: 'IEEE Weekly Meeting', start_time: '2026-09-15T18:00:00-05:00',
+      average_rating: null, rating_count: 0, comments: [],
+    },
+  ];
+
+  it('shows the average, the count and the comments for each event', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: FEEDBACK,
+    });
+    const { findByRole, findByText, getByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+
+    expect(await findByText('Career fair')).toBeTruthy();
+    expect(getByText('4.5 out of 5, from 2 ratings')).toBeTruthy();
+    expect(getByText('The pizza arrived on time.')).toBeTruthy();
+    expect(getByText('Too loud in the hallway.')).toBeTruthy();
+  });
+
+  it('says when an event has no ratings yet rather than showing an empty average', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: FEEDBACK,
+    });
+    const { findByRole, findByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    expect(await findByText('Nobody has rated this event yet.')).toBeTruthy();
+  });
+
+  it('never names anybody who rated an event', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: FEEDBACK,
+    });
+    const { findByRole, container } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    await findByRole('heading', { name: /what people thought/i });
+    expect(container.textContent).not.toMatch(/net_?id/i);
+    expect(container.textContent).not.toMatch(/rgarcia7|boardmember/);
+  });
+
+  it('says so when nobody has rated anything at all', async () => {
+    getRsoStats.mockResolvedValue({
+      memberBreakdown: [], topTags: [], interest: [], feedback: [],
+    });
+    const { findByRole, findByText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Insights' }));
+    expect(await findByText('Nobody has rated an event yet.')).toBeTruthy();
+  });
+});
+
+/**
+ * Importing a calendar file into an RSO.
+ *
+ * Two things made an import look as though nothing had happened. The panel was
+ * drawn only while the manual entry form was open, so there was nowhere to
+ * import from without first opening a form for an event nobody was entering,
+ * and the panel told nothing when it succeeded, so the table behind it went on
+ * showing what it had before.
+ */
+describe('Dashboard calendar import', () => {
+  it('offers the importer without having to open the manual entry form first', async () => {
+    const { getByRole, findByText } = render(Dashboard);
+    await waitFor(() => expect(getRso).toHaveBeenCalled());
+    await fireEvent.click(getByRole('button', { name: /Import calendar/i }));
+    expect(await findByText('Import from a calendar file')).toBeTruthy();
+  });
+
+  it('reloads the events it lists once an import has landed', async () => {
+    importCalendar.mockResolvedValueOnce({ entries: [{ title: 'Imported meeting', start: '2026-10-06 18:00:00', action: 'create' }], skipped: 0 });
+    importCalendar.mockResolvedValueOnce({ created: 1, updated: 0, skipped: 0 });
+    const { getByRole, getByPlaceholderText, findByRole } = render(Dashboard);
+    await waitFor(() => expect(getRso).toHaveBeenCalled());
+    await fireEvent.click(getByRole('button', { name: /Import calendar/i }));
+
+    const paste = getByPlaceholderText(/paste the contents/i);
+    await fireEvent.input(paste, { target: { value: 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nEND:VEVENT\nEND:VCALENDAR' } });
+    await fireEvent.click(getByRole('button', { name: 'Preview' }));
+
+    const confirm = await findByRole('button', { name: /^Import 1 entry$/ });
+    const before = getRso.mock.calls.length;
+    await fireEvent.click(confirm);
+    await waitFor(() => expect(getRso.mock.calls.length).toBeGreaterThan(before));
+  });
+});
+
+/**
+ * The dashboard in the design system.
+ *
+ * A board tool follows the same rules as the rest of the site with less
+ * ceremony: the page title in the condensed display face, tables built like the
+ * exam listing, a status as a highlighted word, and one primary button on the
+ * screen. See docs/design/08-surfaces.md.
+ */
+describe('Dashboard, drawn in the design system', () => {
+  it('names the organization as the page title', async () => {
+    const { findByRole } = render(Dashboard);
+    expect(await findByRole('heading', { level: 1, name: 'IEEE' })).toBeTruthy();
+  });
+
+  it('draws the organization mark as a pad in the colour the site adapted', async () => {
+    const { organizationColor } = await import('../../src/lib/organizationColor.js');
+    getRso.mockResolvedValue({ rso: {
+      rso_id: 1, name: 'IEEE', logo_color: '#00b2a9', members: [], events: [],
+    } });
+    const { container, findByRole } = render(Dashboard);
+    await findByRole('heading', { level: 1, name: 'IEEE' });
+    const pad = container.querySelector('.orgmark');
+    expect(pad).toBeTruthy();
+    expect(pad.getAttribute('style')).toContain(organizationColor('#00b2a9', 'mark', 'light'));
+  });
+
+  it('carries one primary button on the events tab', async () => {
+    const { container, findByRole } = render(Dashboard);
+    await findByRole('button', { name: 'Add an event' });
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  it('still carries only one primary button while the event form is open', async () => {
+    const { container, findByRole } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  it('draws a cancelled event as a highlighted word rather than as a filled pill', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, name: 'IEEE', members: [],
+      events: [{ ...ONE_OFF, cancelled_at: '2026-09-04 09:00:00' }] } });
+    const { findByText } = render(Dashboard);
+    expect((await findByText('Cancelled')).classList.contains('hl')).toBe(true);
+  });
+
+  it('lists its events as rows on hairlines rather than inside a bordered card', async () => {
+    const { container, findByText } = render(Dashboard);
+    await findByText('Career fair');
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.querySelectorAll('.listing .row[role="row"]:not(.head)').length).toBe(2);
+  });
+
+  it('says what to do next when the organization has nothing on', async () => {
+    getRso.mockResolvedValue({ rso: { rso_id: 1, name: 'IEEE', members: [], events: [] } });
+    const { container, findByText } = render(Dashboard);
+    await findByText(/Nothing on the feed yet/);
+    expect(container.querySelector('.empty')).toBeTruthy();
+  });
+});
+
+/**
+ * The organization's own details.
+ *
+ * Saving is offered only once something has actually changed, so the field has
+ * to report that it did. The field is its own component now, and a component
+ * does not forward a browser event on its own.
+ */
+describe('Dashboard, the details tab', () => {
+  it('offers to save only once a detail has been changed', async () => {
+    const { findByRole, getByRole, getByLabelText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'RSO Details' }));
+    expect(getByRole('button', { name: 'Save the details' }).disabled).toBe(true);
+
+    await fireEvent.input(getByLabelText('Name'), { target: { value: 'IEEE at Illinois' } });
+    expect(getByRole('button', { name: 'Save the details' }).disabled).toBe(false);
   });
 });

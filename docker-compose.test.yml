@@ -4,10 +4,23 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: test_root_pw
       MYSQL_DATABASE: via_test
+      # The Discord bot's database and its account, created by the same
+      # initialisation script production runs. The values are here rather than
+      # in a secret because this container is thrown away after every run and
+      # is reachable from nothing but the test run itself.
+      BOT_DB_USER: via_bot
+      BOT_DB_PASSWORD: test_bot_pw
+      BOT_DB_NAME: via_bot
     ports:
       - "3307:3306"
     tmpfs:
       - /var/lib/mysql
+    volumes:
+      # Mounted the way production mounts it, so a script that does not work
+      # stops the container from starting here, in the gate, rather than on the
+      # server during a maintenance window. The data directory is tmpfs, so
+      # this runs on every start rather than once.
+      - ./server/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest_root_pw"]
       interval: 3s

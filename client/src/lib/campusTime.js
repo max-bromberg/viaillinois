@@ -191,3 +191,99 @@ export function fallsOnDay(value, marker) {
   const day = campusStartOfDay(value);
   return day !== '' && day === calendarDayKey(marker);
 }
+
+/**
+ * A date written the way the site writes dates, "Thu Sep 10", with no comma.
+ *
+ * The browser's own short format puts a comma after the weekday, which reads as
+ * a list rather than as a date. docs/design/10-voice.md writes it without one.
+ *
+ * @param {string|Date|null} value
+ * @returns {string}
+ */
+export function campusShortDate(value) {
+  return campusDate(value, { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
+}
+
+/** How many campus days apart two times are. */
+function daysBetween(from, to) {
+  const start = campusStartOfDay(from);
+  const end = campusStartOfDay(to);
+  if (start === '' || end === '') return null;
+  const asDay = text => Date.UTC(...text.split('-').map(Number).map((part, at) => (at === 1 ? part - 1 : part)));
+  return Math.round((asDay(end) - asDay(start)) / 86400000);
+}
+
+/**
+ * What to call a day.
+ *
+ * docs/design/10-voice.md: "Today", "Tomorrow", then the weekday name for the
+ * next five days, then the date beyond that. The agenda, the clock under the sky
+ * band and the kiosk rail all name days, and a student reading "Thursday" in one
+ * place and "Thu Sep 17" in another for the same day is reading two sites.
+ *
+ * @param {string|Date|null} value the day being named
+ * @param {string|Date} [now] the day it is being named from, which is today
+ * @returns {string}
+ */
+export function campusDayName(value, now = new Date()) {
+  const away = daysBetween(now, value);
+  if (away === null) return '';
+  if (away === 0) return 'Today';
+  if (away === 1) return 'Tomorrow';
+  // A weekday name only helps while it is unambiguous, which is the week ahead.
+  if (away > 1 && away <= 6) return campusDate(value, { weekday: 'long' });
+  return campusShortDate(value);
+}
+
+/**
+ * The four skies and the campus hours they hold.
+ *
+ * The sky is the site's clock, so which sky is overhead is decided from the same
+ * campus time everything else on the page is read in. The band saying dusk while
+ * the agenda still counts the afternoon is the bug this prevents.
+ *
+ * See docs/design/04-color.md.
+ */
+export const SKY_HOURS = [
+  { sky: 'morning', from: 6, until: 11 },
+  { sky: 'afternoon', from: 11, until: 17 },
+  { sky: 'dusk', from: 17, until: 21 },
+  { sky: 'night', from: 21, until: 6 },
+];
+
+/** How long two skies are blended into each other, in minutes. */
+const CROSSFADE = 30;
+
+/** Which sky an hour of the campus day falls under. */
+export function skyAtHour(hour) {
+  const found = SKY_HOURS.find(({ from, until }) => (
+    from < until ? hour >= from && hour < until : hour >= from || hour < until
+  ));
+  return (found ?? SKY_HOURS[1]).sky;
+}
+
+/**
+ * Which sky is over the building, and how far it has turned into the next one.
+ *
+ * @param {string|Date|null} value the instant to read, or now
+ * @returns {{ sky: string, next: string, blend: number }} blend runs from 0 to 1
+ *   over the last thirty minutes of the earlier sky's hours
+ */
+export function campusSky(value = new Date()) {
+  const fields = campusFields(value);
+  // A page that cannot read the clock still has to draw itself, and the
+  // afternoon sky is the one that reads as neither morning nor night.
+  if (!fields) return { sky: 'afternoon', next: 'dusk', blend: 0 };
+
+  const sky = skyAtHour(fields.hour);
+  const at = SKY_HOURS.findIndex(entry => entry.sky === sky);
+  const next = SKY_HOURS[(at + 1) % SKY_HOURS.length].sky;
+
+  const { until } = SKY_HOURS[at];
+  // Minutes left of this sky's hours, counted through midnight for the night.
+  const toGo = ((until - fields.hour + 24) % 24) * 60 - fields.minute;
+  const blend = toGo > CROSSFADE ? 0 : Math.min(1, Math.max(0, (CROSSFADE - toGo) / CROSSFADE));
+
+  return { sky, next, blend };
+}

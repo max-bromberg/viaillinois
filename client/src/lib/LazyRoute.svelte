@@ -22,12 +22,53 @@
 {#await page then Page}
   <svelte:component this={Page} {...props} />
 {:catch}
-  <div class="rounded-xl border bg-card p-6 space-y-2">
-    <p class="text-sm">This page could not be loaded.</p>
-    <p class="text-sm text-muted-foreground">
+  <!--
+    An error is a sentence under the thing that failed, never a red box.
+  -->
+  <div class="gone">
+    <p class="said">This page could not be loaded.</p>
+    <p class="why">
       VIA was updated while this tab was open, so the file it asked for is no longer there.
-      <button class="underline underline-offset-2" on:click={() => location.reload()}>Reload</button>
+      <button type="button" on:click={() => location.reload()}>Reload</button>
       to get the current version.
     </p>
   </div>
 {/await}
+
+<style>
+  .gone {
+    padding: 26px 0;
+    max-width: 58ch;
+  }
+
+  .said {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 800;
+    font-size: 30px;
+    line-height: 1;
+    color: var(--danger);
+  }
+
+  .why {
+    color: var(--ink-2);
+    font-size: 14px;
+    margin-top: 10px;
+  }
+
+  .why button {
+    font: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .why button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+</style>

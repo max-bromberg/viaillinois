@@ -1,4 +1,5 @@
 <script>
+  import { LIGHT, SIGNAL } from './posterPalette.js';
   import { onMount, onDestroy } from 'svelte';
   import {
     generateNodes, generateSegments, buildAdjacency,
@@ -29,10 +30,10 @@
   const MIN_STRENGTH  = 0.14;  // below this the current has run out
   const ENERGY_FALL   = 2.4;   // how quickly a lit pad goes dark again
 
-  // Graphite at rest, Illinois orange when carrying current. One accent and
-  // nothing else: the resting board is drawn from the theme's own foreground
-  // colour so it sits correctly in both light and dark.
-  const ACCENT        = [232, 74, 39];
+  // The page's own ink at rest, the signal colour when carrying current. One
+  // accent and nothing else. Both are read from the tokens rather than written
+  // here, so the board sits correctly in both themes and on the kiosk, where the
+  // ink is the dark palette's whatever the page around it is doing.
   const TRACE_ALPHA   = 0.10;
   const PAD_ALPHA     = 0.15;
 
@@ -42,7 +43,10 @@
   let segments = [];
   let adjacency = [];
   let signals = [];
-  let foreground = '240 10% 3.9%';
+  // What the board falls back to before the tokens have been read, which is the
+  // light theme's ink and signal. It is read from the canvas on the first frame.
+  let ink = LIGHT.ink;
+  let signal = SIGNAL;
 
   let mouse = { x: -9999, y: -9999 };
   let lastProbed = { id: null, at: 0 };
@@ -55,16 +59,34 @@
 
   const lerp = (a, b, t) => a + (b - a) * t;
 
-  /** The resting colour, taken from the active theme so it works in both. */
-  const restRgba = alpha => `hsl(${foreground} / ${alpha})`;
+  /** A hex token as the three channels a canvas wants. */
+  function channels(hex) {
+    const text = String(hex).trim().replace('#', '');
+    const full = text.length === 3 ? text.split('').map(digit => digit + digit).join('') : text;
+    if (!/^[0-9a-f]{6}$/i.test(full)) return [11, 26, 27];
+    return [0, 2, 4].map(at => parseInt(full.slice(at, at + 2), 16));
+  }
 
-  /** A trace or pad carrying current, warming toward the accent. */
-  const liveRgba = (energy, alpha) =>
-    `rgba(${ACCENT[0]},${ACCENT[1]},${ACCENT[2]},${(alpha + energy * 0.75).toFixed(3)})`;
+  /** The resting colour, which is the ink of whatever the board is drawn on. */
+  const restRgba = alpha => {
+    const [red, green, blue] = channels(ink);
+    return `rgba(${red},${green},${blue},${alpha})`;
+  };
+
+  /** A trace or pad carrying current, warming toward the signal colour. */
+  const liveRgba = (energy, alpha) => {
+    const [red, green, blue] = channels(signal);
+    return `rgba(${red},${green},${blue},${(alpha + energy * 0.75).toFixed(3)})`;
+  };
 
   function readTheme() {
-    foreground = getComputedStyle(document.documentElement)
-      .getPropertyValue('--foreground').trim() || foreground;
+    // The board is drawn inside whatever surface hosts it, and the kiosk
+    // redefines the inks on itself, so the tokens are read from the canvas
+    // rather than from the document.
+    const from = canvas ?? document.documentElement;
+    const style = getComputedStyle(from);
+    ink = style.getPropertyValue('--ink').trim() || ink;
+    signal = style.getPropertyValue('--signal').trim() || signal;
   }
 
   function init() {
@@ -262,4 +284,4 @@
     -webkit-mask-image: radial-gradient(ellipse 62% 55% at 50% 42%, transparent 18%, black 92%);
     mask-image: radial-gradient(ellipse 62% 55% at 50% 42%, transparent 18%, black 92%);
   "
-/>
+></canvas>

@@ -6,10 +6,12 @@ import coursesPoller from './services/coursesPoller.js';
 import astraPoller from './services/astraPoller.js';
 import { pollersEnabled } from './lib/pollerConfig.js';
 import { startDenialRecorder, stopDenialRecorder } from './services/denialRecorder.js';
+import { startOutboxPruner, stopOutboxPruner } from './services/outboxPruner.js';
+import { registerMetadata, isConfigured } from './services/linkedRoles.js';
+import { missingProductionSettings } from './lib/requiredSettings.js';
 
 if (process.env.NODE_ENV === 'production') {
-  const required = ['JWT_SECRET', 'SESSION_SECRET', 'DB_PASSWORD', 'DB_USER'];
-  const missing = required.filter(k => !process.env[k]);
+  const missing = missingProductionSettings(process.env);
   if (missing.length) {
     console.error(`FATAL: missing required env vars in production: ${missing.join(', ')}`);
     process.exit(1);
@@ -28,6 +30,17 @@ const server = app.listen(PORT, () => {
     console.log('pollers disabled by POLLERS_ENABLED');
   }
   startDenialRecorder();
+  startOutboxPruner();
+  // Discord keeps one set of linked role fields per application, so putting
+  // ours at startup is how they are kept current and costs nothing when they
+  // have not changed. A deployment with no Discord application skips it.
+  if (isConfigured()) {
+    registerMetadata().then(({ registered, reason }) => {
+      console.log(registered
+        ? 'the linked role fields are registered with Discord'
+        : `the linked role fields could not be registered with Discord: ${reason}`);
+    });
+  }
 });
 
 // Node's defaults let a connection hold a socket open for a long time saying
@@ -45,6 +58,7 @@ async function shutdown() {
   server.close(async () => {
     await Promise.all([
       facilitiesPoller.stop(), coursesPoller.stop(), astraPoller.stop(), stopDenialRecorder(),
+      stopOutboxPruner(),
     ]);
     pool.end().then(() => process.exit(0)).catch(() => process.exit(1));
   });

@@ -28,6 +28,10 @@ import { clientIp } from '../lib/clientIdentity.js';
  * middleware is mounted on /api/v1, and Express strips a mount path from
  * req.path, so a prefix written in full would never match anything and the
  * exemptions below would all be dead.
+ *
+ * A path outside /api/v1 needs no entry, because this middleware never sees
+ * one. The personal calendar is such a path, and it carries a ceiling of its
+ * own where it is mounted in app.js.
  */
 const EXEMPT_PREFIXES = [
   '/health',

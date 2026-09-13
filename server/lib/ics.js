@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { campusNow, toIsoWithOffset } from './timezone.js';
 
 /**
  * A small iCalendar reader, covering the part of RFC 5545 that a published
@@ -221,4 +222,156 @@ export function parseCalendar(text) {
   }
 
   return entries;
+}
+
+/**
+ * The writing side of the same format.
+ *
+ * A calendar file is how a phone subscribes to an event, and the bot hands one
+ * out from the event card, so the file has to be correct in the places
+ * calendar applications are strict: the times name the campus zone rather than
+ * floating, the identifier is stable so a second subscription updates the
+ * entry rather than adding one, and long lines are folded the way RFC 5545
+ * requires.
+ */
+
+/** The identifier every VIA event keeps for the life of the event. */
+function eventUid(event) {
+  return `via-event-${event.event_id}@viaillinois.com`;
+}
+
+/**
+ * Escape the four characters the format reserves inside a text value.
+ *
+ * Every shape of line break collapses to the escaped form, a lone carriage
+ * return included. Matching only a line feed and a carriage return followed by
+ * one let a lone carriage return through, and a reader that splits on it reads
+ * whatever came after as a new property: a board member could put END:VEVENT
+ * and a whole forged event into an event title and it would land in the
+ * calendar of every student who added that event to theirs. The remaining
+ * control characters have no representation in the format at all, so they are
+ * dropped rather than written out.
+ */
+function escapeText(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[ --]/g, '');
+}
+
+/** A stored wall clock reading as the format writes a local time. */
+function asLocalStamp(wallClock) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(String(wallClock ?? ''));
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s] = match;
+  return `${y}${mo}${d}T${h}${mi}${s}`;
+}
+
+/** A campus wall clock reading as the UTC stamp DTSTAMP has to carry. */
+function asUtcStamp(wallClock) {
+  const iso = toIsoWithOffset(wallClock);
+  if (!iso) return null;
+  return new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+/**
+ * Fold a content line to the width the format allows. A continuation line
+ * begins with one space, which is removed again by any reader.
+ */
+function fold(line) {
+  if (line.length <= 74) return [line];
+  const folded = [line.slice(0, 74)];
+  let rest = line.slice(74);
+  while (rest.length > 73) {
+    folded.push(` ${rest.slice(0, 73)}`);
+    rest = rest.slice(73);
+  }
+  if (rest.length) folded.push(` ${rest}`);
+  return folded;
+}
+
+/** Where the event is, as one line of text, with the note beside the room. */
+function locationLine(event) {
+  const room = event.building && event.room_number
+    ? `${event.building} ${event.room_number}`
+    : (event.location_text || null);
+  if (!room) return event.location_note || null;
+  return event.location_note ? `${room} (${event.location_note})` : room;
+}
+
+/**
+ * The campus zone, described in the file that refers to it.
+ *
+ * Every time in this file is written as a local time with TZID naming this
+ * zone, and TZID names a zone rather than describing one. A strict reader
+ * wants the description in the file: some refuse a file without it, and others
+ * fall back to their own idea of the zone, which puts an event an hour or
+ * several out for whoever opens it.
+ *
+ * These are the rules in force now, which is what RFC 5545 asks for: central
+ * time moves forward on the second Sunday in March and back on the first
+ * Sunday in November. The dates the rules start from are the ones those rules
+ * have applied since. If Congress changes them, this changes with them.
+ */
+const VTIMEZONE = [
+  'BEGIN:VTIMEZONE',
+  `TZID:${TIME_ZONE}`,
+  'X-LIC-LOCATION:America/Chicago',
+  'BEGIN:DAYLIGHT',
+  'TZOFFSETFROM:-0600',
+  'TZOFFSETTO:-0500',
+  'TZNAME:CDT',
+  'DTSTART:20070311T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
+  'END:DAYLIGHT',
+  'BEGIN:STANDARD',
+  'TZOFFSETFROM:-0500',
+  'TZOFFSETTO:-0600',
+  'TZNAME:CST',
+  'DTSTART:20071104T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
+  'END:STANDARD',
+  'END:VTIMEZONE',
+];
+
+/**
+ * Write events as an iCalendar file.
+ *
+ * @param {Array<object>} events rows carrying event_id, title, description,
+ *   start_time, end_time, the location fields and cancelled_at
+ * @param {{ stamp?: string, productId?: string }} [options] stamp is the campus
+ *   wall clock the file was written at, and defaults to now
+ * @returns {string} the file, with the line endings the format requires
+ */
+export function buildCalendar(events, { stamp = null, productId = '-//VIA//Virtually Integrated Agenda//EN' } = {}) {
+  const written = asUtcStamp(stamp ?? campusNow()) ?? asUtcStamp(campusNow());
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:${productId}`, 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    // Before the first event, because a reader meets the TZID references in
+    // the events and has to have been told what the zone is by then.
+    ...VTIMEZONE,
+  ];
+
+  for (const event of events) {
+    const start = asLocalStamp(event.start_time);
+    const end = asLocalStamp(event.end_time);
+    if (!start || !end) continue;
+    const where = locationLine(event);
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${eventUid(event)}`);
+    lines.push(`DTSTAMP:${written}`);
+    lines.push(`DTSTART;TZID=${TIME_ZONE}:${start}`);
+    lines.push(`DTEND;TZID=${TIME_ZONE}:${end}`);
+    lines.push(`SUMMARY:${escapeText(event.title)}`);
+    if (event.description) lines.push(`DESCRIPTION:${escapeText(event.description)}`);
+    if (where) lines.push(`LOCATION:${escapeText(where)}`);
+    lines.push(`STATUS:${event.cancelled_at ? 'CANCELLED' : 'CONFIRMED'}`);
+    lines.push('END:VEVENT');
+  }
+
+  lines.push('END:VCALENDAR');
+  return lines.flatMap(fold).join('\r\n') + '\r\n';
 }

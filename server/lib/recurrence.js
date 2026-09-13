@@ -208,6 +208,136 @@ function untilDate(value) {
 }
 
 /**
+ * The last day of a month, as a number.
+ *
+ * Written by hand rather than by rolling a Date past the end of the month,
+ * because everything here works in calendar fields rather than in instants.
+ */
+function daysInMonth(year, month) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** A year and a month a given number of months after another. */
+function shiftMonth(year, month, by) {
+  const zeroBased = (year * 12 + (month - 1)) + by;
+  return { year: Math.floor(zeroBased / 12), month: (zeroBased % 12) + 1 };
+}
+
+const asDate = (year, month, day) => `${year}-${pad(month)}-${pad(day)}`;
+
+/**
+ * The date of the nth occurrence of a weekday in a month, or null when the
+ * month does not have that many.
+ *
+ * The last one is asked for as -1, which is what a calendar program means by
+ * "the last Friday of the month" and is the only position whose date changes
+ * from month to month for a reason a person would recognise.
+ *
+ * @param {number} year
+ * @param {number} month 1 to 12
+ * @param {number} position 1 to 5, or -1 for the last
+ * @param {string} weekday one of WEEKDAYS
+ * @returns {string|null}
+ */
+export function weekdayOfMonth(year, month, position, weekday) {
+  const wanted = WEEKDAYS.indexOf(weekday);
+  if (wanted === -1) return null;
+  const total = daysInMonth(year, month);
+  const days = [];
+  for (let day = 1; day <= total; day += 1) {
+    if (weekdayOf(asDate(year, month, day)) === wanted) days.push(day);
+  }
+  const chosen = position === -1 ? days.at(-1) : days[position - 1];
+  return chosen === undefined ? null : asDate(year, month, chosen);
+}
+
+/**
+ * The dates and times a monthly rule produces.
+ *
+ * Two shapes, because those are the two things a person means by "once a
+ * month": a date in the month, such as the fifteenth, or a weekday of it, such
+ * as the second Tuesday. A month that has no such date, which is what the
+ * thirty first of February and the fifth Tuesday of October are, is stepped
+ * over rather than slid into the next month, because rolling it forward would
+ * put the meeting on a day nobody asked for.
+ *
+ * Weeks with no classes are stepped over as well, which is what a weekly rule
+ * does with the same weeks and for the same reason.
+ *
+ * @param {{ startTime: string, endTime: string, intervalMonths?: number,
+ *           monthDay?: number|null, monthWeek?: number|null, weekday?: string|null,
+ *           startsOn: string, endsOn: string,
+ *           skip?: Array<{ start: string, end: string }> }} rule
+ * @returns {Array<{ date: string, start: string, end: string }>}
+ */
+export function expandMonthly(rule) {
+  const {
+    startTime, endTime, intervalMonths = 1,
+    monthDay = null, monthWeek = null, weekday = null,
+    startsOn, endsOn, skip = [],
+  } = rule;
+
+  if (!startsOn || !endsOn || endsOn < startsOn) return [];
+  const time = timeOfDay(startTime);
+  const length = durationMinutes(startTime, endTime);
+  if (time === null || length === null) return [];
+
+  const from = fieldsOf(startsOn);
+  if (from === null) return [];
+  const interval = Math.max(1, intervalMonths);
+
+  const occurrences = [];
+  for (let step = 0; occurrences.length < MAX_OCCURRENCES; step += 1) {
+    const { year, month } = shiftMonth(from.year, from.month, step * interval);
+    // The first month of a rule can begin before its start date, and a rule
+    // whose interval is several months can step a long way past the end, so the
+    // loop is stopped by the first day of the month rather than by the date the
+    // rule produces in it.
+    if (asDate(year, month, 1) > endsOn) break;
+
+    const date = monthDay !== null
+      ? (monthDay <= daysInMonth(year, month) ? asDate(year, month, monthDay) : null)
+      : weekdayOfMonth(year, month, monthWeek, weekday);
+
+    if (date === null || date < startsOn || date > endsOn) continue;
+    if (inAnyRange(date, skip)) continue;
+
+    const start = `${date} ${time}`;
+    occurrences.push({ date, start, end: asWallClock(asUtc(start) + length * MS_PER_MINUTE) });
+  }
+  return occurrences;
+}
+
+/**
+ * The dates and times a hand picked set of dates produces.
+ *
+ * Each date takes the hour and the length the form holds, which is what an
+ * organizer picking dates on a calendar means. Nothing is stepped over: a date
+ * somebody chose is a date they meant, and the weeks with no classes that a
+ * rule steps over are weeks nobody chose, which is a different thing.
+ *
+ * @param {{ startTime: string, endTime: string, dates: string[] }} rule
+ * @returns {Array<{ date: string, start: string, end: string }>}
+ */
+export function expandDates({ startTime, endTime, dates }) {
+  const time = timeOfDay(startTime);
+  const length = durationMinutes(startTime, endTime);
+  if (time === null || length === null) return [];
+
+  const wanted = [...new Set((dates ?? []).map(date => String(date).slice(0, 10)))].sort();
+  return wanted.slice(0, MAX_OCCURRENCES).map(date => {
+    const start = `${date} ${time}`;
+    return { date, start, end: asWallClock(asUtc(start) + length * MS_PER_MINUTE) };
+  });
+}
+
+/** Whether a value reads as a calendar date, which is what a picked date is. */
+export function isCalendarDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())
+    && fieldsOf(value.trim()) !== null;
+}
+
+/**
  * Read an RRULE into the rule expandOccurrences takes.
  *
  * Weekly rules only, which is what an RSO calendar carries. Anything else

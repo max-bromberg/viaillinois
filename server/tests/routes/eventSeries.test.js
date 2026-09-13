@@ -169,6 +169,18 @@ describe('POST /api/v1/events/series', () => {
     expect(event).toMatchObject({ location_id: null, location_text: 'Zoom' });
   });
 
+  it('writes the location note onto every occurrence of a new repeat', async () => {
+    await post({ ...BODY, location_note: 'Use the north entrance.' });
+    const { event } = seriesDb.createSeriesWithOccurrences.mock.calls[0][0];
+    expect(event).toMatchObject({ location_note: 'Use the north entrance.' });
+  });
+
+  it('refuses a note longer than the column holds rather than creating the repeat', async () => {
+    const res = await post({ ...BODY, location_note: 'x'.repeat(501) });
+    expect(res.status).toBe(400);
+    expect(seriesDb.createSeriesWithOccurrences).not.toHaveBeenCalled();
+  });
+
   it('lets a global admin create a series for any RSO', async () => {
     getMembership.mockResolvedValue(null);
     const adminCookie = `via_token=${signToken({ net_id: 'boss', is_global_admin: 1 })}`;

@@ -4,7 +4,7 @@ import { rateLimit } from '../middleware/rateLimit.js';
 import { importMidterms } from '../controllers/calendarImport.js';
 import {
   listMidterms, createMidterm, deleteMidterm,
-  getConfirmedMidtermsHandler, getAdminMidterms, updateMidtermStatus,
+  getConfirmedMidtermsHandler, getAdminMidterms, updateMidtermStatus, deleteMidterms,
   getCourses,
 } from '../controllers/midterms.js';
 
@@ -19,5 +19,9 @@ router.get('/',             listMidterms);
 router.post('/',            requireAuth, createMidterm);
 router.post('/import',      importLimiter, requireAuth, importMidterms);
 router.patch('/:id/status', requireAuth, updateMidtermStatus);
+// Ahead of the one that reads an identifier out of the path, which would
+// otherwise never be reached with an empty path segment anyway, and stated in
+// this order so that reading the table says which is which.
+router.delete('/',          requireAuth, deleteMidterms);
 router.delete('/:id',       requireAuth, deleteMidterm);
 export default router;

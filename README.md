@@ -59,7 +59,8 @@ users, and it is maintained to production standards.
 | Backend | Node.js (ESM), Express 5 |
 | Database | MySQL 8.0, accessed through `mysql2` and Drizzle over one pool |
 | Auth | passport-azure-ad (UIUC NetID / Azure AD OIDC), passport-local fallback |
-| Production | A single VPS running MySQL 8.0 and the application as sibling containers |
+| Discord | The companion bot in [viaillinois-bot](https://github.com/max-bromberg/viaillinois-bot), deployed as a third container in this stack |
+| Production | A single VPS running MySQL 8.0, the application and the Discord bot as sibling containers |
 
 ## Getting Started
 
@@ -154,7 +155,11 @@ cd client && npm test
 
 ## Deployment
 
-The stack is fully self-contained via Docker Compose. MySQL and the Node/Svelte server run as sibling services, with no external database required.
+The stack is fully self-contained via Docker Compose. MySQL, the Node/Svelte server and the
+Discord bot run as sibling services, with no external database required. The bot's image is
+built from a checkout of
+[viaillinois-bot](https://github.com/max-bromberg/viaillinois-bot) beside this one, at the
+tag pinned in `deploy/bot-release`, and one cutover deploys both services.
 
 ```bash
 cp .env.example .env   # fill in DB_USER, DB_PASSWORD, secrets, URLs

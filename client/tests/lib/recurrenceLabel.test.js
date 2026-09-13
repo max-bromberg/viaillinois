@@ -65,3 +65,76 @@ describe('repeatSummary', () => {
     expect(repeatSummary({ interval_weeks: 1, days_of_week: [], ends_on: '2026-12-08' })).toBe('');
   });
 });
+
+/**
+ * The two shapes that are not weekly.
+ *
+ * A repeat used to be every week or every other week, so the sentence only had
+ * to describe one shape. It now has to say what a monthly rule means, in both
+ * of the forms a monthly rule can take, and what a set of picked dates is.
+ */
+describe('recurrenceLabel for a monthly repeat', () => {
+  const monthly = {
+    series_id: 4,
+    series_frequency: 'monthly',
+    series_interval_months: 1,
+    series_ends_on: '2026-12-15',
+  };
+
+  it('says which date of the month it falls on', () => {
+    expect(recurrenceLabel({ ...monthly, series_month_day: 15 }))
+      .toBe('Repeats on the 15th of each month until December 15');
+  });
+
+  it('reads the ordinal of a date that is not a plain number', () => {
+    expect(recurrenceLabel({ ...monthly, series_month_day: 1 })).toMatch(/the 1st of each month/);
+    expect(recurrenceLabel({ ...monthly, series_month_day: 2 })).toMatch(/the 2nd of each month/);
+    expect(recurrenceLabel({ ...monthly, series_month_day: 3 })).toMatch(/the 3rd of each month/);
+    expect(recurrenceLabel({ ...monthly, series_month_day: 22 })).toMatch(/the 22nd of each month/);
+  });
+
+  it('says which weekday of the month it falls on', () => {
+    expect(recurrenceLabel({ ...monthly, series_month_week: 2, series_days_of_week: 'Tue' }))
+      .toBe('Repeats on the second Tuesday of each month until December 15');
+  });
+
+  it('says the last one when that is the position', () => {
+    expect(recurrenceLabel({ ...monthly, series_month_week: -1, series_days_of_week: 'Fri' }))
+      .toBe('Repeats on the last Friday of each month until December 15');
+  });
+
+  it('says how many months apart when it is more than one', () => {
+    expect(recurrenceLabel({ ...monthly, series_month_day: 15, series_interval_months: 3 }))
+      .toBe('Repeats on the 15th of every 3 months until December 15');
+  });
+});
+
+describe('recurrenceLabel for a set of picked dates', () => {
+  it('says it runs on the dates the organizer chose', () => {
+    expect(recurrenceLabel({
+      series_id: 5, series_frequency: 'dates',
+      series_days_of_week: 'Thu,Sat', series_ends_on: '2026-10-08',
+    })).toBe('Repeats on dates chosen one by one, the last on October 8');
+  });
+});
+
+describe('repeatSummary, for a form that has no series yet', () => {
+  it('describes a monthly repeat on a date', () => {
+    expect(repeatSummary({ frequency: 'monthly', interval_months: 1, month_day: 15, ends_on: '2026-12-15' }))
+      .toBe('Repeats on the 15th of each month until December 15');
+  });
+
+  it('describes a monthly repeat on a weekday of the month', () => {
+    expect(repeatSummary({ frequency: 'monthly', interval_months: 1, month_week: 2, days_of_week: ['Tue'] }))
+      .toBe('Repeats on the second Tuesday of each month');
+  });
+
+  it('counts the dates a repeat holds when they were picked one by one', () => {
+    expect(repeatSummary({ frequency: 'dates', dates: ['2026-09-03', '2026-10-08'] }))
+      .toBe('Repeats on 2 dates chosen one by one, the last on October 8');
+  });
+
+  it('says nothing about a set of dates that is still empty', () => {
+    expect(repeatSummary({ frequency: 'dates', dates: [] })).toBe('');
+  });
+});

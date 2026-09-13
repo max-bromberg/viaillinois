@@ -7,3 +7,10 @@ export const getConfirmedMidterms   = ()            => apiFetch('/api/v1/midterm
 export const getAdminMidterms       = ()            => apiFetch('/api/v1/midterms/admin');
 export const updateMidtermStatus    = (id, status)  => apiFetch(`/api/v1/midterms/${id}/status`, { method: 'PATCH', body: { status } });
 export const deleteMidterm          = (id)          => apiFetch(`/api/v1/midterms/${id}`, { method: 'DELETE' });
+
+/**
+ * Remove several entries at once.
+ *
+ * @param {number[]} ids the entries chosen on the schedule
+ */
+export const deleteMidterms         = (ids)         => apiFetch(`/api/v1/midterms?ids=${ids.join(',')}`, { method: 'DELETE' });

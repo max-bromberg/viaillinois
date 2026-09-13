@@ -44,3 +44,28 @@ export const BUILDING_CODES = {
    'CAB':    'Central Administrative Building',  // Written the way people type it rather than as an official abbreviation.
   'SIEBEL': 'Siebel Center for Comp Sci',
 };
+
+/**
+ * Where those buildings are.
+ *
+ * The Discord bot answers "where is ECEB" without anybody leaving the chat, so
+ * a code should resolve to something a person can put into a map. No address
+ * is recorded yet: each one has to come from the university's own building
+ * listing, because a street number remembered wrongly sends a student to the
+ * wrong door, and a code with no recorded address answers with its name and
+ * nothing else, which is honest rather than a guess.
+ */
+export const BUILDING_ADDRESSES = {};
+
+/**
+ * What a building code stands for, or null when VIA does not know the code.
+ *
+ * @param {string} code as somebody typed it
+ * @returns {{ code: string, name: string, address: string|null }|null}
+ */
+export function lookupBuilding(code) {
+  const upper = String(code ?? '').trim().toUpperCase();
+  const name = BUILDING_CODES[upper];
+  if (!name) return null;
+  return { code: upper, name, address: BUILDING_ADDRESSES[upper] ?? null };
+}

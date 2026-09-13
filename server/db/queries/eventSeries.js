@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, gte, isNull, lt, ne, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../client.ts';
 import { eventSeries, events, eventTags, tags, facilityReservations } from '../schema/schema.ts';
+import { recordSeriesCreated } from './outbox.ts';
 
 /**
  * The data layer for repeating events.
@@ -31,7 +32,7 @@ export async function busyInRoom(locationId, from, to, { excludeSeriesId = null 
   const [bookedEvents, bookedRooms] = await Promise.all([
     db.select({ start_time: events.startTime, end_time: events.endTime })
       .from(events)
-      .where(and(eq(events.locationId, locationId), lt(events.startTime, to), gt(events.endTime, from), ownRows)),
+      .where(and(eq(events.locationId, locationId), lt(events.startTime, to), gt(events.endTime, from), isNull(events.cancelledAt), ownRows)),
     db.select({ start_time: facilityReservations.startTime, end_time: facilityReservations.endTime })
       .from(facilityReservations)
       .where(and(
@@ -60,8 +61,11 @@ export async function createSeriesWithOccurrences({ series, occurrences, event, 
       rsoId: series.rso_id,
       createdBy: series.created_by,
       frequency: series.frequency,
-      intervalWeeks: series.interval_weeks,
-      daysOfWeek: series.days_of_week,
+      intervalWeeks: series.interval_weeks ?? null,
+      intervalMonths: series.interval_months ?? null,
+      monthDay: series.month_day ?? null,
+      monthWeek: series.month_week ?? null,
+      daysOfWeek: series.days_of_week ?? null,
       startsOn: series.starts_on,
       endsOn: series.ends_on,
       startOfDay: series.start_of_day,
@@ -77,6 +81,7 @@ export async function createSeriesWithOccurrences({ series, occurrences, event, 
         createdBy: event.created_by,
         locationId: event.location_id ?? null,
         locationText: event.location_text ?? null,
+        locationNote: event.location_note ?? null,
         title: event.title,
         description: event.description ?? null,
         startTime: occurrence.start,
@@ -96,6 +101,11 @@ export async function createSeriesWithOccurrences({ series, occurrences, event, 
         eventIds.flatMap(eventId => unique.map(tagName => ({ eventId, tagName })))
       );
     }
+
+    // The Discord bot hears about the repeat from the outbox, and the entry is
+    // written inside this transaction, so it exists exactly when the series and
+    // its occurrences do.
+    await recordSeriesCreated(seriesId, tx);
 
     return { seriesId, eventIds };
   }, { isolationLevel: 'serializable' });
@@ -166,6 +176,10 @@ export async function applyToSeries(seriesId, { from = null, fields = {}, startO
   if (fields.description !== undefined)   updates.description = fields.description;
   if (fields.location_id !== undefined)   updates.locationId = fields.location_id;
   if (fields.location_text !== undefined) updates.locationText = fields.location_text;
+  // The note at the door belongs to the repeat as much as the room does. A
+  // request that does not mention it leaves it alone, which is why this reads
+  // the key rather than the value.
+  if (fields.location_note !== undefined) updates.locationNote = fields.location_note;
   if (fields.is_private !== undefined)    updates.isPrivate = fields.is_private ? 1 : 0;
 
   if (startOfDay && durationMinutes != null) {
@@ -225,18 +239,26 @@ export async function deleteOccurrencesFrom(seriesId, from) {
  * Deleting one week of a series can leave the stored end date naming a week
  * that no longer exists, and a series with nothing left is a rule for nothing.
  *
+ * A series with nothing left is taken away here rather than by the caller, so
+ * the answer says whether that happened. The caller has an entry to write for
+ * the Discord bot when it did, and the rule cannot be read once it is gone.
+ *
  * @param {number} seriesId
+ * @returns {Promise<{ affectedRows: number, removed: boolean }>}
  */
 export async function syncSeriesEnd(seriesId) {
   const remaining = await occurrencesOfSeries(seriesId);
-  if (remaining.length === 0) return deleteSeries(seriesId);
+  if (remaining.length === 0) {
+    const { affectedRows } = await deleteSeries(seriesId);
+    return { affectedRows, removed: true };
+  }
   const [result] = await db.update(eventSeries)
     .set({
       startsOn: String(remaining[0].start_time).slice(0, 10),
       endsOn: String(remaining.at(-1).start_time).slice(0, 10),
     })
     .where(eq(eventSeries.seriesId, seriesId));
-  return { affectedRows: result.affectedRows };
+  return { affectedRows: result.affectedRows, removed: false };
 }
 
 /**
@@ -256,7 +278,11 @@ export async function deleteSeries(seriesId) {
  */
 export async function updateSeriesRule(seriesId, updates) {
   const row = {};
+  if (updates.frequency !== undefined)        row.frequency = updates.frequency;
   if (updates.interval_weeks !== undefined)   row.intervalWeeks = updates.interval_weeks;
+  if (updates.interval_months !== undefined)  row.intervalMonths = updates.interval_months;
+  if (updates.month_day !== undefined)        row.monthDay = updates.month_day;
+  if (updates.month_week !== undefined)       row.monthWeek = updates.month_week;
   if (updates.days_of_week !== undefined)     row.daysOfWeek = updates.days_of_week;
   if (updates.starts_on !== undefined)        row.startsOn = updates.starts_on;
   if (updates.ends_on !== undefined)          row.endsOn = updates.ends_on;

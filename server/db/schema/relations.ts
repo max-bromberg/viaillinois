@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { courses, courseSections, locations, events, eventSeries, eventTags, tags, rsOs, users, facilityReservations, localAccounts, midterms, rsoMemberships, rsvPs, pollLog, unknownBuildingCodes } from "./schema.ts";
+import { courses, courseSections, locations, events, eventSeries, eventTags, tags, rsOs, users, facilityReservations, localAccounts, midterms, rsoMemberships, rsvPs, pollLog, unknownBuildingCodes, discordLinks, eventInterest, eventFeedback, personalCalendars } from "./schema.ts";
 
 export const courseSectionsRelations = relations(courseSections, ({one}) => ({
 	course: one(courses, {
@@ -49,6 +49,8 @@ export const eventSeriesRelations = relations(eventSeries, ({one, many}) => ({
 
 export const eventsRelations = relations(events, ({one, many}) => ({
 	eventTags: many(eventTags),
+	eventInterest: many(eventInterest),
+	eventFeedback: many(eventFeedback),
 	series: one(eventSeries, {
 		fields: [events.seriesId],
 		references: [eventSeries.seriesId]
@@ -79,6 +81,9 @@ export const rsOsRelations = relations(rsOs, ({many}) => ({
 
 export const usersRelations = relations(users, ({many}) => ({
 	events: many(events),
+	discordLinks: many(discordLinks),
+	eventFeedback: many(eventFeedback),
+	personalCalendars: many(personalCalendars),
 	localAccounts: many(localAccounts),
 	midterms: many(midterms),
 	rsoMemberships: many(rsoMemberships),
@@ -145,4 +150,35 @@ export const unknownBuildingCodesRelations = relations(unknownBuildingCodes, ({o
 
 export const pollLogRelations = relations(pollLog, ({many}) => ({
 	unknownBuildingCodes: many(unknownBuildingCodes),
+}));
+export const discordLinksRelations = relations(discordLinks, ({one}) => ({
+	user: one(users, {
+		fields: [discordLinks.netId],
+		references: [users.netId]
+	}),
+}));
+
+export const eventInterestRelations = relations(eventInterest, ({one}) => ({
+	event: one(events, {
+		fields: [eventInterest.eventId],
+		references: [events.eventId]
+	}),
+}));
+
+export const eventFeedbackRelations = relations(eventFeedback, ({one}) => ({
+	event: one(events, {
+		fields: [eventFeedback.eventId],
+		references: [events.eventId]
+	}),
+	user: one(users, {
+		fields: [eventFeedback.netId],
+		references: [users.netId]
+	}),
+}));
+
+export const personalCalendarsRelations = relations(personalCalendars, ({one}) => ({
+	user: one(users, {
+		fields: [personalCalendars.netId],
+		references: [users.netId]
+	}),
 }));

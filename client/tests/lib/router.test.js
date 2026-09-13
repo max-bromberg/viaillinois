@@ -45,6 +45,29 @@ describe('matchRoute()', () => {
   it('does not match non-numeric event ids', () => {
     expect(matchRoute('/events/abc')).toBeNull();
   });
+
+  it('matches the Discord link page and carries the session', () => {
+    expect(matchRoute('/link/discord/hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT')).toEqual({
+      name: 'link-discord',
+      params: { session: 'hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT' },
+    });
+  });
+
+  /**
+   * The page shown once the link is made says the same thing to everybody and
+   * asks the server nothing, so it is handed no session. Capturing one anyway
+   * put a credential from the address into a store for no reason.
+   */
+  it('matches the page shown once the link is made, and captures nothing from it', () => {
+    expect(matchRoute('/link/discord/hLbQ2mXk9wR4tYu7iOp1aSdFgHjKlZxCvBnM3qWe5rT/done')).toEqual({
+      name: 'link-discord-done',
+      params: {},
+    });
+  });
+
+  it('does not match a session identifier of the wrong shape', () => {
+    expect(matchRoute('/link/discord/not-a-session')).toBeNull();
+  });
 });
 
 describe('navigate() routeParams updates', () => {

@@ -74,6 +74,13 @@ describe('the served HTML', () => {
     expect(res.text).toContain('Electrical &amp; Computer Eng Bldg 1002');
   });
 
+  it('says in the served document that a cancelled event was called off', async () => {
+    getEventById.mockResolvedValue({ ...EVENT, cancelled_at: '2026-09-20 09:00:00' });
+    const res = await request(app).get('/events/12');
+    expect(res.text).toContain('https://schema.org/EventCancelled');
+    expect(res.text).not.toContain('https://schema.org/EventScheduled');
+  });
+
   it('publishes the event as structured data', async () => {
     const res = await request(app).get('/events/12');
     expect(res.text).toContain('application/ld+json');

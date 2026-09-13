@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VIA Design Foundation</title>
+<link rel="stylesheet" href="reference/fonts.css">
+<link rel="stylesheet" href="reference/foundation.css">
+</head>
+<body>
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-6-5.4-6-10a6 6 0 0 1 12 0c0 4.6-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></symbol>
+  <symbol id="bolt" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/></symbol>
+  <symbol id="share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.3"/><circle cx="18" cy="6" r="2.3"/><circle cx="18" cy="18" r="2.3"/><path d="M8 11l8-4M8 13l8 4"/></symbol>
+  <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M3 12h2M19 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></symbol>
+  <symbol id="moon" viewBox="0 0 24 24"><path d="M20 13.5A8 8 0 0 1 10.5 4a8 8 0 1 0 9.5 9.5z"/></symbol>
+</svg>
+
+<header class="mast cutbl">
+  <svg class="bg" viewBox="0 0 640 220" fill="none" stroke="var(--primary)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 80h140l60 60h160l40 40h240"/><path d="M60 160h110l50-50h90"/><path d="M260 30h120l60 60h200"/><circle cx="140" cy="80" r="4" fill="var(--primary)"/><circle cx="360" cy="140" r="4" fill="var(--primary)"/><circle cx="170" cy="160" r="4" fill="var(--primary)"/><circle cx="440" cy="90" r="4" fill="var(--signal)" stroke="var(--signal)"/></svg>
+  <div class="wrap">
+    <div class="top"><div style="width:64px"><svg class="logo" viewBox="0 0 1060 476" xmlns="http://www.w3.org/2000/svg" aria-label="VIA" style="fill:#00aaaf;display:block"><path d="M0.012,413.969l-0.012,0l0,-413.969l61.438,0c34.367,0 62.227,27.86 62.227,62.227l-0,202.465c0,0 187.198,-187.198 246.738,-246.738c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447c-24.131,24.131 -63.314,24.131 -87.444,0c-12.065,-12.065 -18.098,-27.894 -18.098,-43.722Z"/><path d="M1059.922,61.82l0.012,0l0,413.969l-61.438,0c-34.367,-0 -62.227,-27.86 -62.227,-62.227c0,-78.245 0,-202.465 0,-202.465c-0,-0 -187.198,187.198 -246.738,246.738c-11.496,11.496 -27.087,17.954 -43.344,17.954c-0,-0 -61.833,0 -61.833,0l-0,-56.153c-1.563,-17.1 3.963,-34.728 16.579,-48.092l353.447,-353.447c24.131,-24.131 63.314,-24.131 87.444,0c12.065,12.065 18.098,27.894 18.098,43.722Z"/><path d="M402.571,457.691c-24.131,24.131 -63.314,24.131 -87.444,0c-24.131,-24.131 -24.131,-63.314 0,-87.444c0,0 278.19,-278.19 352.293,-352.293c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447Z"/></svg></div><span class="w">Design foundation, revision 4</span></div>
+    <div class="clock"><div class="t">6:41<small>PM</small></div><div class="d">Thursday, September 10 &middot; dusk over ECEB</div></div>
+    <h1>Good evening, <b>Illinois.</b></h1>
+    <p class="lede">Revision 3 leaves the template behind. The page takes its color from the sky over campus at this hour, its voice from one typeface pushed to its condensed and wide extremes, and its shapes from the 45 degree cut in the mark. Nothing on it is a card with a stripe.</p>
+  </div>
+</header>
+
+<section class="sec" id="revision">
+  <div class="wrap">
+    <div class="sh"><h2>What changed <em>since revision 3</em></h2><p>A refinement pass. One of the fixes is larger than it sounds: the typefaces on the previous revisions were never actually loading.</p></div>
+    <div class="changes">
+      <div><span class="pad"></span><div><b>The real typefaces, for the first time</b><span>The font files inlined in revisions 1 to 3 were the wrong subsets and held almost none of the alphabet, so the page fell back to a system font for every letter except the a. That is what the odd a was. This revision carries the correct files. Everything you see is Bricolage Grotesque and IBM Plex for the first time.</span></div></div>
+      <div><span class="pad"></span><div><b>The cut has a true border</b><span>An outlined button is now two chamfered layers, a border layer and a fill layer inset by the border width along every edge including the diagonal. The cut reads as a corner, never as a gap.</span></div></div>
+      <div><span class="pad"></span><div><b>Focus follows the cut</b><span>Keyboard focus on a cut button thickens the border layer to three pixels in teal, so the ring has the same shape as the button. Every other control gets a two pixel teal ring set four pixels out.</span></div></div>
+      <div><span class="pad"></span><div><b>Contrast, checked and adjusted</b><span>Highlighter text now mixes 62 percent hue with ink and clears 4.8 to 1 on its own stroke in both themes. Organization names mix 50 percent with ink. Nothing on the page is set smaller than 12 pixels, and the faint gray is gone from running text.</span></div></div>
+      <div><span class="pad"></span><div><b>Targets a hand can hit</b><span>Every pad control sits inside a 32 pixel target, and tags in the rail have the same. The ink of the pad stays 12 pixels.</span></div></div>
+      <div><span class="pad"></span><div><b>Three questions held for you</b><span>Listed under Accessibility below. None of them are made here, because each would change the look.</span></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="sky">
+  <div class="wrap">
+    <div class="sh"><h2>The sky <em>over ECEB</em></h2><p>The site knows the campus hour already; it uses it to decide which events are upcoming. Now it also uses it to paint the top of the page. Four skies, blended between at the edges of each, drifting a few pixels a minute. Signed in at midnight the page is dark whether or not you chose the dark theme, because that is what the window looks like.</p></div>
+    <div class="skies">
+      <div class="sky cut" style="background:var(--sky-morning)"><svg viewBox="0 0 640 220" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 80h140l60 60h160l40 40h240"/><path d="M60 160h110l50-50h90"/><path d="M260 30h120l60 60h200"/><path d="M0 200h80l40-40h60"/><circle cx="140" cy="80" r="4" fill="currentColor"/><circle cx="360" cy="140" r="4" fill="currentColor"/><circle cx="170" cy="160" r="4" fill="currentColor"/><circle cx="440" cy="90" r="4" fill="currentColor"/><circle cx="180" cy="160" r="0"/><circle cx="80" cy="200" r="4" fill="currentColor"/></svg><div class="lab"><b>Morning</b><span>6:00 to 11:00</span></div></div>
+      <div class="sky cut" style="background:var(--sky-afternoon)"><svg viewBox="0 0 640 220" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 80h140l60 60h160l40 40h240"/><path d="M60 160h110l50-50h90"/><path d="M260 30h120l60 60h200"/><path d="M0 200h80l40-40h60"/><circle cx="140" cy="80" r="4" fill="currentColor"/><circle cx="360" cy="140" r="4" fill="currentColor"/><circle cx="170" cy="160" r="4" fill="currentColor"/><circle cx="440" cy="90" r="4" fill="currentColor"/><circle cx="180" cy="160" r="0"/><circle cx="80" cy="200" r="4" fill="currentColor"/></svg><div class="lab"><b>Afternoon</b><span>11:00 to 17:00</span></div></div>
+      <div class="sky cut" style="background:var(--sky-evening)"><svg viewBox="0 0 640 220" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 80h140l60 60h160l40 40h240"/><path d="M60 160h110l50-50h90"/><path d="M260 30h120l60 60h200"/><path d="M0 200h80l40-40h60"/><circle cx="140" cy="80" r="4" fill="currentColor"/><circle cx="360" cy="140" r="4" fill="currentColor"/><circle cx="170" cy="160" r="4" fill="currentColor"/><circle cx="440" cy="90" r="4" fill="currentColor"/><circle cx="180" cy="160" r="0"/><circle cx="80" cy="200" r="4" fill="currentColor"/></svg><div class="lab"><b>Dusk</b><span>17:00 to 21:00</span></div></div>
+      <div class="sky cut n" style="background:var(--sky-night)"><svg viewBox="0 0 640 220" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 80h140l60 60h160l40 40h240"/><path d="M60 160h110l50-50h90"/><path d="M260 30h120l60 60h200"/><path d="M0 200h80l40-40h60"/><circle cx="140" cy="80" r="4" fill="currentColor"/><circle cx="360" cy="140" r="4" fill="currentColor"/><circle cx="170" cy="160" r="4" fill="currentColor"/><circle cx="440" cy="90" r="4" fill="currentColor"/><circle cx="180" cy="160" r="0"/><circle cx="80" cy="200" r="4" fill="currentColor"/></svg><div class="lab"><b>Night</b><span>21:00 to 6:00</span></div></div>
+    </div>
+    <div class="skynote">
+      <p><b>Why this is not decoration.</b> The feed's first question is always the same one: what is on right now. Painting the hour onto the page answers it before a single event is read, and it makes a page you open at 8 in the morning feel different from the one you open after lab at 9 at night.</p>
+      <p><b>How it stays usable.</b> The sky lives only in the top band. Everything below it is paper. Text on the sky uses the same ink as the page, and the night sky switches to light ink. Every sky is checked for contrast against both inks.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="type">
+  <div class="wrap">
+    <div class="sh"><h2>One typeface, <em>three voices</em></h2><p>Bricolage Grotesque has a width axis from 75 to 100 percent and a weight axis from 200 to 800. Used at its extremes it stops looking like a font choice and starts looking like a poster somebody pinned up in the ECEB atrium. Plex Sans still carries paragraphs and Plex Mono still carries rooms and course codes.</p></div>
+    <div class="tspec">
+      <div>
+        <div class="big row1">TONIGHT</div>
+        <div class="big row2">in the atrium</div>
+        <div class="big row3">6:00 PM</div>
+      </div>
+      <div>
+        <dl>
+          <dt>Condensed 800</dt><dd>Headlines, day names, times, course codes, counts. Anything meant to be read from across a room.</dd>
+          <dt>Wide 300</dt><dd>The sentence that sits next to a headline. Greetings, ledes, the line under a title.</dd>
+          <dt>Condensed 200</dt><dd>Clocks. The thinnest cut, at the largest size, for the time on the sky band and the kiosk.</dd>
+          <dt>Width 85 to 90, 700</dt><dd>Buttons, navigation, event titles in the feed, section labels in the filter rail.</dd>
+          <dt>Plex Sans 400</dt><dd>Descriptions, help text, anything longer than a line.</dd>
+          <dt>Plex Mono 400</dt><dd>Rooms, course codes, dates in the small, and every string a person copies.</dd>
+        </dl>
+        <div class="num" style="margin-top:26px">12<small>this week</small> &nbsp; 9<small>days to ECE 210</small></div>
+        <p class="why">Counts are set as words with a large numeral, never as a tile with a number in it. The number and its meaning stay one phrase.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="light">
+  <div class="wrap">
+    <div class="sh"><h2>Color is light, <em>not paint</em></h2><p>Revision 2 still put color on things: a bar along the top of a principle, a fill behind a status. Now color comes from somewhere. It falls across a surface from a corner, it sits under a word like a highlighter, it glows around a pad. The palette is unchanged; how it lands is not.</p></div>
+    <div class="light">
+      <div class="lbox lamp cut" style="--h:#7C3AED;--cut:18px"><h3>The lamp</h3><p>An organization's color lights the top left corner of its row and fades out by a third of the way across. On hover it brightens. On the event page it lights the whole top of the poster.</p></div>
+      <div class="lbox cut" style="--cut:18px"><div class="hlrow" style="margin-bottom:auto;padding-top:6px"><span class="hl" style="--h:var(--cat-2)">Free Food</span><span class="hl" style="--h:var(--cat-1)">Workshop</span><span class="hl off" style="--h:var(--cat-7)">Social</span><span class="hl" style="--h:var(--cat-6)">Corporate</span><span class="hl off" style="--h:var(--cat-4)">Competition</span><span class="hl" style="--h:var(--cat-5)">Confirmed</span><span class="hl" style="--h:var(--cat-4)">Pending</span><span class="hl" style="--h:var(--danger)">Cancelled</span></div><h3>The highlighter</h3><p>Tags and statuses are words with a stroke of color under them, slightly off square, the way a marker lands. An unselected tag is dotted. No pills anywhere on the site.</p></div>
+      <div class="lbox dusk cut" style="--cut:18px"><h3>The glow</h3><p>What is happening now gets a pulse around its pad and a warm lamp on its row. Today's name in the agenda is orange. That is the entire budget for orange on a page, spent where it counts.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="components">
+  <div class="wrap">
+    <div class="sh"><h2>Parts <em>nobody else has</em></h2><p>Every control below is ours. The shapes come from the mark, the type from the voice above, and the color from the lamp and the highlighter. None of them is a rounded rectangle with a border.</p></div>
+    <div class="comps">
+      <div class="cb"><h3>Buttons</h3>
+        <div class="row"><button class="btn primary cut"><svg class="i"><use href="#bolt"/></svg>Schedule an event</button><button class="btn secondary cut">Sign in</button><button class="btn secondary cut focus">Sign in</button></div>
+        <div class="row" style="margin-top:12px"><button class="btn quiet"><span class="pad"></span>Copy link</button><button class="btn danger sm cut">Cancel event</button><button class="btn secondary sm cut">Download .ics</button></div>
+        <p>The primary is cut at the top right corner and filled with the Current gradient. An outlined button is a border layer and a fill layer, both cut, so the border holds its width around the corner. The third button shows keyboard focus: the border layer thickens to three pixels of teal. Danger stays outlined until confirmed.</p>
+      </div>
+      <div class="cb"><h3>Pads, switches, dial</h3>
+        <div class="row" style="gap:22px"><span class="check"><span class="pad" style="--h:var(--primary)"></span>Internal events</span><span class="check"><span class="pad hollow" style="--h:var(--faint)"></span>Midterms</span></div>
+        <div class="row" style="gap:22px;margin-top:16px"><span class="tswitch on"><span class="pad"></span></span><span class="tswitch"><span class="pad"></span></span><span class="dial"><svg class="i"><use href="#sun"/></svg><span class="pad"></span><b>Auto</b><svg class="i"><use href="#moon"/></svg></span></div>
+        <div class="row" style="gap:18px;margin-top:16px;font-size:14px"><span class="check"><span class="pad" style="--h:#00629B"></span>IEEE</span><span class="check"><span class="pad hollow" style="--h:#8B1E3F"></span>HKN</span><span class="check"><span class="pad" style="--h:#7C3AED"></span>WECE</span></div>
+        <p>The pad is the one primitive: a checkbox, an organization mark, the thumb of a switch that rides along a trace, the needle of the theme dial. Filled means on, hollow means off, a glow means live.</p>
+      </div>
+      <div class="cb"><h3>Fields</h3>
+        <div class="fld focus"><label>Course code</label><div class="in"><span class="pad"></span><input class="mono" value="ECE 391"></div><span class="help">The department and number, with a space.</span></div>
+        <div class="fld err" style="margin-top:16px"><label>Location</label><div class="in"><span class="pad"></span><input value="ECEB"></div><span class="help">Choose a room from the list so the event can be placed on the map.</span></div>
+        <p>A field is a line with a pad at its start. The pad lights when the field has focus and turns red when it needs attention. There is no box.</p>
+      </div>
+      <div class="cb" style="grid-column:span 3"><h3>Toast and empty state</h3>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:start">
+          <div class="row" style="flex-direction:column;align-items:flex-start"><div class="toast cut"><span class="pad"></span><span><b>On the feed.</b> Your event is live.</span></div><div class="toast cut"><span class="pad" style="--h:var(--primary)"></span><span><b>Linked.</b> Discord will hear from us now.</span></div></div>
+          <div class="empty cut"><b>Nothing on tonight.</b><p>Thursday has two events and Friday has the Texas Instruments session. If you expected more here, clear a tag or two.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="feed">
+  <div class="wrap">
+    <div class="sh"><h2>The feed <em>at 6:41 on a Thursday</em></h2><p>The sky band holds the navigation, the greeting, the clock and tonight's numbers. The agenda runs below it on paper: day names set large, times set larger, each row lit from its corner by its organization. The filter rail is words, not a panel.</p></div>
+    <div class="mock">
+      <div class="skyband cutbl">
+        <div class="nav"><div style="width:58px"><svg class="logo" viewBox="0 0 1060 476" xmlns="http://www.w3.org/2000/svg" aria-label="VIA" style="fill:#00aaaf;display:block"><path d="M0.012,413.969l-0.012,0l0,-413.969l61.438,0c34.367,0 62.227,27.86 62.227,62.227l-0,202.465c0,0 187.198,-187.198 246.738,-246.738c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447c-24.131,24.131 -63.314,24.131 -87.444,0c-12.065,-12.065 -18.098,-27.894 -18.098,-43.722Z"/><path d="M1059.922,61.82l0.012,0l0,413.969l-61.438,0c-34.367,-0 -62.227,-27.86 -62.227,-62.227c0,-78.245 0,-202.465 0,-202.465c-0,-0 -187.198,187.198 -246.738,246.738c-11.496,11.496 -27.087,17.954 -43.344,17.954c-0,-0 -61.833,0 -61.833,0l-0,-56.153c-1.563,-17.1 3.963,-34.728 16.579,-48.092l353.447,-353.447c24.131,-24.131 63.314,-24.131 87.444,0c12.065,12.065 18.098,27.894 18.098,43.722Z"/><path d="M402.571,457.691c-24.131,24.131 -63.314,24.131 -87.444,0c-24.131,-24.131 -24.131,-63.314 0,-87.444c0,0 278.19,-278.19 352.293,-352.293c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447Z"/></svg></div><span class="w">Virtually Integrated Agenda</span><div class="links"><b>Events</b><span>Calendar</span><span>Midterms</span><span>About</span></div><div class="right"><span class="dial"><svg class="i"><use href="#sun"/></svg><span class="pad"></span><b>Auto</b><svg class="i"><use href="#moon"/></svg></span><button class="btn primary sm cut">Sign in</button></div></div>
+        <svg class="deco" viewBox="0 0 640 220" fill="none" stroke="var(--primary)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 80h140l60 60h160l40 40h240"/><path d="M60 160h110l50-50h90"/><path d="M260 30h120l60 60h200"/><circle cx="140" cy="80" r="4" fill="var(--primary)"/><circle cx="360" cy="140" r="4" fill="var(--primary)"/><circle cx="170" cy="160" r="4" fill="var(--primary)"/><circle cx="440" cy="90" r="4" fill="var(--signal)" stroke="var(--signal)"/></svg>
+        <div class="greet">
+          <div><h2>Good evening, <b>Illinois.</b></h2><div class="line"><span><b class="hot">2</b>tonight in ECEB</span><span><b>12</b>this week</span><span><b>9</b>days to the ECE 210 midterm</span></div></div>
+          <div class="clock"><div class="t">6:41<small>PM</small></div><div class="d">Thu Sep 10 &middot; Urbana</div></div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="rail">
+          <div><h4>When</h4><div class="when"><b>Upcoming</b><span>Past</span></div></div>
+          <div><h4>Search</h4><div class="fld"><div class="in"><span class="pad"></span><input placeholder="Keyword"></div></div></div>
+          <div><h4>Tags</h4><div class="hlrow" style="font-size:14px"><span class="hl off" style="--h:var(--cat-2)">Free Food</span><span class="hl" style="--h:var(--cat-1)">Workshop</span><span class="hl off" style="--h:var(--cat-7)">Social</span><span class="hl off" style="--h:var(--cat-6)">Corporate</span><span class="hl off" style="--h:var(--cat-4)">Competition</span><span class="hl off" style="--h:var(--cat-3)">Speaker</span><span class="hl off" style="--h:var(--cat-5)">Networking</span></div></div>
+          <div><h4>Organizations</h4><div class="orgs"><span><span class="pad" style="--h:#00629B"></span>IEEE</span><span><span class="pad" style="--h:#8B1E3F"></span>HKN</span><span><span class="pad" style="--h:#7C3AED"></span>WECE</span><span><span class="pad hollow" style="--h:#F59E0B"></span>Illini Solar Car</span><span><span class="pad" style="--h:#059669"></span>ECE Ambassadors</span></div></div>
+          <div><h4>Show</h4><span class="check"><span class="pad" style="--h:var(--primary)"></span>Internal events</span></div>
+        </div>
+        <div>
+          <div class="feedhead"><h3>Upcoming</h3><span>12 events &middot; Fall 2026</span></div>
+          <div class="day today"><div class="dh"><b>Today</b><span>Thu Sep 10</span><span class="pad"></span></div><div>
+            <div class="ev now cut" style="--org:#00629B"><div class="t">6:00<small>PM</small><em>to 8:00 PM</em></div><div class="b"><div class="title">Intro to PCB Design Workshop</div><div class="meta"><span class="org" style="--h:#00629B"><span class="pad" style="--h:#00629B"></span>IEEE</span><span class="room"><svg class="i"><use href="#pin"/></svg>ECEB 1002</span></div><div class="desc">Bring a laptop and learn KiCad from scratch. We will take one board from schematic to a fabrication order together.</div><div class="tags"><span class="hl" style="--h:var(--cat-1)">Workshop</span><span class="hl" style="--h:var(--cat-2)">Free Food</span></div></div><div class="s"><span class="nowtag"><span class="pad"></span>Happening now</span></div></div>
+            <div class="ev cut" style="--h:#8B1E3F"><div class="t">7:00<small>PM</small><em>to 8:00 PM</em></div><div class="b"><div class="title">Fall General Meeting</div><div class="meta"><span class="org"><span class="pad"></span>HKN</span><span class="room"><svg class="i"><use href="#pin"/></svg>ECEB 3017</span></div><div class="desc">Meet the board, hear about tutoring, and pick up a shirt.</div><div class="tags"><span class="hl" style="--h:var(--cat-8)">Weekly Meeting</span></div></div><div class="s"></div></div>
+          </div></div>
+          <div class="day"><div class="dh"><b>Tomorrow</b><span>Fri Sep 11</span><span class="pad hollow"></span></div><div>
+            <div class="ev cut" style="--h:#7C3AED"><div class="t">5:30<small>PM</small><em>to 7:00 PM</em></div><div class="b"><div class="title">Texas Instruments Info Session</div><div class="meta"><span class="org"><span class="pad"></span>WECE</span><span class="room"><svg class="i"><use href="#pin"/></svg>ECEB 1013</span></div><div class="desc">Recruiters from TI on internships and new grad roles. Resumes welcome.</div><div class="tags"><span class="hl" style="--h:var(--cat-6)">Corporate</span><span class="hl" style="--h:var(--cat-5)">Networking</span><span class="hl" style="--h:var(--cat-2)">Free Food</span></div></div><div class="s"></div></div>
+            <div class="ev cut" style="--h:#F59E0B"><div class="t">7:00<small>PM</small><em>to 10:00 PM</em></div><div class="b"><div class="title">Battery Pack Build Night</div><div class="meta"><span class="org"><span class="pad"></span>Illini Solar Car</span><span class="room"><svg class="i"><use href="#pin"/></svg>ECEB 2070</span></div><div class="desc">Cell matching and spot welding for the new pack.</div><div class="tags"><span class="hl" style="--h:var(--cat-1)">Workshop</span></div></div><div class="s"><span class="st hl" style="--h:var(--primary)">Internal</span></div></div>
+          </div></div>
+          <div class="day"><div class="dh"><b>Saturday</b><span>Sep 12</span><span class="pad hollow"></span></div><div>
+            <div class="ev cut" style="--h:#00629B"><div class="t">7:00<small>PM</small><em>to 9:00 PM</em></div><div class="b"><div class="title">Board Game Social</div><div class="meta"><span class="org"><span class="pad"></span>IEEE</span><span class="room"><svg class="i"><use href="#pin"/></svg>ECEB 1015</span></div><div class="desc">Catan, Codenames, and whatever you bring.</div><div class="tags"><span class="hl" style="--h:var(--cat-7)">Social</span><span class="hl" style="--h:var(--cat-2)">Free Food</span></div></div><div class="s"></div></div>
+          </div></div>
+          <div class="day"><div class="dh"><b>Thursday</b><span>Sep 17</span><span class="pad hollow"></span></div><div>
+            <div class="ev cancel cut" style="--h:#F59E0B"><div class="t">7:00<small>PM</small><em>to 8:00 PM</em></div><div class="b"><div class="title">Solar Car Track Day Planning</div><div class="meta"><span class="org"><span class="pad hollow"></span>Illini Solar Car</span><span class="room"><svg class="i"><use href="#pin"/></svg>ECEB 2070</span></div></div><div class="s"><span class="st hl" style="--h:var(--danger)">Cancelled</span></div></div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Signed in, the greeting uses the person's first name and the counts are for the organizations they follow. The sky is whatever the campus clock says it is, so a screenshot taken at 8 in the morning would show gold.</p>
+  </div>
+</section>
+
+<section class="sec" id="detail">
+  <div class="wrap">
+    <div class="sh"><h2>An event page <em>is a poster</em></h2><p>The organization's lamp lights the whole top corner. The title is set at poster size. The time is a number you could read from the door. Actions stand in a column on the right without a box around them.</p></div>
+    <div class="mock" style="--h:#7C3AED">
+      <div class="poster">
+        <div class="nav"><div style="width:58px"><svg class="logo" viewBox="0 0 1060 476" xmlns="http://www.w3.org/2000/svg" aria-label="VIA" style="fill:#00aaaf;display:block"><path d="M0.012,413.969l-0.012,0l0,-413.969l61.438,0c34.367,0 62.227,27.86 62.227,62.227l-0,202.465c0,0 187.198,-187.198 246.738,-246.738c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447c-24.131,24.131 -63.314,24.131 -87.444,0c-12.065,-12.065 -18.098,-27.894 -18.098,-43.722Z"/><path d="M1059.922,61.82l0.012,0l0,413.969l-61.438,0c-34.367,-0 -62.227,-27.86 -62.227,-62.227c0,-78.245 0,-202.465 0,-202.465c-0,-0 -187.198,187.198 -246.738,246.738c-11.496,11.496 -27.087,17.954 -43.344,17.954c-0,-0 -61.833,0 -61.833,0l-0,-56.153c-1.563,-17.1 3.963,-34.728 16.579,-48.092l353.447,-353.447c24.131,-24.131 63.314,-24.131 87.444,0c12.065,12.065 18.098,27.894 18.098,43.722Z"/><path d="M402.571,457.691c-24.131,24.131 -63.314,24.131 -87.444,0c-24.131,-24.131 -24.131,-63.314 0,-87.444c0,0 278.19,-278.19 352.293,-352.293c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447Z"/></svg></div><span class="w">Virtually Integrated Agenda</span><div class="links"><b>Events</b><span>Calendar</span><span>Midterms</span><span>About</span></div><div class="right"><button class="btn secondary sm cut">mbromb2</button></div></div>
+        <div class="body2">
+          <div>
+            <span class="back"><svg class="i"><use href="#back"/></svg>All events</span>
+            <h1>Texas Instruments Info Session</h1>
+            <div class="org"><span class="pad" style="--h:#7C3AED"></span><b>WECE</b><span>Women in Electrical and Computer Engineering</span></div>
+            <div class="when">
+              <div><div class="k">Friday, September 11</div><div class="big">12:30<small>to 2:00 PM</small></div></div>
+              <div><div class="k">Room</div><div class="room">ECEB 1013<small>Electrical and Computer Engineering Building, first floor</small></div></div>
+            </div>
+            <div class="hlrow tags" style="font-size:14px"><span class="hl" style="--h:var(--cat-6)">Corporate</span><span class="hl" style="--h:var(--cat-5)">Networking</span><span class="hl" style="--h:var(--cat-2)">Free Food</span></div>
+            <div class="txt"><p>Recruiters from TI on internships and new grad roles. Resumes welcome, and the first fifty people through the door get lunch.</p><p>Bring questions about the analog and embedded rotations. Two Illinois alumni from the Dallas office will be there to talk about what a first year on the job looks like.</p></div>
+          </div>
+          <aside>
+            <div><h4>Take it with you</h4><div class="stack"><button class="btn primary cut"><svg class="i"><use href="#cal"/></svg>Add to Google Calendar</button><button class="btn secondary cut">Download .ics</button></div></div>
+            <div><h4>Share</h4><div class="link">viaillinois.com/events/3</div><div class="share"><div class="qr"></div><div class="stack"><button class="btn quiet"><span class="pad"></span>Copy link</button><button class="btn quiet"><span class="pad"></span>Download the QR code</button><button class="btn quiet"><span class="pad"></span>Make a poster</button></div></div></div>
+            <div class="board cut"><h4 style="margin-bottom:8px">You are on the WECE board</h4><div class="row"><button class="btn secondary sm cut">Edit</button><button class="btn danger sm cut">Cancel event</button></div></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="midterms">
+  <div class="wrap">
+    <div class="sh"><h2>Midterms <em>as a heat map of the term</em></h2><p>The term is a ribbon of weeks. Each week warms with the number of exams in it, and this week wears a pad. Below it the schedule is set like a listing: the course code is the headline, the time is a number, the status is a highlighted word.</p></div>
+    <div class="mock">
+      <div class="nav"><div style="width:58px"><svg class="logo" viewBox="0 0 1060 476" xmlns="http://www.w3.org/2000/svg" aria-label="VIA" style="fill:#00aaaf;display:block"><path d="M0.012,413.969l-0.012,0l0,-413.969l61.438,0c34.367,0 62.227,27.86 62.227,62.227l-0,202.465c0,0 187.198,-187.198 246.738,-246.738c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447c-24.131,24.131 -63.314,24.131 -87.444,0c-12.065,-12.065 -18.098,-27.894 -18.098,-43.722Z"/><path d="M1059.922,61.82l0.012,0l0,413.969l-61.438,0c-34.367,-0 -62.227,-27.86 -62.227,-62.227c0,-78.245 0,-202.465 0,-202.465c-0,-0 -187.198,187.198 -246.738,246.738c-11.496,11.496 -27.087,17.954 -43.344,17.954c-0,-0 -61.833,0 -61.833,0l-0,-56.153c-1.563,-17.1 3.963,-34.728 16.579,-48.092l353.447,-353.447c24.131,-24.131 63.314,-24.131 87.444,0c12.065,12.065 18.098,27.894 18.098,43.722Z"/><path d="M402.571,457.691c-24.131,24.131 -63.314,24.131 -87.444,0c-24.131,-24.131 -24.131,-63.314 0,-87.444c0,0 278.19,-278.19 352.293,-352.293c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447Z"/></svg></div><span class="w">Virtually Integrated Agenda</span><div class="links"><span>Events</span><span>Calendar</span><b>Midterms</b><span>About</span></div><div class="right"><button class="btn primary sm cut">Sign in</button></div></div>
+      <div class="mt">
+        <div class="head"><div><h1>Midterms,<br>Fall 2026</h1><p>Kept by students and confirmed by course staff. If yours is missing, add it and the next person will thank you.</p></div><div class="row"><div class="fld" style="width:240px"><div class="in"><span class="pad"></span><input placeholder="Course code or title"></div></div><button class="btn primary cut">Add a midterm</button></div></div>
+        <div class="ribbon">
+          <div class="wkc cut" style="--heat:0"><b>0</b><span>Aug 24</span></div>
+          <div class="wkc cut" style="--heat:0"><b>0</b><span>Aug 31</span></div>
+          <div class="wkc cut now" style="--heat:12"><b>1</b><span>Sep 7</span></div>
+          <div class="wkc cut hot" style="--heat:38"><b>3</b><span>Sep 14</span></div>
+          <div class="wkc cut" style="--heat:24"><b>2</b><span>Sep 21</span></div>
+          <div class="wkc cut" style="--heat:0"><b>0</b><span>Sep 28</span></div>
+          <div class="wkc cut hot" style="--heat:52"><b>4</b><span>Oct 5</span></div>
+          <div class="wkc cut" style="--heat:12"><b>1</b><span>Oct 12</span></div>
+          <div class="wkc cut" style="--heat:0"><b>0</b><span>Oct 19</span></div>
+        </div>
+        <div class="ribcap"><span>exams per week, from the start of term</span><span>4 of 6 confirmed &middot; 11 weeks to go</span></div>
+        <div class="exams">
+          <div class="exam"><div class="code">ECE 210<small>Analog Signal Processing</small></div><div class="ttl">Midterm 1</div><div class="tm">Fri Sep 18, 7:00 PM<small>90 minutes</small></div><div class="rm">ECEB 1002</div><div><span class="st hl" style="--h:var(--ok)">Confirmed</span></div></div>
+          <div class="exam"><div class="code">ECE 220<small>Computer Systems and Programming</small></div><div class="ttl">Midterm 1</div><div class="tm">Sun Sep 20, 7:00 PM<small>2 hours</small></div><div class="rm">Siebel 1404</div><div><span class="st hl" style="--h:var(--warn)">Pending</span></div></div>
+          <div class="exam"><div class="code">ECE 385<small>Digital Systems Laboratory</small></div><div class="ttl">Midterm</div><div class="tm">Wed Sep 23, 7:00 PM<small>90 minutes</small></div><div class="rm">ECEB 1013</div><div><span class="st hl" style="--h:var(--ok)">Confirmed</span></div></div>
+          <div class="exam"><div class="code">ECE 391<small>Computer Systems Engineering</small></div><div class="ttl">Midterm 1</div><div class="tm">Fri Sep 25, 7:00 PM<small>90 minutes</small></div><div class="rm">ECEB 1002</div><div><span class="st hl" style="--h:var(--ok)">Confirmed</span></div></div>
+          <div class="exam"><div class="code">ECE 329<small>Fields and Waves I</small></div><div class="ttl">Exam 1</div><div class="tm">Sat Sep 26, 7:00 PM<small>90 minutes</small></div><div class="rm">Loomis 141</div><div><span class="st hl" style="--h:var(--warn)">Pending</span></div></div>
+          <div class="exam"><div class="code">ECE 310<small>Digital Signal Processing</small></div><div class="ttl">Midterm 1</div><div class="tm">Mon Sep 28, 7:00 PM<small>90 minutes</small></div><div class="rm">ECEB 1015</div><div><span class="st hl" style="--h:var(--ok)">Confirmed</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="kiosk">
+  <div class="wrap">
+    <div class="sh"><h2>The lobby screen <em>after dark</em></h2><p>The night sky, the board, and the biggest type in the system. A clock in the corner because the lobby has none. The rail on the right lists what comes next with the times set large enough to read while walking past.</p></div>
+    <div class="mock kiosk">
+      <div class="main">
+        <canvas id="board"></canvas>
+        <div class="k-top"><span class="nowtag" style="font-size:15px"><span class="pad"></span>Happening now</span><div><div class="t">6:41<small>PM</small></div><div class="d">Thursday, September 10</div></div></div>
+        <div class="spacer"></div>
+        <div class="org"><span class="pad" style="--h:#00629B"></span>IEEE</div>
+        <h1>Intro to PCB Design Workshop</h1>
+        <div class="whenk"><div><div class="k">Until</div><div class="big">8:00<small>PM</small></div></div><div><div class="k">Room</div><div class="room">ECEB 1002</div></div></div>
+        <div class="foot"><div style="width:64px"><svg class="logo" viewBox="0 0 1060 476" xmlns="http://www.w3.org/2000/svg" aria-label="VIA" style="fill:#ffffff;display:block"><path d="M0.012,413.969l-0.012,0l0,-413.969l61.438,0c34.367,0 62.227,27.86 62.227,62.227l-0,202.465c0,0 187.198,-187.198 246.738,-246.738c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447c-24.131,24.131 -63.314,24.131 -87.444,0c-12.065,-12.065 -18.098,-27.894 -18.098,-43.722Z"/><path d="M1059.922,61.82l0.012,0l0,413.969l-61.438,0c-34.367,-0 -62.227,-27.86 -62.227,-62.227c0,-78.245 0,-202.465 0,-202.465c-0,-0 -187.198,187.198 -246.738,246.738c-11.496,11.496 -27.087,17.954 -43.344,17.954c-0,-0 -61.833,0 -61.833,0l-0,-56.153c-1.563,-17.1 3.963,-34.728 16.579,-48.092l353.447,-353.447c24.131,-24.131 63.314,-24.131 87.444,0c12.065,12.065 18.098,27.894 18.098,43.722Z"/><path d="M402.571,457.691c-24.131,24.131 -63.314,24.131 -87.444,0c-24.131,-24.131 -24.131,-63.314 0,-87.444c0,0 278.19,-278.19 352.293,-352.293c11.496,-11.496 27.087,-17.954 43.344,-17.954c0,0 61.833,-0 61.833,-0l0,56.153c1.563,17.1 -3.963,34.728 -16.579,48.092l-353.447,353.447Z"/></svg></div><span>viaillinois.com</span><span>&middot;</span><span>1 of 12</span></div>
+      </div>
+      <div class="side">
+        <h3>Next up</h3>
+        <div class="item"><div class="t">7:00<small>tonight</small></div><div><b>Fall General Meeting</b><span>HKN &middot; ECEB 3017</span></div></div>
+        <div class="item"><div class="t">5:30<small>Fri</small></div><div><b>Texas Instruments Info Session</b><span>WECE &middot; ECEB 1013</span></div></div>
+        <div class="item"><div class="t">7:00<small>Fri</small></div><div><b>Battery Pack Build Night</b><span>Illini Solar Car &middot; ECEB 2070</span></div></div>
+        <div class="item"><div class="t">7:00<small>Sat</small></div><div><b>Board Game Social</b><span>IEEE &middot; ECEB 1015</span></div></div>
+        <div class="item"><div class="t">4:00<small>Sun</small></div><div><b>Quantum Computing Talk</b><span>HKN &middot; ECEB 1002</span></div></div>
+        <h3 style="margin-top:auto">Midterms</h3>
+        <div class="item"><div class="t">Sep 18</div><div><b>ECE 210 Midterm 1</b><span>ECEB 1002 &middot; 7:00 PM</span></div></div>
+        <div class="item"><div class="t">Sep 23</div><div><b>ECE 385 Midterm</b><span>ECEB 1013 &middot; 7:00 PM</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="motion">
+  <div class="wrap">
+    <div class="sh"><h2>Motion <em>with a reason</em></h2><p>Five movements, each tied to a fact about the page. Everything else holds still. All of it stops for anyone whose system asks for reduced motion.</p></div>
+    <div class="motion">
+      <div><div><b>The now pad breathes</b><span>A slow pulse, once every 1.6 seconds, on the pad of whatever is happening right now.</span></div><div class="demo" style="display:grid;place-items:center"><span class="pad lit" style="--h:var(--signal);animation:pulse 1.6s ease-in-out infinite"></span></div></div>
+      <div><div><b>The sky drifts</b><span>The gradient's stops move a few pixels a minute, so the band is never quite the same twice.</span></div><div class="demo drift cut" style="--cut:12px"></div></div>
+      <div><div><b>Rows settle</b><span>On load each row eases up eight pixels into place, sixty milliseconds after the one above it. Never from invisible.</span></div><div class="demo" style="display:grid;gap:4px;align-content:center"><div style="height:10px;background:var(--line);animation:settle .6s ease-out both"></div><div style="height:10px;background:var(--line);animation:settle .6s ease-out .06s both"></div><div style="height:10px;background:var(--line);animation:settle .6s ease-out .12s both"></div></div></div>
+      <div><div><b>The lamp brightens</b><span>Reaching for a row with the cursor raises its organization's lamp from fourteen to thirty percent over 200 milliseconds.</span></div><div class="demo cut" style="--cut:12px;background:radial-gradient(160px 60px at 0% 0%,color-mix(in srgb,#7C3AED 30%,var(--card)),var(--card) 80%)"></div></div>
+      <div><div><b>The dial turns</b><span>Changing theme rotates the pad along the dial and crossfades the sky over 400 milliseconds, rather than snapping.</span></div><div class="demo" style="display:grid;place-items:center"><span class="dial"><svg class="i"><use href="#sun"/></svg><span class="pad"></span><b>Auto</b><svg class="i"><use href="#moon"/></svg></span></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="a11y">
+  <div class="wrap">
+    <div class="sh"><h2>Accessible <em>without looking it</em></h2><p>Every color pair below is measured. Every control has a visible focus state and a target a thumb can hit. Where meeting a guideline would change the look, the question is written down here for a decision rather than decided quietly.</p></div>
+    <div class="a11y">
+      <div>
+        <table>
+          <tr><th>Pair</th><th>Ratio</th><th></th></tr>
+          <tr><td>Ink on paper</td><td class="n">16.9 : 1</td><td class="ok">AAA</td></tr>
+          <tr><td>Muted text on paper, light and dark</td><td class="n">5.8 and 7.4 : 1</td><td class="ok">AA</td></tr>
+          <tr><td>White on the primary button</td><td class="n">5.0 : 1</td><td class="ok">AA</td></tr>
+          <tr><td>Ink on the dusk sky, top edge</td><td class="n">12.9 : 1</td><td class="ok">AAA</td></tr>
+          <tr><td>Secondary ink on the dusk sky</td><td class="n">8.3 : 1</td><td class="ok">AAA</td></tr>
+          <tr><td>Light ink on the night sky, light theme</td><td class="n">14.2 : 1</td><td class="ok">AAA</td></tr>
+          <tr><td>Light ink on every dark theme sky</td><td class="n">12.5 to 17.2 : 1</td><td class="ok">AAA</td></tr>
+          <tr><td>Highlighter text on its stroke, worst hue, light</td><td class="n">4.8 : 1</td><td class="ok">AA</td></tr>
+          <tr><td>Highlighter text on its stroke, worst hue, dark</td><td class="n">4.9 : 1</td><td class="ok">AA</td></tr>
+          <tr><td>Organization name on its lamp, 50 percent mix, worst of five real colors</td><td class="n">3.9 : 1</td><td class="warn">AA for 16 px bold, see below</td></tr>
+          <tr><td>Orange count on the dusk sky, 30 px bold</td><td class="n">3.7 : 1</td><td class="ok">AA large</td></tr>
+          <tr><td>Time numerals on a lit row</td><td class="n">14 : 1 or better</td><td class="ok">AAA</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>Built in</h3>
+        <ul>
+          <li>Every control has a visible focus state. On a cut button the ring is the border layer itself, so it keeps the shape.</li>
+          <li>Pads carry meaning by shape, filled against hollow, never by color alone. The lamp is always beside the organization name. The heat ribbon prints the count on every week.</li>
+          <li>Every pad control, tag and organization mark sits inside a 32 pixel target.</li>
+          <li>Nothing is set below 12 pixels. The faint gray is used for hairlines only, never for words.</li>
+          <li>All five movements stop under prefers reduced motion, including the drifting sky.</li>
+          <li>Day names are headings, times carry machine readable datetimes, and the greeting is a live region that updates once when the counts arrive.</li>
+          <li>Text on the sky uses the page ink; the night sky switches the band to light ink. Every sky is measured against both.</li>
+        </ul>
+        <div class="q cut"><b>Three decisions for the team.</b><ul style="margin-top:8px">
+          <li>Organization colors are chosen by each board and cannot be guaranteed. Either the platform clamps a chosen color to a lightness that clears 4.5 to 1 when mixed, or the name is set in ink and only the pad and lamp carry the color.</li>
+          <li>The highlighter is a stroke under the lower half of a word. If a reviewer wants the full text over a solid background, the stroke would become a full height tint at 18 percent, which is a quieter look.</li>
+          <li>A person who has explicitly chosen the light theme still gets a dark band at night. That respects the window, not the preference. The alternative is a dusk band all night for explicit light theme users.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="build">
+  <div class="wrap">
+    <div class="sh"><h2>Building it <em>without a kit</em></h2><p>The client has three stock components today. This revision needs none of them. Everything is a Svelte 5 component under the shared component directory, styled from tokens, with a test that renders it in both themes.</p></div>
+    <div class="build">
+      <div><h3>New primitives</h3><ul><li>Pad, with filled, hollow and lit states. Used by Checkbox, OrganizationMark, Switch, Dial and Field.</li><li>Cut, a wrapper that applies the chamfer at a given size and corner.</li><li>Lamp, which paints an organization's color from a corner at a given strength.</li><li>Highlight, the marker stroke under a word, on or off.</li><li>Sky, which reads the campus hour and paints the band, with drift and reduced motion handled inside.</li><li>Numeral, for large condensed numbers with a small unit.</li></ul></div>
+      <div><h3>Composed parts</h3><ul><li>Button (primary, secondary, quiet, danger), Field, Toast, EmptyState</li><li>SkyBand with Nav, Greeting and Clock</li><li>DayGroup and EventRow for the agenda</li><li>Poster for the event page</li><li>TermRibbon and ExamRow for midterms</li><li>KioskStage and KioskRail</li></ul><p style="margin-top:12px;color:var(--muted)">Bits UI stays as the headless layer for menus, dialogs and the date picker. Tailwind stays for spacing and layout, with the tokens renamed. Bricolage Grotesque ships as one 54 KB variable file with both axes.</p></div>
+    </div>
+  </div>
+</section>
+<div class="foot-note wrap">Revision 3 of the VIA design foundation. The mark is unchanged. Made in ECEB, for everyone who walks past the lobby screen.</div>
+<script>
+(function(){
+  var c=document.getElementById('board'); if(!c) return;
+  var host=c.parentElement; function draw(){
+    var w=host.clientWidth,h=host.clientHeight,dpr=window.devicePixelRatio||1; c.width=w*dpr;c.height=h*dpr; var x=c.getContext('2d'); x.scale(dpr,dpr);
+    x.clearRect(0,0,w,h);
+    var s=11; function rnd(){s=(s*9301+49297)%233280;return s/233280;}
+    var nodes=[]; for(var i=0;i<36;i++){nodes.push({x:rnd()*w,y:rnd()*h});}
+    x.lineWidth=1.2; x.lineCap='round'; x.lineJoin='round';
+    for(var i=0;i<nodes.length;i++){var a=nodes[i]; var best=[]; for(var j=0;j<nodes.length;j++){ if(i===j)continue; var b=nodes[j]; var d=Math.hypot(a.x-b.x,a.y-b.y); best.push([d,b]);} best.sort(function(p,q){return p[0]-q[0]});
+      for(var k=0;k<2;k++){ var b=best[k][1]; var live=rnd()<0.12; x.strokeStyle=live?'rgba(255,138,102,0.5)':'rgba(143,223,225,0.13)'; x.beginPath(); x.moveTo(a.x,a.y);
+        var dx=b.x-a.x,dy=b.y-a.y; var m=Math.min(Math.abs(dx),Math.abs(dy)); var mx=a.x+Math.sign(dx)*m, my=a.y+Math.sign(dy)*m; x.lineTo(mx,my); x.lineTo(b.x,b.y); x.stroke(); }
+      x.fillStyle='rgba(143,223,225,0.22)'; x.beginPath(); x.arc(a.x,a.y,2.4,0,Math.PI*2); x.fill(); }
+  }
+  draw(); window.addEventListener('resize',draw);
+})();
+</script>
+</body>
+</html>

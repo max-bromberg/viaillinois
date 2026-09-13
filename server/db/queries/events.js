@@ -1,5 +1,6 @@
 import { query } from '../pool.js';
 import { campusNow, campusStartOfToday } from '../../lib/timezone.js';
+import { dayRange } from '../../lib/dateRange.js';
 
 /**
  * How a request divides events against the campus calendar.
@@ -12,9 +13,12 @@ import { campusNow, campusStartOfToday } from '../../lib/timezone.js';
  * reads in.
  */
 const TIMEFRAME_BOUNDS = {
-    upcoming: { comparison: '>=', direction: 'ASC' },
-    archived: { comparison: '<',  direction: 'DESC' },
-    all:      { comparison: null, direction: 'ASC' },
+    // A cancelled event is not coming up, whatever its date says. It belongs
+    // in the archive, marked, where the people who planned to go can still
+    // find it, so the archive takes it from the moment it is cancelled.
+    upcoming: { clause: 'AND e.start_time >= ? AND e.cancelled_at IS NULL',           direction: 'ASC' },
+    archived: { clause: 'AND (e.start_time < ? OR e.cancelled_at IS NOT NULL)', direction: 'DESC' },
+    all:      { clause: null, direction: 'ASC' },
 };
 
 /** The timeframes a request may name. */
@@ -29,9 +33,9 @@ export const TIMEFRAMES = Object.keys(TIMEFRAME_BOUNDS);
  * @returns {{ clause: string, params: string[], direction: 'ASC'|'DESC' }}
  */
 function timeframeBound(name) {
-    const { comparison, direction } = TIMEFRAME_BOUNDS[name] ?? TIMEFRAME_BOUNDS.all;
-    if (!comparison) return { clause: '', params: [], direction };
-    return { clause: `AND e.start_time ${comparison} ?`, params: [campusStartOfToday()], direction };
+    const { clause, direction } = TIMEFRAME_BOUNDS[name] ?? TIMEFRAME_BOUNDS.all;
+    if (!clause) return { clause: '', params: [], direction };
+    return { clause, params: [campusStartOfToday()], direction };
 }
 
 /**
@@ -47,10 +51,15 @@ function timeframeBound(name) {
  * An empty selection means no filter rather than nothing selected, which is
  * what the panel means when nobody has picked an RSO.
  *
- * @param {{ rsoIds?: number[], excludePrivate?: boolean }} filters
+ * A caller may also ask for the events that are still going ahead. The feed
+ * shows a cancelled event on purpose, so that somebody who planned to attend
+ * is told rather than left wondering, but a caller that is asking what
+ * occupies a room wants only what actually will.
+ *
+ * @param {{ rsoIds?: number[], excludePrivate?: boolean, excludeCancelled?: boolean }} filters
  * @returns {{ clause: string, params: Array }}
  */
-function panelFilters({ rsoIds = [], excludePrivate = false } = {}) {
+function panelFilters({ rsoIds = [], excludePrivate = false, excludeCancelled = false } = {}) {
   const clauses = [];
   const params = [];
   if (Array.isArray(rsoIds) && rsoIds.length) {
@@ -58,6 +67,7 @@ function panelFilters({ rsoIds = [], excludePrivate = false } = {}) {
     params.push(...rsoIds);
   }
   if (excludePrivate) clauses.push('AND e.is_private = FALSE');
+  if (excludeCancelled) clauses.push('AND e.cancelled_at IS NULL');
   return { clause: clauses.join('\n      '), params };
 }
 
@@ -69,6 +79,7 @@ function panelFilters({ rsoIds = [], excludePrivate = false } = {}) {
  */
 export async function getPublicEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -81,6 +92,7 @@ export async function getPublicEvents(filters = {}) {
       e.start_time,
       e.end_time,
       e.is_private,
+      e.cancelled_at,
       r.name AS rso_name,
       e.location_text,
       l.building,
@@ -117,7 +129,7 @@ export async function getPublicEvents(filters = {}) {
       e.start_time ${bound.direction}
   LIMIT ? OFFSET ?
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag, limit, offset]
     )
 }
 
@@ -130,6 +142,7 @@ export async function getPublicEvents(filters = {}) {
  */
 export async function getAllEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -142,6 +155,7 @@ export async function getAllEvents(filters = {}) {
       e.start_time,
       e.end_time,
       e.is_private,
+      e.cancelled_at,
       r.name AS rso_name,
       e.location_text,
       l.building,
@@ -177,7 +191,7 @@ export async function getAllEvents(filters = {}) {
       e.start_time ${bound.direction}
   LIMIT ? OFFSET ?
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag, limit, offset]
     )
 }
 
@@ -196,15 +210,22 @@ export async function getEventById(eventId) {
       e.start_time,
       e.end_time,
       e.is_private,
+      e.cancelled_at,
+      e.location_note,
       e.rso_id,
+      e.location_id,
       e.series_id,
       e.detached,
       r.name AS rso_name,
       e.location_text,
+      (SELECT COUNT(*) FROM Event_Interest i WHERE i.event_id = e.event_id) AS interest_count,
       l.building,
       l.room_number,
       s.frequency AS series_frequency,
       s.interval_weeks AS series_interval_weeks,
+      s.interval_months AS series_interval_months,
+      s.month_day AS series_month_day,
+      s.month_week AS series_month_week,
       s.days_of_week AS series_days_of_week,
       s.ends_on AS series_ends_on,
       GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
@@ -300,7 +321,7 @@ export async function deleteEvent(eventId) {
  * @returns {Promise<Array<{event_id, title, start_time, end_time, rso_name, building, room_number}>>}
  */
 export async function getKioskEvents(limit = 10) {
-    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, e.location_text, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.start_time > ? ORDER BY e.start_time ASC LIMIT ?', [campusNow(), limit])
+    return query('SELECT e.event_id, e.title, e.start_time, e.end_time, r.name AS rso_name, e.location_text, l.building, l.room_number FROM Events e JOIN RSOs r ON e.rso_id = r.rso_id LEFT JOIN Locations l ON e.location_id = l.location_id WHERE e.is_private = FALSE AND e.cancelled_at IS NULL AND e.start_time > ? ORDER BY e.start_time ASC LIMIT ?', [campusNow(), limit])
 }
 
 /**
@@ -332,11 +353,18 @@ export async function setEventTags(eventId, tagNames) {
 export async function getEventsByRso(rsoId) {
     return query(
         `SELECT
-            e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
+            e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, e.cancelled_at,
             e.series_id, e.detached, e.location_id,
+            -- The dashboard fills its edit form from this row and posts every
+            -- column back, so a column missing here is a column cleared by a
+            -- save that changed nothing else.
+            e.location_note,
             r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
             s.frequency AS series_frequency,
             s.interval_weeks AS series_interval_weeks,
+            s.interval_months AS series_interval_months,
+            s.month_day AS series_month_day,
+            s.month_week AS series_month_week,
             s.days_of_week AS series_days_of_week,
             s.ends_on AS series_ends_on,
             GROUP_CONCAT(t.tag_name) AS tags
@@ -362,12 +390,13 @@ export async function getEventsByRso(rsoId) {
 export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
   if (!memberRsoIds.length) return getPublicEvents(filters);
   const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null, limit = 20, offset = 0 } = filters;
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate);
   const tag = rawTags[0] ?? null;
   const bound = timeframeBound(timeframe)
   const panel = panelFilters(filters);
   return query(
     `SELECT
-      e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private,
+      e.event_id, e.title, e.description, e.start_time, e.end_time, e.is_private, e.cancelled_at,
       r.name AS rso_name, e.location_text, l.building, l.room_number, l.max_capacity,
       GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags
     FROM Events e
@@ -385,7 +414,7 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
     HAVING (? IS NULL OR tags LIKE CONCAT('%',?,'%'))
     ORDER BY e.start_time ${bound.direction}
     LIMIT ? OFFSET ?`,
-    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag, limit, offset]
+    [memberRsoIds, keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag, limit, offset]
   );
 }
 
@@ -397,6 +426,7 @@ export async function getVisibleEvents(filters = {}, memberRsoIds = []) {
 export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
   if (!memberRsoIds.length) return countPublicEvents(filters);
   const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters;
+  const { from: startAt, to: endAt } = dayRange(startDate, endDate);
   const tag = rawTags[0] ?? null;
   const bound = timeframeBound(timeframe)
   const panel = panelFilters(filters);
@@ -414,7 +444,7 @@ export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
       ${bound.clause}
       ${panel.clause}
       AND (? IS NULL OR t.tag_name = ?)`,
-    [memberRsoIds, keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
+    [memberRsoIds, keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag]
   );
 }
 
@@ -425,6 +455,7 @@ export async function countVisibleEvents(filters = {}, memberRsoIds = []) {
  */
 export async function countPublicEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -452,7 +483,7 @@ export async function countPublicEvents(filters = {}) {
         ? IS NULL OR t.tag_name = ?
     )
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag]
     )
 }
 
@@ -463,6 +494,7 @@ export async function countPublicEvents(filters = {}) {
  */
 export async function countAllEvents(filters = {}) {
     const { keyword = null, startDate = null, endDate = null, tags: rawTags = [], timeframe = null } = filters
+    const { from: startAt, to: endAt } = dayRange(startDate, endDate)
     const tag = rawTags[0] ?? null
     const bound = timeframeBound(timeframe)
     const panel = panelFilters(filters)
@@ -490,6 +522,6 @@ export async function countAllEvents(filters = {}) {
         ? IS NULL OR t.tag_name = ?
     )
   `,
-        [keyword, keyword, keyword, startDate, startDate, endDate, endDate, ...bound.params, ...panel.params, tag, tag]
+        [keyword, keyword, keyword, startAt, startAt, endAt, endAt, ...bound.params, ...panel.params, tag, tag]
     )
 }

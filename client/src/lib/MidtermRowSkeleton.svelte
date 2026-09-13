@@ -1,35 +1,67 @@
 <script>
-  /** Matches the column the real row adds for those who may delete. */
+  /**
+   * The shape of an exam row while the schedule is on its way.
+   *
+   * Drawn in well colour with no shimmer, and standing in the same columns as
+   * the row it is waiting for, so that nothing moves when the schedule arrives.
+   * See docs/design/08-surfaces.md, "Empty, loading and error states".
+   */
+
+  /** Matches the columns the real row adds for those who may delete. */
   export let canDelete = false;
 </script>
 
-<tr class="border-b">
-  <!-- Col 1: title + subtitle -->
-  <td class="py-3 px-4">
-    <div class="shimmer h-3.5 w-32"></div>
-    <div class="shimmer h-3 w-24 mt-1"></div>
-  </td>
+<div class="mrow" class:manage={canDelete} aria-hidden="true">
+  {#if canDelete}<div class="block tick"></div>{/if}
 
-  <!-- Col 2: date/time -->
-  <td class="py-3 px-4">
-    <div class="shimmer h-3 w-3/4"></div>
-  </td>
+  <div class="exam">
+    <div class="block code"></div>
+    <div class="block ttl"></div>
+    <div class="block tm"></div>
+    <div class="block rm"></div>
+  </div>
 
-  <!-- Col 3: location -->
-  <td class="py-3 px-4">
-    <div class="shimmer h-3 w-3/4"></div>
-  </td>
+  {#if canDelete}<div class="block tools"></div>{/if}
+</div>
 
-  <!-- Col 4: status badge -->
-  <td class="py-3 px-4">
-    <div class="shimmer h-5 w-16 rounded"></div>
-  </td>
+<style>
+  .mrow {
+    display: grid;
+  }
 
-  <!-- Col 5: the delete control, present only for those who have one -->
-  {#if canDelete}
-    <td class="py-3 px-4">
-      <div class="shimmer h-6 w-14 rounded ml-auto"></div>
-    </td>
-  {/if}
+  .mrow.manage {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    border-top: 1px solid var(--line);
+  }
 
-</tr>
+  .mrow.manage .exam {
+    border-top: 0;
+  }
+
+  /*
+   * The same five column grid the exam row is set on, so the blocks stand where
+   * the words will. The status column is left empty, because a highlighted word
+   * has no shape of its own to draw.
+   */
+  .exam {
+    display: grid;
+    grid-template-columns: 150px 1fr 250px 130px 110px;
+    gap: 20px;
+    align-items: center;
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .block {
+    background: var(--well);
+  }
+
+  .block.code  { height: 30px; }
+  .block.ttl   { height: 16px; max-width: 160px; }
+  .block.tm    { height: 22px; }
+  .block.rm    { height: 14px; }
+  .block.tick  { width: 12px; height: 12px; justify-self: center; }
+  .block.tools { width: 64px; height: 28px; }
+</style>

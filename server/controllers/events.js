@@ -1,3 +1,4 @@
+import { campusNow } from '../lib/timezone.js';
 import * as eventsDb from '../db/queries/events.js';
 import * as rsoDb from '../db/queries/rso.js';
 import * as advancedDb from '../db/queries/advanced.js';
@@ -7,6 +8,7 @@ import { checkConflict } from '../services/conflictDetector.js';
 import { timeOfDay, durationMinutes, addMinutes, toWallClock } from '../lib/recurrence.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 import { recordDenial } from '../services/denialRecorder.js';
+import * as outbox from '../db/queries/outbox.ts';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
 
@@ -125,6 +127,20 @@ export async function getEvent(req, res, next) {
 }
 
 /**
+ * Why an event moved, where whoever moved it said why.
+ *
+ * It is not a column on the event. It belongs to the change rather than to the
+ * event, so it travels in the entry the Discord bot reads and is what the bot
+ * puts in the message that tells people the meeting moved.
+ *
+ * @returns {string|null}
+ */
+function readReason(body) {
+  const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+  return reason || null;
+}
+
+/**
  * A location is optional, and can be either a room VIA knows about or free
  * text. Empty free text is stored as nothing rather than as an empty string,
  * so that "no location" has one representation instead of two.
@@ -137,15 +153,36 @@ function readLocation(body) {
   };
 }
 
+/** The width of Events.location_note. */
+const LOCATION_NOTE_MAX = 500;
+
+/**
+ * The small thing a board changes at the door: the north entrance, the room
+ * beside the one booked. Stored trimmed, an empty note is no note, and a
+ * request that does not mention it leaves it alone.
+ *
+ * @returns {{ location_note?: string|null, error?: string }}
+ */
+function readLocationNote(body) {
+  if (!('location_note' in body)) return {};
+  const note = typeof body.location_note === 'string' ? body.location_note.trim() : '';
+  if (note.length > LOCATION_NOTE_MAX) {
+    return { error: `The location note has to be ${LOCATION_NOTE_MAX} characters or fewer.` };
+  }
+  return { location_note: note || null };
+}
+
 export async function createEvent(req, res, next) {
   try {
     const { rso_id, title, description, start_time, end_time, is_private = false, tags = [] } = req.body;
     if (!rso_id || !title || !start_time || !end_time) {
       return res.status(400).json({ error: 'rso_id, title, start_time, end_time required' });
     }
+    const note = readLocationNote(req.body);
+    if (note.error) return res.status(400).json({ error: note.error });
     const result = await advancedDb.createEventTransactional(
       {
-        rso_id, created_by: req.user.net_id, ...readLocation(req.body),
+        rso_id, created_by: req.user.net_id, ...readLocation(req.body), ...note,
         title, description, start_time, end_time, is_private,
       },
       tags,
@@ -184,6 +221,8 @@ export async function createEventSeries(req, res, next) {
     if (plan.error) return res.status(400).json({ error: plan.error });
 
     const { location_id, location_text } = readLocation(req.body);
+    const note = readLocationNote(req.body);
+    if (note.error) return res.status(400).json({ error: note.error });
 
     let occurrences = plan.occurrences;
     let skipped = [];
@@ -201,7 +240,7 @@ export async function createEventSeries(req, res, next) {
       series: { ...plan.series, ends_on: occurrences.at(-1).date, rso_id: rsoId, created_by: req.user.net_id },
       occurrences,
       event: {
-        rso_id: rsoId, created_by: req.user.net_id, location_id, location_text,
+        rso_id: rsoId, created_by: req.user.net_id, location_id, location_text, ...note,
         title, description, is_private,
       },
       tagNames: tags,
@@ -214,6 +253,31 @@ export async function createEventSeries(req, res, next) {
       skipped,
     });
   } catch (err) { next(err); }
+}
+
+/**
+ * Whether an edit moved the event in time.
+ *
+ * The form posts what a browser date and time field holds, with a T where the
+ * database writes a space and no seconds, so both sides are read as wall clock
+ * readings before they are compared. A request that names no time at all has
+ * moved nothing.
+ *
+ * @param {{ start_time: unknown, end_time: unknown }} event the event as it stands
+ * @param {unknown} startTime what the request asks it to become
+ * @param {unknown} endTime
+ * @returns {boolean}
+ */
+function movedInTime(event, startTime, endTime) {
+  const moved = (asked, stored) => {
+    if (asked === undefined || asked === null || asked === '') return false;
+    const wanted = toWallClock(asked);
+    // A reading nothing can make sense of is refused further down rather than
+    // treated as a move here.
+    if (wanted === null) return false;
+    return wanted !== toWallClock(stored);
+  };
+  return moved(startTime, event.start_time) || moved(endTime, event.end_time);
 }
 
 /**
@@ -261,6 +325,8 @@ export async function updateEvent(req, res, next) {
 
     const { title, description, start_time, end_time, is_private, tags } = req.body;
     const { location_id, location_text } = readLocation(req.body);
+    const note = readLocationNote(req.body);
+    if (note.error) return res.status(400).json({ error: note.error });
 
     // One event, which is every event that does not repeat, and the one week an
     // organizer moved on its own.
@@ -271,12 +337,22 @@ export async function updateEvent(req, res, next) {
         if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
       }
       await eventsDb.updateEvent(eventId, {
-        location_id, location_text, title, description, start_time, end_time, is_private,
+        location_id, location_text, title, description, start_time, end_time, is_private, ...note,
       });
       if (tags) await eventsDb.setEventTags(eventId, tags);
       // A week that was edited on its own stays where the organizer put it when
-      // the rest of the series is edited later.
-      if (event.series_id) await seriesDb.detachEvent(eventId);
+      // the rest of the series is edited later. That is a statement about the
+      // week having moved, so it is made only when the week actually moved. A
+      // change to the description, or to the note at the door, is not a move,
+      // and detaching for one severed a week from its repeat every time a
+      // board edited it from Discord.
+      if (event.series_id && movedInTime(event, start_time, end_time)) {
+        await seriesDb.detachEvent(eventId);
+      }
+      // The entry follows the change, because this path has no transaction to
+      // join, and it names what changed by comparing the event as it stood
+      // with the event as it now is.
+      await outbox.recordEventUpdated(event, { reason: readReason(req.body) });
       return res.json({ ok: true, updated: 1 });
     }
 
@@ -315,17 +391,19 @@ export async function updateEvent(req, res, next) {
 
     const result = await seriesDb.applyToSeries(event.series_id, {
       from,
-      fields: { title, description, location_id, location_text, is_private },
+      fields: { title, description, location_id, location_text, is_private, ...note },
       startOfDay,
       durationMinutes: minutes,
     });
 
-    if (tags) {
-      await seriesDb.setTagsForEvents(
-        covered.filter(occurrence => !occurrence.detached).map(occurrence => occurrence.event_id),
-        tags
-      );
-    }
+    const reached = covered.filter(occurrence => !occurrence.detached).map(occurrence => occurrence.event_id);
+    if (tags) await seriesDb.setTagsForEvents(reached, tags);
+
+    // One entry for the repeat rather than one per week, because a repeat is
+    // one thing to the people reading about it. The event the request named is
+    // one of the weeks the edit reached, so comparing it with itself afterwards
+    // is what names the fields that changed.
+    await outbox.recordSeriesUpdated(event.series_id, { affectedEventIds: reached, sample: event });
 
     res.json({ ok: true, updated: result.affectedRows });
   } catch (err) { next(err); }
@@ -342,20 +420,123 @@ export async function deleteEvent(req, res, next) {
     const scope = readScope(req);
     if (!scope) return res.status(400).json({ error: `scope must be one of: ${SCOPES.join(', ')}` });
 
+    // What the entry has to say about a deletion cannot be read after it, so
+    // the rule and the occurrences it covers are read first.
     if (scope === 'all' && event.series_id) {
+      const series = await outbox.seriesSnapshot(event.series_id);
+      const removed = await outbox.seriesEventIds(event.series_id);
       await seriesDb.deleteSeries(event.series_id);
+      if (series) await outbox.recordSeriesDeleted(series, removed);
       return res.json({ ok: true, deleted: 'series' });
     }
 
     if (scope === 'following' && event.series_id) {
+      const series = await outbox.seriesSnapshot(event.series_id);
+      const covered = await seriesDb.occurrencesOfSeries(event.series_id, { from: String(event.start_time) });
+      const removed = covered.map(occurrence => occurrence.event_id);
       const result = await seriesDb.deleteOccurrencesFrom(event.series_id, String(event.start_time));
+      // A repeat with nothing left is a rule for nothing, and the query above
+      // has already taken it away with the last of its weeks.
+      if (result.remaining === 0) {
+        if (series) await outbox.recordSeriesDeleted(series, removed);
+      } else {
+        await outbox.recordSeriesUpdated(event.series_id, { affectedEventIds: removed });
+      }
       return res.json({ ok: true, deleted: result.affectedRows });
     }
 
+    // Read before the deletion, because deleting the last week of a repeat
+    // takes the rule with it, and a rule that is gone cannot be described.
+    const series = event.series_id ? await outbox.seriesSnapshot(event.series_id) : null;
+
     await eventsDb.deleteEvent(eventId);
+    await outbox.recordEventDeleted(event);
     // The rule still says which dates the series covers, and one of them has
-    // just gone.
-    if (event.series_id) await seriesDb.syncSeriesEnd(event.series_id);
+    // just gone. When that was the last of them the rule goes too, whatever
+    // scope the request named, and the bot has to be told about the repeat as
+    // well as about the week.
+    if (event.series_id) {
+      const synced = await seriesDb.syncSeriesEnd(event.series_id);
+      if (synced?.removed && series) await outbox.recordSeriesDeleted(series, [eventId]);
+    }
     res.json({ ok: true, deleted: 1 });
   } catch (err) { next(err); }
 }
+
+/**
+ * Cancelling is a state, not a delete. The event keeps its page and its date,
+ * so the people who planned to go can be told, and the board can put it back
+ * if the cancellation was the mistake. Both are editor actions, like every
+ * other change to an event.
+ */
+/**
+ * Cancel or restore one event, and leave the entry the Discord bot reads.
+ *
+ * @param {object} before the event as it stands
+ * @param {boolean} cancelled what it is being set to
+ * @param {string|null} cancelledAt the time to write, shared by every week of
+ *   a series so that they all say they were called off at the same moment
+ * @returns {Promise<boolean>} whether anything was changed
+ */
+async function applyCancellation(before, cancelled, cancelledAt) {
+  if (!before || Boolean(before.cancelled_at) === cancelled) return false;
+  await eventsDb.updateEvent(before.event_id, { cancelled_at: cancelledAt });
+  // A cancellation is its own kind, because the bot says something different
+  // about it. Putting an event back is an ordinary update whose one changed
+  // field is the time it was cancelled at.
+  if (cancelled) await outbox.recordEventCancelled(before.event_id);
+  else await outbox.recordEventUpdated(before);
+  return true;
+}
+
+/**
+ * Cancelling and restoring, for one week or for a whole repeat.
+ *
+ * The scope is read exactly as the update and the delete read it, because a
+ * board cancelling a repeating meeting is answering the same question there:
+ * this week, this week onwards, or the whole repeat. Without it, cancelling a
+ * term of meetings was fifteen clicks and cancelling the wrong week was the
+ * likely outcome.
+ *
+ * A whole repeat leaves one event.cancelled entry per occurrence rather than
+ * one entry for the series. That is deliberate: the bot announced each week as
+ * its own event and posts about each week on its own, so an entry per week is
+ * what it needs to correct what it already said.
+ */
+async function setCancelled(req, res, next, cancelled) {
+  try {
+    const eventId = parseInt(req.params.id);
+    const event = await eventsDb.getEventById(eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    const isAdmin = req.user.is_global_admin || await checkRsoEditor(req.user.net_id, event.rso_id);
+    if (!isAdmin) return res.status(403).json({ error: 'RSO editor access required' });
+
+    const scope = readScope(req);
+    if (!scope) return res.status(400).json({ error: `scope must be one of: ${SCOPES.join(', ')}` });
+
+    const cancelled_at = cancelled ? campusNow() : null;
+
+    if (scope === 'one' || !event.series_id) {
+      const already = Boolean(event.cancelled_at) === cancelled;
+      if (already) return res.json({ ok: true, cancelled_at: event.cancelled_at ?? null });
+      await applyCancellation(event, cancelled, cancelled_at);
+      return res.json({ ok: true, cancelled_at });
+    }
+
+    // Every occurrence the scope covers, including the weeks that were edited
+    // on their own. A week that moved is still a week of this meeting, and a
+    // board that called the term off did not mean to leave one of them running.
+    const from = scope === 'following' ? String(event.start_time) : null;
+    const covered = await seriesDb.occurrencesOfSeries(event.series_id, { from });
+    for (const occurrence of covered) {
+      const before = occurrence.event_id === eventId
+        ? event
+        : await eventsDb.getEventById(occurrence.event_id);
+      await applyCancellation(before, cancelled, cancelled_at);
+    }
+    res.json({ ok: true, cancelled_at });
+  } catch (err) { next(err); }
+}
+
+export function cancelEvent(req, res, next)  { return setCancelled(req, res, next, true); }
+export function restoreEvent(req, res, next) { return setCancelled(req, res, next, false); }

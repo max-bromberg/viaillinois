@@ -88,3 +88,210 @@ describe('EventForm repeat controls', () => {
     expect(getByText('Repeats every Tuesday until December 8')).toBeTruthy();
   });
 });
+
+/**
+ * The location note is the small thing a board changes at the door. It is a
+ * field of its own so that it is never mistaken for the room.
+ */
+describe('EventForm location note', () => {
+  it('offers a field for it, empty by default', () => {
+    const { getByLabelText } = setUp();
+    expect(getByLabelText(/Location note/).value).toBe('');
+  });
+
+  it('starts with the note the event already has', () => {
+    const { getByLabelText } = setUp({
+      initial: { title: 'Meeting', start_time: '2026-09-01 18:00:00', end_time: '2026-09-01 19:30:00', location_note: 'Use the north entrance.' },
+    });
+    expect(getByLabelText(/Location note/).value).toBe('Use the north entrance.');
+  });
+
+  it('will not take more than the note can hold', () => {
+    const { getByLabelText } = setUp();
+    expect(getByLabelText(/Location note/).getAttribute('maxlength')).toBe('500');
+  });
+
+  it('sends the note back unchanged when the form was filled from a listing row and nothing was touched', async () => {
+    // This is how the dashboard edits an event: the row out of the listing is
+    // handed to the form as it stands, and the form posts every column back.
+    // Anything the listing does not carry is therefore cleared by a save that
+    // changed nothing else, which is what happened to the note.
+    const listingRow = {
+      event_id: 10, rso_id: 1, title: 'General meeting', description: 'Bring a laptop.',
+      start_time: '2026-09-01 18:00:00', end_time: '2026-09-01 19:30:00',
+      is_private: 0, cancelled_at: null, series_id: null, detached: 0,
+      location_id: 5, location_text: null, location_note: 'Use the north entrance.',
+      rso_name: 'IEEE', building: 'Electrical & Computer Eng Bldg', room_number: '1002',
+      tags: '',
+    };
+    const submitted = vi.fn();
+    const { getByRole } = render(EventForm, {
+      props: { rsoId: 1, semester: SEMESTER, initial: listingRow },
+      events: { submit: event => submitted(event.detail) },
+    });
+
+    await fireEvent.click(getByRole('button', { name: /save|update|create/i }));
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ location_note: 'Use the north entrance.' }),
+    );
+  });
+});
+
+/**
+ * The shapes a repeat can take on the form.
+ *
+ * It used to be every week or every other week and nothing else, so a board
+ * holding a meeting once a month, or on a set of dates that follow no rule,
+ * entered each one by hand.
+ */
+describe('EventForm repeats', () => {
+  const filled = async () => {
+    const rendered = render(EventForm, { props: { rsoId: 1 } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    return rendered;
+  };
+
+  const submitted = async (rendered, onSubmit) => {
+    await fireEvent.click(rendered.getByRole('button', { name: /Create event/i }));
+    return onSubmit.mock.calls.at(-1)?.[0].detail;
+  };
+
+  it('sends a weekly repeat with the interval that was chosen', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'Every week' }));
+    await fireEvent.input(rendered.getByLabelText(/every how many weeks/i), { target: { value: '3' } });
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'weekly', interval_weeks: 3 });
+  });
+
+  it('sends a monthly repeat on a date in the month', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-15T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-15T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'Every month' }));
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'monthly', interval_months: 1, month_day: 15 });
+    expect(detail.recurrence.month_week).toBeUndefined();
+  });
+
+  it('sends a monthly repeat on a weekday of the month when that is chosen', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-08T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-08T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'Every month' }));
+    await fireEvent.click(rendered.getByRole('button', { name: /On a weekday of the month/i }));
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'monthly', month_week: 2, days_of_week: ['Tue'] });
+    expect(detail.recurrence.month_day).toBeUndefined();
+  });
+
+  it('sends the dates that were picked one by one', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'On dates I pick' }));
+    await fireEvent.click(rendered.getByRole('button', { name: 'September 17, 2026' }));
+    await fireEvent.click(rendered.getByRole('button', { name: 'September 24, 2026' }));
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toMatchObject({ frequency: 'dates', dates: ['2026-09-17', '2026-09-24'] });
+  });
+
+  it('will not create a repeat on no dates at all', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'Board meeting' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(rendered.getByRole('button', { name: 'On dates I pick' }));
+    expect(rendered.getByRole('button', { name: /Create event/i }).disabled).toBe(true);
+  });
+
+  it('sends no repeat at all when the event does not repeat', async () => {
+    const onSubmit = vi.fn();
+    const rendered = render(EventForm, { props: { rsoId: 1 }, events: { submit: onSubmit } });
+    await fireEvent.input(rendered.getByLabelText(/Event Title/i), { target: { value: 'One off' } });
+    await fireEvent.input(rendered.getByLabelText(/Start Time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(rendered.getByLabelText(/End Time/i), { target: { value: '2026-09-01T19:30' } });
+    const detail = await submitted(rendered, onSubmit);
+    expect(detail.recurrence).toBeNull();
+  });
+});
+
+/**
+ * The form in the design system.
+ *
+ * A board tool follows the same rules as the rest of the site with less
+ * ceremony, so the form is built from the field, the switch and the highlighter
+ * rather than from boxes and filled pills. See docs/design/08-surfaces.md.
+ */
+describe('EventForm, drawn in the design system', () => {
+  it('builds its inputs from the field, which has no box around it', () => {
+    const { container } = setUp();
+    expect(container.querySelectorAll('.fld').length).toBeGreaterThanOrEqual(5);
+    expect(container.querySelector('.rounded-md, .rounded-full, .rounded-lg')).toBeNull();
+  });
+
+  it('offers the private setting as a switch rather than as a checkbox', () => {
+    const { getByRole, container } = setUp();
+    expect(getByRole('switch', { name: /members only/i }).getAttribute('aria-checked')).toBe('false');
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
+  it('sends the private setting the switch was turned to', async () => {
+    const onSubmit = vi.fn();
+    const { getByRole } = render(EventForm, {
+      props: {
+        rsoId: 1,
+        semester: SEMESTER,
+        initial: { title: 'Board meeting', start_time: '2026-09-01 18:00:00', end_time: '2026-09-01 19:30:00' },
+      },
+      events: { submit: onSubmit },
+    });
+    await fireEvent.click(getByRole('switch', { name: /members only/i }));
+    await fireEvent.click(getByRole('button', { name: 'Create event' }));
+    expect(onSubmit.mock.calls.at(-1)[0].detail.is_private).toBe(true);
+  });
+
+  it('draws a tag as a highlighted word that says whether it is on', async () => {
+    const { getByRole } = setUp();
+    const tag = getByRole('button', { name: 'Free Food' });
+    expect(tag.classList.contains('hl')).toBe(true);
+    expect(tag.getAttribute('aria-pressed')).toBe('false');
+    await fireEvent.click(tag);
+    expect(getByRole('button', { name: 'Free Food' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('draws the repeat shapes as a pad and a word rather than as filled pills', () => {
+    const { getByRole } = setUp();
+    const weekly = getByRole('button', { name: 'Every week' });
+    expect(weekly.classList.contains('check')).toBe(true);
+    expect(weekly.querySelector('.pad')).toBeTruthy();
+  });
+
+  it('draws the days of the week the same way', async () => {
+    const { getByRole } = setUp();
+    await fireEvent.click(getByRole('button', { name: 'Every week' }));
+    const tuesday = getByRole('button', { name: 'Tue' });
+    expect(tuesday.classList.contains('check')).toBe(true);
+    expect(tuesday.querySelector('.pad')).toBeTruthy();
+  });
+
+  it('carries one primary button, which is the one that files the event', () => {
+    const { container } = setUp();
+    const primaries = container.querySelectorAll('.btn.primary');
+    expect(primaries.length).toBe(1);
+    expect(primaries[0].textContent.trim()).toBe('Create event');
+  });
+});

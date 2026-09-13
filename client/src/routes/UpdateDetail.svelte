@@ -1,13 +1,41 @@
 <script>
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
-  import { getUpdate, formatDate } from '../lib/updates.js';
+  import { getUpdate } from '../lib/updates.js';
   import { navigate } from '../lib/router.js';
+  import { campusDate } from '../lib/campusTime.js';
+  import ReadingPage from '../lib/ReadingPage.svelte';
+  import { Icon } from '../lib/components/ui/index.js';
 
-  export let slug = '';
+  /**
+   * One update, as a page of its own.
+   *
+   * A reading page: the title, the day it was published, and the prose, with
+   * the body's own headings and lists taking the reading page's roles. The
+   * markdown is sanitized before it is drawn, because it is written as a file
+   * in the repository and rendered as markup here.
+   */
+  let { slug = '' } = $props();
 
-  $: update = getUpdate(slug);
-  $: htmlPromise = update ? Promise.resolve(DOMPurify.sanitize(marked.parse(update.body))) : Promise.resolve('');
+  const update = $derived(getUpdate(slug));
+
+  const html = $derived(update ? DOMPurify.sanitize(marked.parse(update.body)) : '');
+
+  /**
+   * The day an update was published, on the campus clock. A plain date read as
+   * an instant is midnight in UTC, which is the evening before on campus, so
+   * the day is named as a campus wall clock reading.
+   */
+  const published = $derived(
+    update?.date
+      ? campusDate(`${update.date}T00:00`, { month: 'short', day: 'numeric', year: 'numeric' })
+      : null,
+  );
+
+  function back(event) {
+    event.preventDefault();
+    navigate('/updates');
+  }
 </script>
 
 <svelte:head>
@@ -19,74 +47,55 @@
   {/if}
 </svelte:head>
 
-<div class="max-w-2xl mx-auto">
-  <a
-    href="/updates"
-    on:click|preventDefault={() => navigate('/updates')}
-    class="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
-  >
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M19 12H5M12 19l-7-7 7-7"/>
-    </svg>
-    All updates
-  </a>
-
-  {#if !update}
-    <p class="text-muted-foreground">Update not found.</p>
-  {:else}
-    <article class="rounded-lg border bg-card p-6 sm:p-8">
-      <h1 class="text-2xl font-bold mb-1">{update.title}</h1>
-      <time class="text-sm text-muted-foreground">{formatDate(update.date)}</time>
-
-      {#await htmlPromise then html}
-        <div class="update-body mt-6 text-sm leading-relaxed space-y-4">
-          {@html html}
-        </div>
-      {/await}
-    </article>
-  {/if}
-</div>
+{#if !update}
+  <ReadingPage title="There is no update at this address">
+    <p>
+      The update that was here has been renamed or taken down. The whole listing is a page
+      away, and the one you were looking for may well be on it.
+    </p>
+    <p class="way">
+      <a class="back" href="/updates" onclick={back}><Icon name="back" />All updates</a>
+    </p>
+  </ReadingPage>
+{:else}
+  <ReadingPage title={update.title} dateline={published}>
+    <p class="way">
+      <a class="back" href="/updates" onclick={back}><Icon name="back" />All updates</a>
+    </p>
+    {@html html}
+  </ReadingPage>
+{/if}
 
 <style>
-  .update-body :global(h1),
-  .update-body :global(h2),
-  .update-body :global(h3) {
-    font-weight: 600;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
+  /*
+   * The way back is the back link the event page uses: the back icon and the
+   * words, in the display face, quiet. It is not a button, so it is not drawn
+   * as one.
+   */
+  .way {
+    margin-top: 18px;
   }
-  .update-body :global(h1) { font-size: 1.25rem; }
-  .update-body :global(h2) { font-size: 1.1rem; }
-  .update-body :global(h3) { font-size: 1rem; }
-  .update-body :global(p)  { margin-bottom: 0.75rem; }
-  .update-body :global(ul),
-  .update-body :global(ol) { padding-left: 1.5rem; margin-bottom: 0.75rem; }
-  .update-body :global(li) { margin-bottom: 0.25rem; }
-  .update-body :global(ul) { list-style-type: disc; }
-  .update-body :global(ol) { list-style-type: decimal; }
-  .update-body :global(strong) { font-weight: 600; }
-  .update-body :global(em)     { font-style: italic; }
-  .update-body :global(a) {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    color: hsl(var(--primary));
+
+  .back {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 32px;
   }
-  .update-body :global(code) {
-    font-family: monospace;
-    font-size: 0.85em;
-    background: hsl(var(--muted));
-    padding: 0.1em 0.3em;
-    border-radius: 3px;
+
+  .back:hover {
+    color: var(--ink);
   }
-  .update-body :global(blockquote) {
-    border-left: 3px solid hsl(var(--border));
-    padding-left: 1rem;
-    color: hsl(var(--muted-foreground));
-    margin: 0.75rem 0;
-  }
-  .update-body :global(hr) {
-    border: none;
-    border-top: 1px solid hsl(var(--border));
-    margin: 1.5rem 0;
+
+  .back:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
   }
 </style>

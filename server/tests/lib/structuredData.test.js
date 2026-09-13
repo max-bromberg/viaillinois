@@ -53,6 +53,22 @@ describe('eventSchema', () => {
   });
 
   /**
+   * A cancelled event stays on the site so that somebody who planned to go is
+   * told. Described as still scheduled, it is also still listed as happening
+   * everywhere the listing was syndicated, which is the opposite of telling
+   * them.
+   */
+  it('says the event was called off when it was', () => {
+    const schema = eventSchema({ ...inRoom, cancelled_at: '2026-09-20 09:00:00' }, SITE);
+    expect(schema.eventStatus).toBe('https://schema.org/EventCancelled');
+  });
+
+  it('says it is happening when the cancellation column is empty', () => {
+    expect(eventSchema({ ...inRoom, cancelled_at: null }, SITE).eventStatus)
+      .toBe('https://schema.org/EventScheduled');
+  });
+
+  /**
    * A free text location that names a video call is an online event, and
    * saying so is the difference between being listed correctly and being
    * listed as happening at a place that does not exist.

@@ -74,7 +74,17 @@ export function verifyToken(token) {
 export function attachUser(req, _res, next) {
   try {
     const token = req.cookies?.via_token;
-    if (token) req.user = verifyToken(token);
+    if (token) {
+      const claims = verifyToken(token);
+      // VIA signs tokens for more than signing in, and every one of them is
+      // verified with this same secret. A token with no NetID names nobody,
+      // and a token that names a purpose of its own, such as the Discord
+      // link state, was signed for that purpose rather than for signing in.
+      // Either one is refused here so that it cannot become a session.
+      if (claims && typeof claims.net_id === 'string' && claims.net_id && claims.typ === undefined) {
+        req.user = claims;
+      }
+    }
   } catch { /* invalid token, so req.user stays null */ }
   next();
 }

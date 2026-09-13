@@ -1,14 +1,53 @@
-<nav class="border-b bg-background/95 backdrop-blur sticky top-0 z-40">
-  <div class="container mx-auto px-4 h-14 flex items-center justify-between">
-    <!-- Left: logo + nav links -->
-    <div class="flex items-center gap-6">
-      <div class="shimmer h-5 w-16"></div>
-      <div class="shimmer h-3.5 w-14"></div>
-      <div class="shimmer h-3.5 w-14"></div>
-      <div class="shimmer h-3.5 w-16"></div>
-    </div>
+<script>
+  /**
+   * The shape of the sky band, before the page knows anything.
+   *
+   * It draws the band at the hour it is, because the sky is the one thing on the
+   * page that is already known, and leaves the shapes of the navigation and the
+   * greeting in place of the words. Nothing shimmers.
+   */
+  import { Sky } from './components/ui/index.js';
+</script>
 
-    <!-- Right: auth button -->
-    <div class="shimmer h-8 w-20 rounded-md"></div>
+<Sky as="header" aria-hidden="true">
+  <div class="nav">
+    <div class="ghost mark"></div>
+    <div class="links">
+      {#each Array(4) as _, at (at)}<span class="ghost link"></span>{/each}
+    </div>
   </div>
-</nav>
+  <div class="greet">
+    <div>
+      <div class="ghost lede"></div>
+      <div class="ghost name"></div>
+    </div>
+  </div>
+</Sky>
+
+<style>
+  .ghost {
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
+    display: block;
+  }
+
+  .mark {
+    width: 58px;
+    height: 26px;
+  }
+
+  .link {
+    width: 70px;
+    height: 15px;
+  }
+
+  .lede {
+    width: 180px;
+    height: 24px;
+  }
+
+  .name {
+    width: 320px;
+    height: 62px;
+    margin-top: 8px;
+  }
+</style>

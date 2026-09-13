@@ -241,3 +241,37 @@ describe('CalendarImport, previewing a repeating entry', () => {
     expect(await findByText(/2 added, 13 updated, 1 removed/)).toBeTruthy();
   });
 });
+
+/**
+ * The panel under the design system.
+ *
+ * docs/design/11-implementation.md: no emoji in place of an icon, no rounded
+ * rectangle with a one pixel border as a container, and an error is a sentence
+ * in danger text rather than a red box.
+ */
+describe('CalendarImport, drawn from the design system', () => {
+  beforeEach(() => {
+    importCalendar.mockReset();
+    importCalendar.mockResolvedValue(PLAN);
+  });
+
+  it('draws the room with the pin icon rather than an emoji', async () => {
+    const { getByLabelText, getByRole, findByText, container } = render(CalendarImport, { kind: 'events', rsoId: 1 });
+    await pasteCalendar(getByLabelText);
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    await findByText(/Electrical & Computer Eng Bldg 1002/);
+
+    expect(container.textContent).not.toContain('\u{1F4CD}');
+    expect(container.querySelector('.room svg.i')).toBeTruthy();
+  });
+
+  it('says what went wrong in a sentence rather than in a box', async () => {
+    importCalendar.mockRejectedValue(new Error('That file has no calendar entries in it.'));
+    const { getByLabelText, getByRole, findByText } = render(CalendarImport, { kind: 'events', rsoId: 1 });
+    await pasteCalendar(getByLabelText, 'nonsense');
+    await fireEvent.click(getByRole('button', { name: /preview/i }));
+    const said = await findByText(/no calendar entries/i);
+    expect(said.tagName).toBe('P');
+    expect(said.className).toContain('failed');
+  });
+});

@@ -1,4 +1,7 @@
-import { expandOccurrences, timeOfDay, durationMinutes, toWallClock, WEEKDAYS } from '../lib/recurrence.js';
+import {
+  expandOccurrences, expandMonthly, expandDates, isCalendarDate,
+  timeOfDay, durationMinutes, toWallClock, weekdaysOf, MAX_OCCURRENCES, WEEKDAYS,
+} from '../lib/recurrence.js';
 import { termForDate, addDays, weekdayOf } from '../lib/academicCalendar.js';
 
 /**
@@ -18,6 +21,18 @@ const MAX_DAYS = 366;
 
 /** Every other week is the far end of what a form offers. A calendar file can carry more. */
 const MAX_INTERVAL_WEEKS = 8;
+
+/** A year is the far end of a repeat, so a monthly interval cannot exceed it. */
+const MAX_INTERVAL_MONTHS = 12;
+
+/**
+ * The shapes a repeat can take.
+ *
+ * A repeat used to be every week or every other week and nothing else, so a
+ * board holding a meeting once a month, or on a set of dates that follow no
+ * rule at all, entered each one by hand.
+ */
+const FREQUENCIES = ['weekly', 'monthly', 'dates'];
 
 const problem = message => ({ error: message });
 
@@ -56,9 +71,50 @@ export function planSeries({ startTime, endTime, recurrence = {}, term = null })
   if (!start || !end) return problem('The start time and the end time each have to be a date and a time.');
   if (end <= start) return problem('The end time has to be after the start time.');
 
+  const frequency = recurrence.frequency ?? 'weekly';
+  if (!FREQUENCIES.includes(frequency)) {
+    return problem(`A repeat has to be one of ${FREQUENCIES.join(', ')}.`);
+  }
+
+  if (frequency === 'dates') return planPickedDates({ start, end, recurrence });
+
   const startsOn = (recurrence.starts_on ?? start).slice(0, 10);
   const calendar = term ?? termForDate(startsOn);
+  const endsOn = (recurrence.ends_on ?? calendar.instructionEnd).slice(0, 10);
+  if (endsOn < startsOn) return problem('The repeat cannot end before it begins.');
+  if (endsOn > addDays(startsOn, MAX_DAYS)) return problem('A repeat can run for at most a year.');
 
+  const span = { start, end, startsOn, endsOn, breaks: calendar.breaks ?? [] };
+  return frequency === 'monthly'
+    ? planMonthly({ ...span, recurrence })
+    : planWeekly({ ...span, recurrence });
+}
+
+/** The occurrences a plan produces, or the sentence saying why there are none. */
+function seriesOf(occurrences, rule, start, end) {
+  if (occurrences.length === 0) {
+    return problem('That repeat produces no events. Check the days of the week and the end date.');
+  }
+  return {
+    series: {
+      frequency: 'weekly',
+      interval_weeks: null,
+      interval_months: null,
+      days_of_week: null,
+      month_day: null,
+      month_week: null,
+      ...rule,
+      starts_on: occurrences[0].date,
+      ends_on: occurrences.at(-1).date,
+      start_of_day: timeOfDay(start),
+      duration_minutes: durationMinutes(start, end),
+    },
+    occurrences,
+  };
+}
+
+/** Every so many weeks, on the days chosen. */
+function planWeekly({ start, end, startsOn, endsOn, breaks, recurrence }) {
   const days = readDays(recurrence.days_of_week);
   if (days === 'invalid') {
     return problem(`A day of the week has to be one of ${WEEKDAYS.join(', ')}.`);
@@ -70,31 +126,100 @@ export function planSeries({ startTime, endTime, recurrence = {}, term = null })
     return problem(`The interval has to be a whole number of weeks, from 1 to ${MAX_INTERVAL_WEEKS}.`);
   }
 
-  const endsOn = (recurrence.ends_on ?? calendar.instructionEnd).slice(0, 10);
-  if (endsOn < startsOn) return problem('The repeat cannot end before it begins.');
-  if (endsOn > addDays(startsOn, MAX_DAYS)) return problem('A repeat can run for at most a year.');
-
   const occurrences = expandOccurrences({
-    startTime: start, endTime: end, daysOfWeek, intervalWeeks, startsOn, endsOn,
-    skip: calendar.breaks ?? [],
+    startTime: start, endTime: end, daysOfWeek, intervalWeeks, startsOn, endsOn, skip: breaks,
   });
 
-  if (occurrences.length === 0) {
-    return problem('That repeat produces no events. Check the days of the week and the end date.');
+  return seriesOf(occurrences, {
+    frequency: 'weekly',
+    interval_weeks: intervalWeeks,
+    days_of_week: daysOfWeek.join(','),
+  }, start, end);
+}
+
+/**
+ * Once every so many months, on a date in the month or on a weekday of it.
+ *
+ * The two shapes are what a person means by "once a month", and a rule can only
+ * be one of them: the fifteenth and the second Tuesday are different dates in
+ * every month, so being told both says nothing about which was meant.
+ */
+function planMonthly({ start, end, startsOn, endsOn, breaks, recurrence }) {
+  const byDate = recurrence.month_day !== undefined && recurrence.month_day !== null;
+  const byWeekday = recurrence.month_week !== undefined && recurrence.month_week !== null;
+  if (byDate === byWeekday) {
+    return problem('A monthly repeat needs either a date in the month or a weekday of it, and not both.');
   }
 
-  return {
-    series: {
-      frequency: 'weekly',
-      interval_weeks: intervalWeeks,
-      days_of_week: daysOfWeek.join(','),
-      starts_on: occurrences[0].date,
-      ends_on: occurrences.at(-1).date,
-      start_of_day: timeOfDay(start),
-      duration_minutes: durationMinutes(start, end),
-    },
-    occurrences,
-  };
+  const intervalMonths = Number(recurrence.interval_months ?? 1);
+  if (!Number.isInteger(intervalMonths) || intervalMonths < 1 || intervalMonths > MAX_INTERVAL_MONTHS) {
+    return problem(`The interval has to be a whole number of months, from 1 to ${MAX_INTERVAL_MONTHS}.`);
+  }
+
+  let monthDay = null;
+  let monthWeek = null;
+  let weekday = null;
+
+  if (byDate) {
+    monthDay = Number(recurrence.month_day);
+    if (!Number.isInteger(monthDay) || monthDay < 1 || monthDay > 31) {
+      return problem('The day of the month has to be a whole number from 1 to 31.');
+    }
+  } else {
+    monthWeek = Number(recurrence.month_week);
+    if (!Number.isInteger(monthWeek) || monthWeek === 0 || monthWeek < -1 || monthWeek > 5) {
+      return problem('The week of the month has to be 1 to 5, or -1 for the last one.');
+    }
+    const days = readDays(recurrence.days_of_week);
+    if (days === 'invalid' || days === null) {
+      return problem(`A monthly repeat on a weekday of the month needs a day of the week, one of ${WEEKDAYS.join(', ')}.`);
+    }
+    weekday = days[0];
+  }
+
+  const occurrences = expandMonthly({
+    startTime: start, endTime: end,
+    intervalMonths, monthDay, monthWeek, weekday,
+    startsOn, endsOn, skip: breaks,
+  });
+
+  return seriesOf(occurrences, {
+    frequency: 'monthly',
+    interval_months: intervalMonths,
+    month_day: monthDay,
+    month_week: monthWeek,
+    days_of_week: weekday,
+  }, start, end);
+}
+
+/**
+ * A set of dates the organizer picked.
+ *
+ * There is no rule to bound, so the dates themselves are the bound, and nothing
+ * is stepped over: a date somebody chose is a date they meant.
+ */
+function planPickedDates({ start, end, recurrence }) {
+  const given = Array.isArray(recurrence.dates) ? recurrence.dates : [];
+  if (given.length === 0) return problem('Pick at least one date for this repeat.');
+  if (given.length > MAX_OCCURRENCES) {
+    return problem(`A repeat can hold at most ${MAX_OCCURRENCES} dates.`);
+  }
+  if (!given.every(isCalendarDate)) {
+    return problem('Every picked date has to be a date, written as YYYY-MM-DD.');
+  }
+
+  const occurrences = expandDates({ startTime: start, endTime: end, dates: given });
+  if (occurrences.length > 0) {
+    const span = occurrences.at(-1).date;
+    if (span > addDays(occurrences[0].date, MAX_DAYS)) {
+      return problem('A repeat can run for at most a year.');
+    }
+  }
+
+  return seriesOf(occurrences, {
+    frequency: 'dates',
+    days_of_week: weekdaysOf(occurrences.map(occurrence => occurrence.date)).join(',') || null,
+  }, start, end);
 }
 
 /**

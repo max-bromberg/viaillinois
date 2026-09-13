@@ -83,6 +83,19 @@ describe('describePage', () => {
       expect(page.jsonLd[0]).toMatchObject({ '@type': 'Event', name: 'PCB Design Workshop' });
     });
 
+    it('carries a cancellation into the structured data the page publishes', async () => {
+      getEventById.mockResolvedValue({ ...EVENT, cancelled_at: '2026-09-20 09:00:00' });
+      const page = await describePage('/events/12', SITE);
+      expect(page.jsonLd[0].eventStatus).toBe('https://schema.org/EventCancelled');
+    });
+
+    it('carries a cancellation into the listing on the front page too', async () => {
+      getPublicEvents.mockResolvedValue([{ ...EVENT, cancelled_at: '2026-09-20 09:00:00' }]);
+      const page = await describePage('/', SITE);
+      expect(page.jsonLd[0].itemListElement[0].item.eventStatus)
+        .toBe('https://schema.org/EventCancelled');
+    });
+
     it('renders the event as readable HTML for anything that does not run scripts', async () => {
       const page = await describePage('/events/12', SITE);
       expect(page.content).toContain('<h1>');
