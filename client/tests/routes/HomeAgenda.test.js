@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const getEvents = vi.hoisted(() => vi.fn());
 const getRsos = vi.hoisted(() => vi.fn());
@@ -132,5 +134,103 @@ describe('the agenda', () => {
     const { container } = render(Home);
     await waitFor(() => expect(container.querySelectorAll('.day').length).toBe(1));
     expect(container.querySelector('.day .dh b').textContent).toBeTruthy();
+  });
+});
+
+/**
+ * An organization's colour reaches its rows.
+ *
+ * The feed's events carry the organization's name and not its colour, because no
+ * event query selects one. The colour comes from the separate organization list
+ * the rail is built from, and the feed has to hand it to each row. Without that
+ * every row on the busiest surface of the site drew in the same neutral grey,
+ * and the design system's central promise, that an organization is one colour
+ * everywhere, failed where it is most visible.
+ */
+describe('the organization colour on the feed', () => {
+  it('reaches the row, adapted, once the organization list has arrived', async () => {
+    getEvents.mockResolvedValue({ events: [event(1, 10, 18)], total: 1 });
+    const { container } = render(Home);
+    await waitFor(() => expect(container.querySelector('.ev')).toBeTruthy());
+
+    const { organizationColor } = await import('../../src/lib/organizationColor.js');
+    const lamp = organizationColor('#00629B', 'lamp', 'light');
+    const unset = organizationColor(null, 'lamp', 'light');
+
+    await waitFor(() => {
+      expect(container.querySelector('.ev').getAttribute('style')).toContain(`--h: ${lamp}`);
+    });
+    expect(container.querySelector('.ev').getAttribute('style')).not.toContain(unset);
+  });
+
+  it('leaves a row whose organization has chosen no colour on the neutral grey', async () => {
+    getRsos.mockResolvedValue({ rsos: [{ rso_id: 1, name: 'IEEE', logo_color: null }] });
+    getEvents.mockResolvedValue({ events: [event(1, 10, 18)], total: 1 });
+    const { container } = render(Home);
+    await waitFor(() => expect(container.querySelector('.ev')).toBeTruthy());
+    const { organizationColor } = await import('../../src/lib/organizationColor.js');
+    expect(container.querySelector('.ev').getAttribute('style'))
+      .toContain(organizationColor(null, 'lamp', 'light'));
+  });
+});
+
+/**
+ * Three things the conversion left behind.
+ */
+describe('the feed heading and what it does when things go wrong', () => {
+  it('sets the feed heading in the condensed display face the rail headings use', async () => {
+    getEvents.mockResolvedValue({ events: [event(1, 10, 18)], total: 1 });
+    const { container } = render(Home);
+    await waitFor(() => expect(container.querySelector('.feedhead')).toBeTruthy());
+    const heading = container.querySelector('.feedhead h1, .feedhead h2, .feedhead h3');
+    expect(heading, 'the feed has no heading').toBeTruthy();
+    // The design system dresses the heading through .feedhead, and the rule in
+    // the reference stylesheet named one heading level. The client's outline
+    // needs a different one, so the rule names them all and the heading keeps
+    // the level the page's outline calls for rather than the level the
+    // reference's own mock happened to use.
+    const app = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+    expect(app).toMatch(/\.feedhead h1[^{]*\{font-family:var\(--display\)/);
+    expect(heading.tagName).toBe('H1');
+  });
+
+  /**
+   * The agenda says what is on right now, so it keeps a minute timer. It was
+   * started inside an async onMount, and Svelte does not take a cleanup back
+   * from a promise, so every visit to the feed left a timer running for the life
+   * of the tab.
+   */
+  it('stops the minute timer when the feed is left', async () => {
+    getEvents.mockResolvedValue({ events: [event(1, 10, 18)], total: 1 });
+    const clear = vi.spyOn(globalThis, 'clearInterval');
+    const { container, unmount } = render(Home);
+    await waitFor(() => expect(container.querySelector('.ev')).toBeTruthy());
+    const before = clear.mock.calls.length;
+    unmount();
+    expect(clear.mock.calls.length).toBeGreaterThan(before);
+    clear.mockRestore();
+  });
+
+  /**
+   * A reader who is told only that something went wrong cannot say what, and
+   * neither can whoever they tell. The sentence the platform sent is the useful
+   * half of it.
+   */
+  it('says what went wrong rather than only that something did', async () => {
+    const failure = Object.assign(new Error('The search you asked for is too long.'), { said: true, status: 400 });
+    getEvents.mockRejectedValue(failure);
+    const { findByText } = render(Home);
+    expect(await findByText(/The search you asked for is too long\./)).toBeTruthy();
+  });
+
+  /**
+   * A status code is not a sentence. "HTTP 500" tells a reader nothing and reads
+   * like a crash, so what is shown then is the sentence the site wrote.
+   */
+  it('does not put a status code in front of a reader', async () => {
+    getEvents.mockRejectedValue(Object.assign(new Error('HTTP 500'), { said: false, status: 500 }));
+    const { findByText, container } = render(Home);
+    expect(await findByText(/Try again in a moment\./)).toBeTruthy();
+    expect(container.textContent).not.toMatch(/HTTP 500/);
   });
 });

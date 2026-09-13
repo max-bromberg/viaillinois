@@ -42,6 +42,12 @@
   let selectedRsoIds = $state([]);
   let showInternal = $state(true);
   let timeframe = $state('upcoming');
+  /**
+   * On a phone the page grid puts the rail above the agenda, and five headings
+   * of rail is more than a screen, so the rail folds behind an opener the way
+   * the calendar's rail already does.
+   */
+  let open = $state(false);
 
   const theme = $derived($resolvedTheme);
 
@@ -107,99 +113,124 @@
 </script>
 
 <aside class={['rail', className].filter(Boolean).join(' ')} aria-label="Filter the agenda">
-  <div>
-    <h4>When</h4>
-    <div class="when">
-      {#each TIMEFRAMES as option (option.value)}
-        {#if timeframe === option.value}
-          <b><button type="button" aria-pressed="true" onclick={() => chooseTimeframe(option.value)}>{option.label}</button></b>
-        {:else}
-          <span><button type="button" aria-pressed="false" onclick={() => chooseTimeframe(option.value)}>{option.label}</button></span>
-        {/if}
-      {/each}
-    </div>
-    <!--
-      A date range asks the same question the two words do, so it sits under the
-      same heading rather than adding a sixth to a rail of five.
-    -->
-    <DatePicker bind:value={startDate} placeholder="From" on:change={report} />
-    <DatePicker bind:value={endDate} placeholder="Until" min={startDate} on:change={report} />
-  </div>
+  <!-- On a phone the rail folds away, because the agenda is what was opened. -->
+  <button
+    type="button"
+    class="btn quiet opener"
+    aria-expanded={open}
+    aria-controls="agenda-filters"
+    aria-label={filtered ? 'Filters, some of them on' : undefined}
+    onclick={() => { open = !open; }}
+  >
+    <Pad hollow={!filtered} />Filters
+  </button>
 
-  <div>
-    <h4>Search</h4>
-    <Field
-      label="Search the agenda"
-      labelHidden
-      placeholder="Keyword"
-      bind:value={keyword}
-      oninput={report}
-    />
-  </div>
-
-  <div>
-    <h4>Tags</h4>
-    <div class="hlrow">
-      {#each $tagNames as tag (tag)}
-        <Highlight
-          tone={tagHue(tag)}
-          off={!selectedTags.includes(tag)}
-          pressed={selectedTags.includes(tag)}
-          onclick={() => toggleTag(tag)}
-        >{tag}</Highlight>
-      {/each}
-    </div>
-  </div>
-
-  {#if rsos.length > 0}
+  <div id="agenda-filters" class="groups" class:open>
     <div>
-      <h4>Organizations</h4>
-      <div class="orgs">
-        {#each rsos as rso (rso.rso_id)}
-          <span
-            role="checkbox"
-            tabindex="0"
-            aria-checked={String(chosen(rso))}
-            onclick={() => toggleRso(rso.rso_id)}
-            onkeydown={event => {
-              if (event.key !== ' ' && event.key !== 'Enter') return;
-              event.preventDefault();
-              toggleRso(rso.rso_id);
-            }}
-          >
-            <Pad tone={organizationColor(rso.logo_color, 'mark', theme)} hollow={!chosen(rso)} />{rso.name}
-          </span>
+      <h4>When</h4>
+      <div class="when">
+        {#each TIMEFRAMES as option (option.value)}
+          {#if timeframe === option.value}
+            <b><button type="button" aria-pressed="true" onclick={() => chooseTimeframe(option.value)}>{option.label}</button></b>
+          {:else}
+            <span><button type="button" aria-pressed="false" onclick={() => chooseTimeframe(option.value)}>{option.label}</button></span>
+          {/if}
+        {/each}
+      </div>
+      <!--
+        A date range asks the same question the two words do, so it sits under the
+        same heading rather than adding a sixth to a rail of five.
+      -->
+      <DatePicker bind:value={startDate} placeholder="From" on:change={report} />
+      <DatePicker bind:value={endDate} placeholder="Until" min={startDate} on:change={report} />
+    </div>
+
+    <div>
+      <h4>Search</h4>
+      <Field
+        label="Search the agenda"
+        labelHidden
+        placeholder="Keyword"
+        bind:value={keyword}
+        oninput={report}
+      />
+    </div>
+
+    <div>
+      <h4>Tags</h4>
+      <div class="hlrow">
+        {#each $tagNames as tag (tag)}
+          <Highlight
+            tone={tagHue(tag)}
+            off={!selectedTags.includes(tag)}
+            pressed={selectedTags.includes(tag)}
+            onclick={() => toggleTag(tag)}
+          >{tag}</Highlight>
         {/each}
       </div>
     </div>
-  {/if}
 
-  <div>
-    <h4>Show</h4>
-    <span
-      class="check"
-      role="checkbox"
-      tabindex="0"
-      aria-checked={String(showInternal)}
-      onclick={toggleInternal}
-      onkeydown={event => {
-        if (event.key !== ' ' && event.key !== 'Enter') return;
-        event.preventDefault();
-        toggleInternal();
-      }}
-    >
-      <Pad hollow={!showInternal} />Internal events
-    </span>
-  </div>
+    {#if rsos.length > 0}
+      <div>
+        <h4>Organizations</h4>
+        <div class="orgs">
+          {#each rsos as rso (rso.rso_id)}
+            <span
+              role="checkbox"
+              tabindex="0"
+              aria-checked={String(chosen(rso))}
+              onclick={() => toggleRso(rso.rso_id)}
+              onkeydown={event => {
+                if (event.key !== ' ' && event.key !== 'Enter') return;
+                event.preventDefault();
+                toggleRso(rso.rso_id);
+              }}
+            >
+              <Pad tone={organizationColor(rso.logo_color, 'mark', theme)} hollow={!chosen(rso)} />{rso.name}
+            </span>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
-  {#if filtered}
     <div>
-      <button type="button" class="clear" onclick={clear}>Clear the filters</button>
+      <h4>Show</h4>
+      <span
+        class="check"
+        role="checkbox"
+        tabindex="0"
+        aria-checked={String(showInternal)}
+        onclick={toggleInternal}
+        onkeydown={event => {
+          if (event.key !== ' ' && event.key !== 'Enter') return;
+          event.preventDefault();
+          toggleInternal();
+        }}
+      >
+        <Pad hollow={!showInternal} />Internal events
+      </span>
     </div>
-  {/if}
+
+    {#if filtered}
+      <div>
+        <button type="button" class="clear" onclick={clear}>Clear the filters</button>
+      </div>
+    {/if}
+  </div>
 </aside>
 
 <style>
+  /*
+   * The rail's own rules come from the reference stylesheet and are written
+   * against .rail, so the blocks now sit inside a wrapper that takes the same
+   * grid rather than the wrapper becoming a single tall block of its own.
+   */
+  .groups {
+    display: grid;
+    gap: 26px;
+    align-content: start;
+  }
+
   /*
    * Each block of the rail is a grid item, and a grid item's automatic minimum
    * size is its own content, which beats any width the track gives it. Without
@@ -207,8 +238,38 @@
    * across the agenda. Scoped with the child combinator, because a rule written
    * for the outer blocks would otherwise reach the rows inside them.
    */
-  .rail > div {
+  .groups > div {
     min-width: 0;
+  }
+
+  /*
+   * The opener belongs to the phone. The breakpoint is the one at which the page
+   * grid stops putting the rail beside the agenda and starts putting it above,
+   * so the rail folds at exactly the moment it would otherwise push the agenda
+   * off the screen.
+   */
+  .opener {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .opener {
+      display: inline-flex;
+      justify-self: start;
+    }
+
+    .groups {
+      display: none;
+    }
+
+    .groups.open {
+      display: grid;
+    }
+  }
+
+  .opener:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
   }
 
   /*

@@ -38,6 +38,14 @@ export const PRIMITIVE_SELECTORS = [
   '@keyframes pulse',
   '@keyframes settle',
   '@keyframes drift',
+  /*
+   * The reference's own narrow layout. VIA is read on a phone more often than
+   * on anything else, so this is not optional dressing: without it the page grid
+   * never collapses and the agenda is squeezed into eighty pixels beside a rail
+   * that will not shrink. NARROWED drops the selectors that belong to the
+   * reference page's own chrome.
+   */
+  '@media (max-width:900px)',
   'svg.i',
   // Every one of the five movements stops for anybody whose system asks for it.
   '@media (prefers-reduced-motion: reduce)',
@@ -48,6 +56,13 @@ export const PRIMITIVE_SELECTORS = [
   '.mast h1 b,.greet h2 b,.poster h1,.kiosk h1,.tspec .row1',
   '.mast h1,.greet h2,.sh h2,.cond,.tspec .big,.ev .b .title',
   '.day .dh b,.ev .t,.exam .code,.mt .head h1,.poster .when .big,.kiosk .whenk .big,.mast .clock .t,.greet .clock .t,.kiosk .k-top .t,.tspec .num,.sky .lab b,.ribbon .wkc b,.greet .line b',
+  /*
+   * The phone, which the reference writes last because a media query does not
+   * outrank a plain rule of the same weight further down the file: the display
+   * sizes the later revisions lifted would otherwise win back over the sizes the
+   * phone steps down to.
+   */
+  '@media (max-width:640px)',
 ];
 
 /**
@@ -128,6 +143,22 @@ export const COMPOSED_ROOTS = [
 export const SURFACE_ROOTS = ['page', 'rail', 'feedhead'];
 
 /**
+ * At rules whose body dresses both the client and the reference page's own
+ * document, and so is filtered the same way an ordinary rule is: every rule
+ * inside keeps the selectors that belong to the client's roots and loses the
+ * rest, and an at rule the client owns nothing in is dropped whole.
+ *
+ * The first version of this kept a second copy of each body here. That is the
+ * retyping this whole file exists to avoid, and it meant a rule added to the
+ * reference's narrow layout never reached the client, so the bodies are read
+ * out of the file now and only the names are written down.
+ */
+const FILTERED_AT = new Set([
+  '@media (max-width:900px)',
+  '@media (max-width:640px)',
+]);
+
+/**
  * The reference page frames each of its mockups in a floating slab it calls the
  * mock, and two rules hang off it that the client needs: a secondary or danger
  * button standing on a card fills with the card colour rather than with paper.
@@ -155,6 +186,31 @@ function belongsTo(selector, roots) {
     const first = classesIn(part)[0];
     return first !== undefined && roots.includes(first);
   });
+}
+
+/** What an at rule holds, without the at rule's own braces. */
+function bodyOf(text) {
+  return text.slice(text.indexOf('{') + 1, text.lastIndexOf('}'));
+}
+
+/**
+ * The body of an at rule, keeping only what the client owns.
+ *
+ * A single rule inside the reference's narrow layout can name the client's
+ * poster and six pieces of the reference page's own document in one selector
+ * list, so the list is filtered selector by selector rather than kept or
+ * dropped whole.
+ *
+ * @param {string} body
+ * @param {string[]} roots
+ * @returns {string}
+ */
+function filterBody(body, roots) {
+  return rulesOf(body).map(rule => {
+    const kept = rule.selector.split(',').map(part => part.trim()).filter(Boolean)
+      .filter(part => belongsTo(part, roots));
+    return kept.length === 0 ? '' : `${kept.join(',')}${rule.text.slice(rule.selector.length)}`;
+  }).join('');
 }
 
 /**
@@ -195,6 +251,11 @@ export function collectFor(css, { selectors = [], roots = [] } = {}) {
       return named.has(rule.selector)
         ? [{ selector: narrowed, text: rule.text.replace(rule.selector, narrowed) }]
         : [];
+    }
+    if (FILTERED_AT.has(rule.selector)) {
+      if (!named.has(rule.selector)) return [];
+      const body = filterBody(bodyOf(rule.text), roots);
+      return body === '' ? [] : [{ selector: rule.selector, text: `${rule.selector}{${body}}` }];
     }
     if (named.has(rule.selector)) return [rule];
     if (rule.selector.startsWith('@')) return [];

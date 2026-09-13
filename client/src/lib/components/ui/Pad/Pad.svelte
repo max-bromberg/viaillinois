@@ -27,6 +27,12 @@
     control = false,
     /** What a screen reader should call it. Without one it is decoration. */
     label = null,
+    /**
+     * The pad's own element, for the one caller that has to know where the pad
+     * is: the dial, which slides it from the stop it was at to the stop it is at
+     * now.
+     */
+    element = $bindable(null),
     class: className = '',
     ...rest
   } = $props();
@@ -43,6 +49,7 @@
 </script>
 
 <span
+  bind:this={element}
   class={classes}
   {style}
   role={label ? 'img' : undefined}

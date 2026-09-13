@@ -77,6 +77,32 @@ Every gap, padding and margin is one of 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24,
 | sky band: navigation height | 64 px |
 | sky band: greeting padding | 26 px top, 28 px sides, 34 px below the band's content |
 
+## Narrow screens
+
+The reference render is drawn at 1280 px and a phone is where VIA is read most, so the
+layout at a narrow width is written into `reference/foundation.css` rather than left to
+whoever builds each surface. There are two steps.
+
+At 900 px and below, which is the reference's own block, every two column grid becomes one
+column: the page (the rail moves above the agenda), the poster's body, the kiosk (whose side
+rail is dropped), and the greeting. The term ribbon goes to three columns and the exam row
+to two.
+
+At 640 px and below, the phone: the page gutter is 16 px, the navigation wraps with the
+links on a second line that scrolls sideways and the site's full name dropped, the greeting
+and the clock sit left with the display sizes one rung down, the day header becomes a single
+line above its events, the event row stacks its time, its body and its status, and the exam
+row becomes one column. Nothing new is introduced. Every part keeps its shape, its type role
+and its colour, and only the arrangement and the display sizes change.
+
+The block is written at the end of the reference stylesheet, after the revisions that lifted
+the large display sizes, because a media query does not outrank a plain rule of the same
+weight written further down the file.
+
+The filter rail folds behind an opener at 900 px, the width at which it stops sitting beside
+the agenda, so that five headings of rail do not push the agenda below the fold. The
+calendar's rail already worked this way and the control is the same shape in the same place.
+
 ## Elevation
 
 Three levels and no more.

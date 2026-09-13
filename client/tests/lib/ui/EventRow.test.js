@@ -136,3 +136,74 @@ describe('EventRow', () => {
     expect(container.innerHTML).not.toMatch(/#[0-9a-fA-F]{3}\b/);
   });
 });
+
+/**
+ * A location takes one of three forms: a room the platform knows about, free
+ * text the organizer typed for somewhere that is not a room, or nothing at all
+ * because it has not been decided. The row read only the first of the three, so
+ * an online event and one in the Illini Union showed no location at all, and an
+ * undecided one said nothing rather than saying it was undecided. The old card
+ * had three tests for exactly these cases and they went with it.
+ */
+describe('EventRow, where the event is', () => {
+  const roomOf = container => container.querySelector('.ev .b .meta .room');
+
+  it('shows the room when the event is in one', () => {
+    const { container } = render(EventRow, { event: EVENT });
+    expect(roomOf(container).textContent).toContain('ECEB 1002');
+  });
+
+  it('shows the free text when there is no room', () => {
+    const { container } = render(EventRow, {
+      event: { ...EVENT, building: null, room_number: null, location_text: 'Illini Union, room 314' },
+    });
+    expect(roomOf(container).textContent).toContain('Illini Union, room 314');
+  });
+
+  it('says the location is undecided when there is neither', () => {
+    const { container } = render(EventRow, {
+      event: { ...EVENT, building: null, room_number: null, location_text: null },
+    });
+    expect(roomOf(container).textContent).toContain('Location to be announced');
+  });
+
+  it('prefers the room over the free text when both are there', () => {
+    const { container } = render(EventRow, { event: { ...EVENT, location_text: 'Somewhere else' } });
+    expect(roomOf(container).textContent).toContain('ECEB 1002');
+    expect(roomOf(container).textContent).not.toContain('Somewhere else');
+  });
+
+  it('says nothing about the location when the reader may not see it', () => {
+    const { container } = render(EventRow, { event: EVENT, showRoom: false });
+    expect(roomOf(container)).toBe(null);
+  });
+});
+
+/**
+ * Cancelled, happening now and internal are three different facts and an event
+ * can be more than one of them at once. Read as one chain, a cancelled internal
+ * event said only that it was cancelled, and a board member scanning the feed
+ * could not tell it had never been public.
+ */
+describe('EventRow, more than one thing at once', () => {
+  const said = container => [...container.querySelectorAll('.ev .s')].map(n => n.textContent).join(' ');
+
+  it('says an internal event is internal', () => {
+    const { container } = render(EventRow, { event: { ...EVENT, is_private: 1 } });
+    expect(said(container)).toContain('Internal');
+  });
+
+  it('still says so when the event is cancelled', () => {
+    const { container } = render(EventRow, {
+      event: { ...EVENT, is_private: 1, cancelled_at: '2026-09-09T12:00:00-05:00' },
+    });
+    expect(said(container)).toContain('Cancelled');
+    expect(said(container)).toContain('Internal');
+  });
+
+  it('still says so when the event is happening now', () => {
+    const { container } = render(EventRow, { event: { ...EVENT, is_private: 1 }, live: true });
+    expect(said(container)).toContain('Happening now');
+    expect(said(container)).toContain('Internal');
+  });
+});

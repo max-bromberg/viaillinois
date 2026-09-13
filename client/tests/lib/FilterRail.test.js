@@ -135,3 +135,44 @@ describe('FilterRail', () => {
     });
   });
 });
+
+/**
+ * The rail folds away on a phone.
+ *
+ * The page grid puts the rail above the agenda once the screen is narrower than
+ * 900 px, and the rail is five headings tall, so on a phone the agenda the
+ * reader came for started below the fold. The calendar's rail already folded
+ * behind an opener, and this is the same shape of control in the same place.
+ */
+describe('the rail on a phone', () => {
+  it('offers an opener that says whether it is open', async () => {
+    const { getByRole } = render(FilterRail, { rsos: RSOS });
+    const opener = getByRole('button', { name: /filters/i });
+    expect(opener.getAttribute('aria-expanded')).toBe('false');
+    await fireEvent.click(opener);
+    expect(opener.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('names what the opener opens, so the control and the panel are tied together', () => {
+    const { container, getByRole } = render(FilterRail, { rsos: RSOS });
+    const opener = getByRole('button', { name: /filters/i });
+    const id = opener.getAttribute('aria-controls');
+    expect(id).toBeTruthy();
+    expect(container.querySelector(`#${id}`)).toBeTruthy();
+  });
+
+  it('says on the opener that some of the filters are on', async () => {
+    const { container, getByRole } = render(FilterRail, { rsos: RSOS, onchange: () => {} });
+    const opener = getByRole('button', { name: /filters/i });
+    expect(opener.querySelector('.pad.hollow')).toBeTruthy();
+    await fireEvent.click(container.querySelector('.rail .orgs > *'));
+    expect(opener.querySelector('.pad.hollow')).toBe(null);
+  });
+
+  it('leaves the rail open on a wide screen, where the opener is not drawn', () => {
+    const { container } = render(FilterRail, { rsos: RSOS });
+    const groups = container.querySelector('.rail .groups');
+    expect(groups).toBeTruthy();
+    expect(container.querySelectorAll('.rail .groups h4').length).toBeGreaterThan(3);
+  });
+});

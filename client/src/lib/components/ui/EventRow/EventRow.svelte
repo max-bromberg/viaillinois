@@ -5,6 +5,7 @@
   import { organizationColors } from '../../../organizationColor.js';
   import { tagHue } from '../../../tagHue.js';
   import { campusTime, toInstant } from '../../../campusTime.js';
+  import { locationLabel } from '../../../locationLabel.js';
 
   /**
    * A row in the agenda.
@@ -47,9 +48,13 @@
     cancelled || !event.tags ? [] : String(event.tags).split(',').map(tag => tag.trim()).filter(Boolean),
   );
 
-  const room = $derived(
-    event.building && event.room_number ? `${event.building} ${event.room_number}` : event.building ?? '',
-  );
+  /**
+   * A location takes one of three forms: a room the platform knows about, free
+   * text the organizer typed for somewhere that is not a room, or nothing at all
+   * because it has not been decided. locationLabel knows all three, and reading
+   * only the first of them lost the other two off the feed.
+   */
+  const room = $derived(locationLabel(event));
 
   /**
    * A live row is lit in signal, because what is happening now is the one thing
@@ -103,12 +108,18 @@
       </div>
     {/if}
   </div>
+  <!--
+    Cancelled, happening now and internal are three different facts and an event
+    can be more than one of them at once. Read as one chain, a cancelled internal
+    event said only that it was cancelled.
+  -->
   <div class="s">
     {#if cancelled}
       <Highlight tone="var(--danger)" class="st">Cancelled</Highlight>
     {:else if live}
       <span class="nowtag"><Pad tone="var(--signal)" breathing />Happening now</span>
-    {:else if event.is_private}
+    {/if}
+    {#if event.is_private}
       <Highlight tone="var(--primary)" class="st">Internal</Highlight>
     {/if}
   </div>

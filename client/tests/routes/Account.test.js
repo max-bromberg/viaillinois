@@ -199,6 +199,23 @@ describe('the account page', () => {
   });
 
   /**
+   * The name comes off the address bar, and the sentences are held in a plain
+   * object, which inherits constructor, toString and the rest from
+   * Object.prototype. A plain lookup took each of those for a sentence, so
+   * anybody could hand a reader a link that put the source of a function into a
+   * toast on their own account page.
+   */
+  it('says nothing when the address names something that is not one of the answers', async () => {
+    for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'nonsense']) {
+      showToast.mockClear();
+      window.history.replaceState({}, '', `/account?roles=${name}`);
+      render(Account);
+      await screen.findAllByRole('button', { name: /unlink/i });
+      expect(showToast, `${name} was taken for an answer`).not.toHaveBeenCalled();
+    }
+  });
+
+  /**
    * The account page is a reading page with a field for each setting. The one
    * setting on it is the NetID, which comes from the University sign in and is
    * read here rather than typed.

@@ -100,8 +100,15 @@ const inGamut = rgb => rgb.every(channel => channel >= -0.0001 && channel <= 1.0
  * @returns {string} a six digit hex color
  */
 export function organizationColor(stored, role, theme = 'light') {
+  /*
+   * Object.hasOwn, because every plain object inherits constructor, toString and
+   * the rest from Object.prototype. A plain lookup took each of those for a hit,
+   * and what came back had no lightness in it, so the search that walks the
+   * chroma down to the role's lightness compared against a number that is not a
+   * number and never finished.
+   */
+  if (!Object.hasOwn(ROLES, role)) throw new Error(`there is no ${role} role for an organization color`);
   const spec = ROLES[role];
-  if (!spec) throw new Error(`there is no ${role} role for an organization color`);
   const which = theme === 'dark' ? 'dark' : 'light';
 
   const rgb = parse(stored);

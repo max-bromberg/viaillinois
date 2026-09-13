@@ -218,3 +218,46 @@ describe('Calendar filter rail', () => {
     expect(getByText('Fall General Meeting')).toBeTruthy();
   });
 });
+
+/**
+ * An internal event on the calendar.
+ *
+ * The month grid used to carry a legend of coloured squares, and one of them
+ * said which entries were internal to an organization. The legend went, because
+ * the filter rail's pads and names are the legend now, and the distinction went
+ * with it: every entry is drawn in its organization's colour and nothing says
+ * which of them the whole department is welcome at. A reader has to open the
+ * event to find out.
+ *
+ * The site already says this in two places, on the event row and in the rail,
+ * and it says it with a hollow pad and with the word. The calendar says it the
+ * same way. Colour is not asked to carry it, because in a cell this size colour
+ * is already carrying the organization.
+ */
+describe('the calendar and internal events', () => {
+  const internal = { ...oneEvent, event_id: 2, title: 'Board Sync', is_private: 1 };
+
+  const withEvents = async events => {
+    getEvents.mockResolvedValue({ events, total: events.length });
+    getRsos.mockResolvedValue({ rsos: [IEEE] });
+    const view = render(Calendar);
+    await waitFor(() => expect(view.container.querySelector('.entry')).toBeTruthy());
+    return view;
+  };
+
+  it('marks an internal entry with a hollow pad, as the rail and the row do', async () => {
+    const { container } = await withEvents([internal]);
+    expect(container.querySelector('.entry .pad.hollow')).toBeTruthy();
+  });
+
+  it('leaves a public entry unmarked', async () => {
+    const { container } = await withEvents([oneEvent]);
+    expect(container.querySelector('.entry .pad')).toBe(null);
+  });
+
+  it('says it in words too, so that it does not ride on a shape alone', async () => {
+    const { container } = await withEvents([internal]);
+    const entry = container.querySelector('.entry');
+    expect(`${entry.getAttribute('title')} ${entry.textContent}`).toMatch(/internal/i);
+  });
+});

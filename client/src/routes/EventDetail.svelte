@@ -7,6 +7,7 @@
   import { getEvent } from '../api/events.js';
   import { getRso } from '../api/rsos.js';
   import { locationLabel } from '../lib/locationLabel.js';
+  import { calendarFileFor } from '../lib/calendarFile.js';
   import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import { campusDate, campusTime, toInstant } from '../lib/campusTime.js';
   import { organizationColors } from '../lib/organizationColor.js';
@@ -116,32 +117,6 @@
     return at ? at.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
   };
 
-  /** Semicolons, commas and line breaks carry meaning in a calendar file. */
-  const escaped = text => String(text ?? '')
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
-
-  function calendarFile() {
-    return [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//VIA//Virtually Integrated Agenda//EN',
-      'BEGIN:VEVENT',
-      `UID:via-event-${event.event_id}@viaillinois.com`,
-      `DTSTAMP:${stamp(new Date())}`,
-      `DTSTART:${stamp(event.start_time)}`,
-      ...(event.end_time ? [`DTEND:${stamp(event.end_time)}`] : []),
-      `SUMMARY:${escaped(event.title)}`,
-      `LOCATION:${escaped(locationLabel(event))}`,
-      `DESCRIPTION:${escaped(`${event.rso_name} on VIA. ${canonicalUrl}`)}`,
-      `URL:${canonicalUrl}`,
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ].join('\r\n');
-  }
-
   function googleCalendarUrl() {
     const params = new URLSearchParams({
       action: 'TEMPLATE',
@@ -184,7 +159,7 @@
   function downloadCalendarFile() {
     save(
       `via-event-${event.event_id}.ics`,
-      `data:text/calendar;charset=utf-8,${encodeURIComponent(calendarFile())}`,
+      `data:text/calendar;charset=utf-8,${encodeURIComponent(calendarFileFor(event, { url: canonicalUrl }))}`,
     );
   }
 
@@ -243,8 +218,14 @@
     ondownloadCode={downloadCode}
     onmakePoster={() => navigate(`/poster?event=${event.event_id}`)}
   >
+    <!--
+      The poster sets the measure and the ink; the page dresses what an organizer
+      wrote inside it, which is the space between paragraphs, the bullets on a
+      list and the colour of a link. The rules below name this container, so it
+      has to be here for a description to get any of it.
+    -->
     {#snippet describe()}
-      {#if descriptionHtml}{@html descriptionHtml}{/if}
+      {#if descriptionHtml}<div class="read">{@html descriptionHtml}</div>{/if}
     {/snippet}
 
     {#snippet code()}

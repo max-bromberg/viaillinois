@@ -24,9 +24,15 @@
   } = $props();
 
   const shape = $derived.by(() => {
-    const found = ICONS[name];
-    if (!found) throw new Error(`there is no ${name} icon; the eight are ${Object.keys(ICONS).join(', ')}`);
-    return found;
+    /*
+     * Object.hasOwn, because every plain object inherits constructor, toString
+     * and the rest from Object.prototype, and a plain lookup takes each of those
+     * for a hit and hands back a function to be written into the page.
+     */
+    if (!Object.hasOwn(ICONS, name)) {
+      throw new Error(`there is no ${name} icon; the eight are ${Object.keys(ICONS).join(', ')}`);
+    }
+    return ICONS[name];
   });
 </script>
 

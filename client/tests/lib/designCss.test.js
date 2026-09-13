@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { designBlock, OPENS, CLOSES } from '../../scripts/syncDesignCss.js';
-import { collect, reference, PRIMITIVE_SELECTORS } from '../../scripts/designRules.js';
+import { collect, collectFor, reference, PRIMITIVE_SELECTORS } from '../../scripts/designRules.js';
 
 /**
  * The client's rules are the reference stylesheet's rules.
@@ -53,5 +53,80 @@ describe('the design system rules in app.css', () => {
     expect(positions.every(at => at > -1)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(rules.at(-1).text).toContain('62%');
+  });
+});
+
+/**
+ * A media query in the reference dresses the client and the reference's own
+ * page from one block. The first version of the collector kept a second copy of
+ * that block's body here, which put the two out of step the moment either was
+ * edited: the whole reason the rules are read out of the file rather than
+ * retyped. The body is filtered by the same ownership test the ordinary rules
+ * use instead, so a rule added to the reference's narrow layout reaches the
+ * client without anybody editing the collector.
+ */
+describe('a media query the reference shares with its own page', () => {
+  const CSS = '@media (max-width:900px){'
+    + '.sh,.poster .body2{grid-template-columns:1fr}'
+    + '.comps{display:none}'
+    + '.page{grid-template-columns:1fr}'
+    + '}';
+
+  it('keeps the rules the client owns and leaves the reference page behind', () => {
+    const [rule] = collectFor(CSS, {
+      selectors: ['@media (max-width:900px)'],
+      roots: ['poster', 'page'],
+    });
+    expect(rule.text).toBe('@media (max-width:900px){'
+      + '.poster .body2{grid-template-columns:1fr}'
+      + '.page{grid-template-columns:1fr}'
+      + '}');
+  });
+
+  it('takes a rule added to the reference without the collector being edited', () => {
+    const [rule] = collectFor(CSS.replace('.comps{display:none}', '.comps{display:none}.page{padding:16px}'), {
+      selectors: ['@media (max-width:900px)'],
+      roots: ['poster', 'page'],
+    });
+    expect(rule.text).toContain('.page{padding:16px}');
+  });
+
+  it('drops the at rule altogether when the client owns none of it', () => {
+    expect(collectFor(CSS, { selectors: ['@media (max-width:900px)'], roots: ['exam'] })).toEqual([]);
+  });
+});
+
+/**
+ * The narrow layout.
+ *
+ * The reference render was drawn at 1280 px and its own narrow block stops at
+ * the page grid, so the client shipped a navigation 934 px wide inside a 400 px
+ * screen and an agenda squeezed into eighty. VIA is read on a phone more often
+ * than on anything else, so the phone block was added to the reference
+ * stylesheet, described in docs/design/06-shape-space-motion.md, and collected
+ * like every other rule.
+ */
+describe('the phone layout', () => {
+  const PHONE = APP.slice(APP.indexOf('@media (max-width:640px)'));
+
+  it('is in the block derived from the reference', () => {
+    expect(APP).toContain('@media (max-width:640px){');
+    expect(designBlock()).toContain('@media (max-width:640px){');
+  });
+
+  it('lets the navigation wrap instead of running off the screen', () => {
+    expect(PHONE).toContain('.nav{');
+    expect(PHONE).toContain('flex-wrap:wrap');
+  });
+
+  it('stacks the agenda, the day and the event row into one column', () => {
+    for (const rule of ['.day{grid-template-columns:1fr', '.ev{grid-template-columns:1fr']) {
+      expect(PHONE, `${rule} is missing`).toContain(rule);
+    }
+  });
+
+  it('takes the page gutter to the sixteen pixels the spacing table gives a phone', () => {
+    expect(PHONE).toMatch(/\.page\{[^}]*padding:\d+px 16px/);
+    expect(PHONE).toMatch(/\.greet\{[^}]*padding:\d+px 16px/);
   });
 });

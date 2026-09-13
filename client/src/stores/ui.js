@@ -22,7 +22,23 @@ export const pageTitle = writable(null);
  */
 export const bandShowsTitle = writable(false);
 
-export function showToast(message, type = 'success', durationMs = 3000) {
-  toast.set({ message, type });
-  setTimeout(() => toast.set(null), durationMs);
+/**
+ * Say what just happened.
+ *
+ * docs/design/07-components.md gives a toast six seconds, and gives an error
+ * none at all, because a sentence saying the feed did not load should still be
+ * there when the reader looks up. The lifetime travels with the toast and the
+ * Toast component keeps the timer, so that the setting the chrome asks for is
+ * the setting a reader gets. This used to keep a three second timer of its own
+ * as well, which emptied the store underneath the component and made every
+ * toast a three second flash, an error included.
+ *
+ * @param {string} message what happened
+ * @param {'success'|'error'} type which of the two it is
+ * @param {number} [durationMs] how long it stays, where zero stays until it is
+ *   dismissed. The default is none for an error and six seconds for the rest.
+ */
+export function showToast(message, type = 'success', durationMs = undefined) {
+  const duration = durationMs ?? (type === 'error' ? 0 : 6000);
+  toast.set({ message, type, duration });
 }

@@ -35,6 +35,41 @@
 
   const at = $derived(Math.max(0, STOPS.findIndex(stop => stop.value === mode)));
 
+  /**
+   * The fifth movement: the dial turns and the pad slides along it over 400
+   * milliseconds rather than snapping.
+   *
+   * The pad is drawn inside whichever stop is active, so a change destroys it in
+   * one stop and builds it in the next and it lands there with no journey. What
+   * happens instead is that the new pad is put back where the old one was and
+   * then moved to where it belongs, which reads as one pad travelling and costs
+   * the layout nothing, because the pad still sits in its stop the whole time.
+   *
+   * Stillness is honoured here rather than in the stylesheet, because this is
+   * drawn by the browser's animation interface and no stylesheet reaches it.
+   */
+  let pad = $state(null);
+  let cameFrom = null;
+
+  const wantsStillness = () => typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  $effect(() => {
+    // Named so that the effect runs again when the dial is turned.
+    void at;
+    const element = pad;
+    if (!element || typeof element.animate !== 'function') return;
+    const { left } = element.getBoundingClientRect();
+    const from = cameFrom;
+    cameFrom = left;
+    if (from === null || from === left || wantsStillness()) return;
+    element.animate(
+      [{ transform: `translateX(${from - left}px)` }, { transform: 'none' }],
+      { duration: 400, easing: 'ease-in-out' },
+    );
+  });
+
   function turn(value) {
     if (value === mode) return;
     onchange?.(value);
@@ -68,7 +103,7 @@
       onclick={() => turn(stop.value)}
       {onkeydown}
     >
-      {#if index === at}<Pad />{/if}
+      {#if index === at}<Pad bind:element={pad} />{/if}
       {#if stop.value === 'light'}<Icon name="sun" label="Light" />{/if}
       {#if stop.value === 'auto'}<b>{NAMES[mode] ?? NAMES.auto}</b>{/if}
       {#if stop.value === 'dark'}<Icon name="moon" label="Dark" />{/if}

@@ -7,7 +7,7 @@
   import CalendarFilter from '../lib/CalendarFilter.svelte';
   import UpdatesWidget from '../lib/UpdatesWidget.svelte';
   import WeekTimeGrid from '../lib/WeekTimeGrid.svelte';
-  import { Button } from '../lib/components/ui/index.js';
+  import { Button, Pad } from '../lib/components/ui/index.js';
   import { organizationColor } from '../lib/organizationColor.js';
   import { resolvedTheme } from '../stores/theme.js';
   import { campusFields, calendarDayKey, campusTodayMarker } from '../lib/campusTime.js';
@@ -342,13 +342,21 @@
                 {:else}
                   {#each (expandedDay === cell.day ? cell.items : cell.items.slice(0, VISIBLE_PER_DAY)) as item (item._type + (item.event_id ?? item.midterm_id))}
                     {#if item._type === 'event'}
+                      <!--
+                        An internal event is marked with a hollow pad and with the
+                        word, the same two ways the filter rail and the event row
+                        say it. Colour is not asked to carry it, because in a cell
+                        this size colour is already carrying the organization.
+                      -->
                       <button
                         type="button"
                         class="entry"
                         style="--h: {markOf(item.rso_name, marks)}"
-                        title="{item.title} · {item.rso_name}"
+                        title={item.is_private
+                          ? `${item.title} · ${item.rso_name} · Internal to the organization`
+                          : `${item.title} · ${item.rso_name}`}
                         on:click={() => navigate('/events/' + item.event_id)}
-                      ><span class="text">{item.title}</span></button>
+                      >{#if item.is_private}<Pad hollow />{/if}<span class="text">{item.title}</span>{#if item.is_private}<span class="only">, internal</span>{/if}</button>
                     {:else}
                       <div
                         class="entry exam"
@@ -587,6 +595,28 @@
 
   .entry.exam {
     cursor: default;
+  }
+
+  /* The pad sits in the line, at the size of the text beside it. */
+  .entry :global(.pad) {
+    flex: none;
+    margin-right: 6px;
+  }
+
+  /*
+   * The word, for anybody reading the page rather than looking at it. A cell has
+   * no room for it on screen, and the hollow pad says the same thing there.
+   */
+  .only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 
   .entry .text {

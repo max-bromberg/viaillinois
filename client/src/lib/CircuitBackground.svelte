@@ -284,4 +284,4 @@
     -webkit-mask-image: radial-gradient(ellipse 62% 55% at 50% 42%, transparent 18%, black 92%);
     mask-image: radial-gradient(ellipse 62% 55% at 50% 42%, transparent 18%, black 92%);
   "
-/>
+></canvas>

@@ -152,7 +152,7 @@
       <Toast
         message={$toast.message}
         tone={$toast.type === 'error' ? 'signal' : 'primary'}
-        duration={$toast.type === 'error' ? 0 : 6000}
+        duration={$toast.duration}
         ondismiss={() => toast.set(null)}
       />
     </div>

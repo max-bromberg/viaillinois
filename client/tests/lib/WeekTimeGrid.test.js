@@ -127,3 +127,28 @@ describe('WeekTimeGrid under the design system', () => {
     expect(container.querySelector('.shimmer')).toBeNull();
   });
 });
+
+/**
+ * The week view says the same thing the month view says.
+ *
+ * The legend of coloured squares went when the calendar took the design
+ * system's rail, and the internal marking went with it in both views. A reader
+ * paging through the week has the same question a reader paging through the
+ * month has, so it is answered the same way: a hollow pad and the word, never
+ * colour on its own.
+ */
+describe('an internal event in the week view', () => {
+  it('marks it with a hollow pad and says so in words', () => {
+    const { container } = grid({
+      events: [{ ...lateEvent, event_id: 9, title: 'Board Sync', is_private: 1 }],
+    });
+    const entry = container.querySelector('.entry');
+    expect(entry.querySelector('.pad.hollow')).toBeTruthy();
+    expect(`${entry.getAttribute('title')} ${entry.textContent}`).toMatch(/internal/i);
+  });
+
+  it('leaves a public event unmarked', () => {
+    const { container } = grid({ events: [lateEvent] });
+    expect(container.querySelector('.entry .pad')).toBe(null);
+  });
+});

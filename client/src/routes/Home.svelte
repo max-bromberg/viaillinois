@@ -28,6 +28,7 @@
 
   let loading = $state(false);
   let error = $state(null);
+  let failed = $state(false);
   let filters = $state({ keyword: '', tags: [], startDate: '', endDate: '', timeframe: 'upcoming' });
   let selectedRsoIds = $state([]);
   let showInternal = $state(true);
@@ -46,7 +47,15 @@
   const heading = $derived(past ? 'Past' : 'Upcoming');
   const theme = $derived($resolvedTheme);
 
+  /**
+   * An event carries its organization's name and not its colour, because no
+   * event query selects one. The colour comes from the organization list the
+   * rail is built from, so the feed looks it up by name and hands it to each
+   * row. Without it every row drew in the same neutral grey and the promise that
+   * an organization is one colour everywhere failed on the busiest surface.
+   */
   const rsoByName = $derived(Object.fromEntries(rsos.map(rso => [rso.name, rso])));
+  const colorOf = event => rsoByName[event.rso_name]?.logo_color ?? null;
   const days = $derived(groupByDay(events));
   const totalPages = $derived(Math.max(1, Math.ceil(serverTotal / PAGE_SIZE)));
 
@@ -84,6 +93,7 @@
   async function fetchEvents() {
     loading = true;
     error = null;
+    failed = false;
     try {
       const { events: page_, total } = await getEvents({
         ...filters,
@@ -95,7 +105,11 @@
       events = page_ ?? [];
       serverTotal = total ?? 0;
     } catch (failure) {
-      error = failure.message;
+      // The platform's own sentence when it wrote one, because a reader told
+      // only that something went wrong cannot say what, and neither can whoever
+      // they tell. A status code is not a sentence, so it is not shown.
+      failed = true;
+      error = failure.said ? failure.message : null;
       events = [];
     } finally {
       loading = false;
@@ -122,15 +136,23 @@
   onMount(async () => {
     page = readPageFromUrl();
     fetchEvents();
-    // The agenda says what is on right now, so it has to know what right now is
-    // for longer than the moment the page was drawn.
-    const tick = setInterval(() => { now = new Date(); }, 60000);
     try {
       const { rsos: list } = await getRsos();
       rsos = list ?? [];
     } catch {
       rsos = [];
     }
+  });
+
+  /*
+   * The agenda says what is on right now, so it has to know what right now is
+   * for longer than the moment the page was drawn. The timer is started here
+   * rather than in onMount because that one is asynchronous and Svelte does not
+   * take a cleanup back from a promise, so the timer outlived the page and kept
+   * running for the life of the tab.
+   */
+  $effect(() => {
+    const tick = setInterval(() => { now = new Date(); }, 60000);
     return () => clearInterval(tick);
   });
 </script>
@@ -173,8 +195,8 @@
 
     <Pagination currentPage={page} {totalPages} on:change={onPage} />
 
-    {#if error}
-      <p class="wrong">The feed did not load. Try again in a moment.</p>
+    {#if failed}
+      <p class="wrong">The feed did not load. {error ?? 'Try again in a moment.'}</p>
     {:else if loading}
       <!-- The shape of the rows, in the well colour, with no shimmer. -->
       <div class="waiting">
@@ -192,7 +214,7 @@
         <DayGroup day={group.events[0].start_time} {now}>
           {#each group.events as event (event.event_id)}
             <EventRow
-              {event}
+              event={{ ...event, rso_color: colorOf(event) }}
               {theme}
               live={isLive(event)}
               showRoom={canSeeRoom(event)}

@@ -240,13 +240,26 @@ function eventUid(event) {
   return `via-event-${event.event_id}@viaillinois.com`;
 }
 
-/** Escape the four characters the format reserves inside a text value. */
+/**
+ * Escape the four characters the format reserves inside a text value.
+ *
+ * Every shape of line break collapses to the escaped form, a lone carriage
+ * return included. Matching only a line feed and a carriage return followed by
+ * one let a lone carriage return through, and a reader that splits on it reads
+ * whatever came after as a new property: a board member could put END:VEVENT
+ * and a whole forged event into an event title and it would land in the
+ * calendar of every student who added that event to theirs. The remaining
+ * control characters have no representation in the format at all, so they are
+ * dropped rather than written out.
+ */
 function escapeText(value) {
   return String(value ?? '')
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\r\n|\r|\n/g, '\\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[ --]/g, '');
 }
 
 /** A stored wall clock reading as the format writes a local time. */

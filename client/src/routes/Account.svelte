@@ -50,8 +50,14 @@
 
   onMount(() => {
     const result = new URLSearchParams(window.location.search).get('roles');
+    /*
+     * Object.hasOwn, because this name comes off the address bar. Every plain
+     * object inherits constructor, toString and the rest from Object.prototype,
+     * so a plain lookup let anybody hand a reader a link that put the source of
+     * a function into a toast on their own account page.
+     */
+    if (result === null || !Object.hasOwn(ROLES_RESULTS, result)) return;
     const said = ROLES_RESULTS[result];
-    if (!said) return;
     // Everything but the one that worked stays until it is read, because a
     // sentence saying nothing changed should still be there when the reader
     // looks up.

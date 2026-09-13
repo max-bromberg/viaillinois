@@ -234,6 +234,19 @@ describe('EventDetail, as a poster', () => {
     expect(container.querySelector('.txt strong')?.textContent).toBe('PCB design');
   });
 
+  /**
+   * The page dresses the markdown an organizer wrote: the space between
+   * paragraphs, the bullets on a list, the colour of a link. Those rules were
+   * written against a container the page had stopped drawing, so the compiler
+   * called eleven of them unused and none of them reached a description. A list
+   * in a description came out with no bullets and no indent.
+   */
+  it('puts the description inside the container the page dresses it in', async () => {
+    const { container, findByRole } = render(EventDetail, { id: 1 });
+    await findByRole('heading', { name: 'IEEE Workshop' });
+    expect(container.querySelector('.txt .read strong')?.textContent).toBe('PCB design');
+  });
+
   it('keeps the board tools away from a reader who is not on that board', async () => {
     const { container, findByRole } = render(EventDetail, { id: 1 });
     await findByRole('heading', { name: 'IEEE Workshop' });

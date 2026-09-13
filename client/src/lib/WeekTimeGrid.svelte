@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { Pad } from './components/ui/index.js';
   import { campusFields, calendarDayKey, campusTime, campusTodayMarker, fallsOnDay } from './campusTime.js';
 
   /**
@@ -128,10 +129,16 @@
               type="button"
               class="entry"
               style="--h: {markOf(event.rso_name)}; top: {top}px; height: {height}px"
-              title="{event.title} · {event.rso_name}"
+              title={event.is_private
+                ? `${event.title} · ${event.rso_name} · Internal to the organization`
+                : `${event.title} · ${event.rso_name}`}
               on:click={() => open(event.event_id)}
             >
-              <span class="text">{event.title}</span>
+              <!--
+                An internal event carries a hollow pad and the word, the same two
+                ways the month view, the filter rail and the event row say it.
+              -->
+              <span class="text">{#if event.is_private}<Pad hollow />{/if}{event.title}{#if event.is_private}<span class="only">, internal</span>{/if}</span>
               {#if height >= SHOWS_TIME_H}
                 <span class="when mono">{campusTime(event.start_time)}</span>
               {/if}
@@ -268,6 +275,29 @@
 
   .entry.exam {
     cursor: default;
+  }
+
+  /* The pad sits in the line, at the size of the text beside it. */
+  .entry :global(.pad) {
+    flex: none;
+    margin-right: 6px;
+  }
+
+  /*
+   * The word, for anybody reading the page rather than looking at it. A column
+   * this narrow has no room for it on screen, and the hollow pad says the same
+   * thing there.
+   */
+  .only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 
   .entry .text {
