@@ -42,7 +42,16 @@
 
 <div class={['greet', className].filter(Boolean).join(' ')} {...rest}>
   <div>
-    <h2>{#if title}<b>{title}</b>{:else}{said} <b>{name ? `${name}.` : 'Illinois.'}</b>{/if}</h2>
+    <!--
+      A page title is the page's own first level heading, and it happens to be
+      set in the band. The greeting is not a heading of that kind: it names the
+      reader, and the agenda under it carries the page's structure.
+    -->
+    {#if title}
+      <h1>{title}</h1>
+    {:else}
+      <h2>{said} <b>{name ? `${name}.` : 'Illinois.'}</b></h2>
+    {/if}
     <div class="line" aria-live="polite" aria-atomic="true">
       {#if tonight !== null}
         <span><Numeral value={tonight} unit={`tonight in ${where}`} hot /></span>

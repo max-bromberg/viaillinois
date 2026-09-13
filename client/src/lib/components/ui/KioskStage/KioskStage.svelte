@@ -1,7 +1,7 @@
 <script>
   import { Mark } from '../Mark/index.js';
   import { Pad } from '../Pad/index.js';
-  import { campusDate, campusStartOfDay, campusTime, toInstant } from '../../../campusTime.js';
+  import { campusDate, campusDayName, campusStartOfDay, campusTime, toInstant } from '../../../campusTime.js';
   import { locationLabel } from '../../../locationLabel.js';
   import { organizationColor } from '../../../organizationColor.js';
 
@@ -74,13 +74,32 @@
     return Boolean(start && end && hour && hour >= start && hour < end);
   });
 
-  /** Until the event ends, or, where nobody said when it ends, when it starts. */
+  /**
+   * Until the event ends once it has begun, and when it starts until then.
+   * "Until 8:00 PM" on an event that has not started is a lie a lobby screen
+   * tells all afternoon, and the person reading it is walking past.
+   */
+  const started = $derived.by(() => {
+    const start = toInstant(event?.start_time);
+    const hour = toInstant(now);
+    return Boolean(start && hour && hour >= start);
+  });
+
   const when = $derived(
-    event?.end_time
+    started && event?.end_time
       ? { label: 'Until', value: event.end_time }
       : { label: 'Starts', value: event?.start_time },
   );
   const ends = $derived(clockParts(when.value));
+
+  /**
+   * Which day the event is on, said only when that is not today, because a lobby
+   * screen showing what is next can be showing something three days out.
+   */
+  const eventDay = $derived(campusDayName(event?.start_time, now));
+  const onAnotherDay = $derived(
+    Boolean(event?.start_time) && campusStartOfDay(event.start_time) !== campusStartOfDay(now),
+  );
 
   /** The kiosk is dark in either theme, so the mark takes its dark reading. */
   const mark = $derived(organizationColor(event?.logo_color, 'mark', 'dark'));
@@ -112,6 +131,15 @@
 
     <div class="org"><Pad tone={mark} />{event?.rso_name}</div>
     <h1>{event?.title}</h1>
+    {#if onAnotherDay}
+      <!--
+        The stage shows what is next, which is not always what is on today. The
+        day of the event is the one thing the rail says about everything it lists
+        and the stage could not say about the event it is showing, so somebody
+        walking past read a time with no date on it.
+      -->
+      <time class="onday" datetime={campusStartOfDay(event?.start_time)}>{eventDay}</time>
+    {/if}
 
     <div class="whenk">
       <div>
@@ -146,6 +174,20 @@
    * events that have not started, where there is no now tag to push against, and
    * the clock belongs in the corner in either case.
    */
+  /*
+   * The day sits under the title in the display face, large enough to read
+   * while walking past but well under the title it qualifies.
+   */
+  .onday {
+    display: block;
+    margin-top: 14px;
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 26px;
+    color: var(--muted);
+  }
+
   .k-top > :last-child {
     margin-left: auto;
   }

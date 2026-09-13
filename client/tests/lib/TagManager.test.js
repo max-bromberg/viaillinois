@@ -7,7 +7,7 @@ const deleteTag = vi.hoisted(() => vi.fn());
 const showToast = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/api/tags.js', () => ({ getTags, createTag, deleteTag }));
-vi.mock('../../src/stores/ui.js', () => ({ showToast }));
+vi.mock('../../src/stores/ui.js', async importOriginal => ({ ...await importOriginal(), showToast }));
 
 const TagManager = (await import('../../src/lib/TagManager.svelte')).default;
 

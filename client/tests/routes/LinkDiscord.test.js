@@ -74,13 +74,26 @@ describe('the Discord link page', () => {
     expect(button.getAttribute('href')).toBe(`/auth/discord/start?session=${SESSION}&roles=1`);
   });
 
-  it('leaves the optional linked roles step ticked, and lets it be unticked', async () => {
+  /**
+   * The optional step is a preference, so it is a switch, which says whether it
+   * is on in where its pad sits as well as in what it reports.
+   */
+  it('leaves the optional linked roles step on, and lets it be turned off', async () => {
     show();
     const box = await screen.findByLabelText(/roles/i);
-    expect(box.checked).toBe(true);
+    expect(box.getAttribute('role')).toBe('switch');
+    expect(box.getAttribute('aria-checked')).toBe('true');
     await fireEvent.click(box);
+    expect(box.getAttribute('aria-checked')).toBe('false');
     const button = await screen.findByRole('link', { name: /continue to discord/i });
     expect(button.getAttribute('href')).toBe(`/auth/discord/start?session=${SESSION}&roles=0`);
+  });
+
+  it('turns the switch with the keyboard as well as with the pointer', async () => {
+    show();
+    const box = await screen.findByLabelText(/roles/i);
+    await fireEvent.keyDown(box, { key: ' ' });
+    expect(box.getAttribute('aria-checked')).toBe('false');
   });
 
   it('says an expired request has expired and to run the command again', async () => {
@@ -167,5 +180,34 @@ describe('the Discord link page', () => {
     show();
     await screen.findByRole('link', { name: /continue to discord/i });
     expect(document.body.textContent).toMatch(/did not finish/i);
+  });
+
+  /**
+   * A refusal on the way back from Discord is a sentence with a pad beside it,
+   * not a coloured box. See the review checklist in
+   * docs/design/11-implementation.md.
+   */
+  it('says a refusal in a sentence rather than in a box', async () => {
+    window.history.replaceState({}, '', `/link/discord/${SESSION}?reason=expired`);
+    getLinkSession.mockResolvedValue({ status: 'expired' });
+    const { container } = show();
+    await waitFor(() => expect(container.textContent).toMatch(/could not be read|has expired/i));
+    const said = container.querySelector('.said');
+    expect(said.querySelector('.pad')).toBeTruthy();
+    expect(container.innerHTML).not.toMatch(/border-amber|rounded-md|bg-card/);
+  });
+
+  /** One primary button on a screen, and it is the one that goes to Discord. */
+  it('offers one primary button', async () => {
+    const { container } = show();
+    await screen.findByRole('link', { name: /continue to discord/i });
+    const primary = [...container.querySelectorAll('.btn.primary')];
+    expect(primary.length).toBe(1);
+    expect(primary[0].textContent).toMatch(/continue to discord/i);
+  });
+
+  it('sets the page title as the one first level heading', async () => {
+    const { getByRole } = show();
+    expect(getByRole('heading', { name: 'Link your Discord account', level: 1 })).toBeTruthy();
   });
 });

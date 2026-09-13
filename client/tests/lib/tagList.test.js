@@ -9,7 +9,7 @@ vi.mock('../../src/api/venues.js', () => ({ searchVenues: vi.fn().mockResolvedVa
 vi.mock('../../src/api/locations.js', () => ({ searchLocations: vi.fn().mockResolvedValue({ locations: [] }) }));
 
 const EventForm = (await import('../../src/lib/EventForm.svelte')).default;
-const TagFilter = (await import('../../src/lib/TagFilter.svelte')).default;
+const FilterRail = (await import('../../src/lib/FilterRail.svelte')).default;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -18,7 +18,8 @@ beforeEach(() => {
 
 /**
  * The tags a board may put on an event were written into two components, so
- * adding one meant a release. Both now read the list the admin page keeps.
+ * adding one meant a release. Both now read the list the admin page keeps: the
+ * event form and the filter rail, which replaced the filter panel.
  */
 describe('the tag list, wherever tags are offered', () => {
   it('the event form offers the tags the platform holds', async () => {
@@ -27,8 +28,8 @@ describe('the tag list, wherever tags are offered', () => {
     await waitFor(() => expect(queryByRole('button', { name: 'Free Food' })).toBeNull());
   });
 
-  it('the filter panel offers the same list', async () => {
-    const { findByRole } = render(TagFilter, { props: { rsos: [] } });
+  it('the filter rail offers the same list', async () => {
+    const { findByRole } = render(FilterRail, { props: { rsos: [] } });
     expect(await findByRole('button', { name: 'Hackathon' })).toBeTruthy();
   });
 

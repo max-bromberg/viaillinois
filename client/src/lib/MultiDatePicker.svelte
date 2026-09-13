@@ -207,9 +207,15 @@
     outline-offset: 2px;
   }
 
+  /*
+   * A day that cannot be chosen is still a word, and the design keeps words out
+   * of the faint gray, so it is the muted ink held back rather than the faint
+   * token.
+   */
   .day:disabled {
     cursor: default;
-    color: var(--faint);
+    color: var(--muted);
+    opacity: .5;
   }
 
   .count {

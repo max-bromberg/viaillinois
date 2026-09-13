@@ -15,7 +15,7 @@
   import LazyRoute   from './lib/LazyRoute.svelte';
   import AppSkeleton from './lib/AppSkeleton.svelte';
   import Footer      from './lib/Footer.svelte';
-  import { toast } from './stores/ui.js';
+  import { toast, pageTitle, bandShowsTitle } from './stores/ui.js';
   import { Toast } from './lib/components/ui/index.js';
   import { apiFetch } from './api/base.js';
   import { greetingCounts } from './lib/greeting.js';
@@ -36,7 +36,27 @@
    * has no interest in.
    */
   const NEEDS_ACCOUNT = ['/dashboard', '/admin', '/scheduler', '/poster', '/account'];
+
+  /**
+   * Which surfaces carry a sky band.
+   *
+   * The feed gets the greeting and the clock, because the band is the agenda's
+   * answer to what is on right now. The reading pages, login and the account
+   * page get the band with a title in place of the greeting. Everything else
+   * gets the navigation on paper, which is what the reference render draws for
+   * the event page, the midterm schedule and the board tools.
+   */
+  const ON_PAPER = ['/events', '/midterms', '/calendar', '/dashboard', '/admin', '/scheduler', '/poster'];
+
+  function bandFor(path, route) {
+    if (path === '/') return 'greeting';
+    if (route?.name === 'event-detail') return 'bare';
+    if (ON_PAPER.some(start => path === start || path.startsWith(`${start}/`))) return 'bare';
+    return 'title';
+  }
   $: waitingForAccount = authLoading && NEEDS_ACCOUNT.includes($currentPath);
+  $: band = bandFor($currentPath, dynamicRoute);
+  $: bandShowsTitle.set(band === 'title');
 
   /**
    * The class is the mechanism the client has always used and the one every
@@ -141,6 +161,8 @@
   <div class="min-h-screen relative z-10 flex flex-col">
     <a class="skip" href="#agenda">Skip to the agenda</a>
     <AppChrome
+      band={band}
+      title={band === 'title' ? $pageTitle : null}
       here={$currentPath}
       counts={greeting}
       onnavigate={navigate}

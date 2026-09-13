@@ -1,6 +1,19 @@
 <script>
 	import { createEventDispatcher } from 'svelte';
+	import { Button, Field, Highlight, Pad } from './components/ui/index.js';
+	import { organizationColor } from './organizationColor.js';
+	import { tagHue } from './tagHue.js';
+	import { resolvedTheme } from '../stores/theme.js';
 
+	/**
+	 * The calendar's filter rail.
+	 *
+	 * A rail of words rather than a panel: headings in the condensed display
+	 * face, a field for the search, highlighters for the tags, a pad and a name
+	 * for each organization, and a pad for each thing the calendar can be asked
+	 * to leave out. The rail is also the calendar's legend, which is why the grid
+	 * beside it carries no row of coloured squares. See docs/design/08-surfaces.md.
+	 */
 	export let keyword = '';
 	export let selectedTags = [];
 	export let rsos = [];
@@ -61,13 +74,13 @@
 		notifyChange();
 	}
 
-	function toggleMidterms(e) {
-		localShowMidterms = e.target.checked;
+	function toggleMidterms() {
+		localShowMidterms = !localShowMidterms;
 		notifyChange();
 	}
 
-	function toggleInternal(e) {
-		localShowInternal = e.target.checked;
+	function toggleInternal() {
+		localShowInternal = !localShowInternal;
 		notifyChange();
 	}
 
@@ -82,109 +95,176 @@
 
 	$: isFilterActive = localKeyword || localSelectedTags.length > 0 || localSelectedRsoIds.length > 0 || !localShowMidterms || localShowInternal;
 
+	/**
+	 * An organization's colour is stored as its board gave it and never drawn
+	 * that way, so every mark on the rail goes through the adaptation first.
+	 * See docs/design/04-color.md.
+	 */
+	$: markOf = rso => organizationColor(rso.logo_color, 'mark', $resolvedTheme);
+
+	/**
+	 * With nothing chosen the calendar shows every organization, so every mark is
+	 * filled. Choosing one hollows the rest, which is how the rail says what the
+	 * grid beside it is leaving out without relying on colour to say it.
+	 */
+	$: narrowed = localSelectedRsoIds.length > 0;
+
 	let panelOpen = false;
 </script>
 
-<aside class="w-full md:w-56 md:shrink-0 bg-card rounded-lg border">
-  <!-- Mobile toggle button -->
-  <button
-    class="md:hidden w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium"
-    on:click={() => panelOpen = !panelOpen}
-  >
-    <span>Filters{#if isFilterActive} <span class="text-primary font-bold">·</span>{/if}</span>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-      style="transition: transform 0.2s; transform: rotate({panelOpen ? 180 : 0}deg)">
-      <path d="m6 9 6 6 6-6"/>
-    </svg>
-  </button>
+<aside class="rail">
+	<!-- On a phone the rail folds away, because the grid is what was opened. -->
+	<button
+		type="button"
+		class="btn quiet opener"
+		aria-expanded={panelOpen}
+		aria-controls="calendar-filters"
+		aria-label={isFilterActive ? 'Filters, some of them on' : undefined}
+		on:click={() => panelOpen = !panelOpen}
+	>
+		<Pad lit={isFilterActive} />Filters
+	</button>
 
-  <div class="{panelOpen ? 'block' : 'hidden'} md:block p-3 space-y-4">
-	<!-- Search -->
-	<div>
-		<input
-			type="text"
-			placeholder="Keyword…"
-			value={localKeyword}
-			on:input={handleKeywordInput}
-			class="w-full px-2 py-1 text-sm border rounded bg-background text-foreground placeholder:text-muted-foreground"
-		/>
-	</div>
+	<div id="calendar-filters" class="groups" class:open={panelOpen}>
+		<div class="group">
+			<Field
+				label="Search"
+				value={localKeyword}
+				placeholder="Keyword"
+				oninput={handleKeywordInput}
+			/>
+		</div>
 
-	<!-- Tags -->
-	<div>
-		<div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Tags</div>
-		<div class="flex flex-wrap gap-1">
-			{#each tags as tag}
+		<div class="group">
+			<h4>Tags</h4>
+			<div class="hlrow">
+				{#each tags as tag}
+					<Highlight
+						tone={tagHue(tag)}
+						off={!localSelectedTags.includes(tag)}
+						pressed={localSelectedTags.includes(tag)}
+						onclick={() => toggleTag(tag)}
+					>{tag}</Highlight>
+				{/each}
+			</div>
+		</div>
+
+		{#if rsos.length > 0}
+			<div class="group">
+				<h4>Organizations</h4>
+				<div class="orgs">
+					{#each rsos as rso}
+						<button
+							type="button"
+							class="org"
+							aria-pressed={localSelectedRsoIds.includes(rso.rso_id)}
+							on:click={() => toggleRso(rso.rso_id)}
+						>
+							<Pad
+								tone={markOf(rso)}
+								hollow={narrowed && !localSelectedRsoIds.includes(rso.rso_id)}
+							/><span>{rso.name}</span>
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<div class="group">
+			<h4>Show</h4>
+			<div class="shows">
 				<button
-					on:click={() => toggleTag(tag)}
-					class={`px-2 py-1 text-xs rounded-full border transition-colors ${
-						localSelectedTags.includes(tag)
-							? 'bg-primary text-primary-foreground border-primary'
-							: 'border-border hover:bg-accent'
-					}`}
-				>
-					{tag}
-				</button>
-			{/each}
+					type="button"
+					class="check"
+					aria-pressed={localShowMidterms}
+					on:click={toggleMidterms}
+				><Pad hollow={!localShowMidterms} />Midterms</button>
+				<button
+					type="button"
+					class="check"
+					aria-pressed={localShowInternal}
+					on:click={toggleInternal}
+				><Pad hollow={!localShowInternal} />Internal events</button>
+			</div>
 		</div>
-	</div>
 
-	<!-- RSOs -->
-	<div>
-		<div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">RSOs</div>
-		<div class="space-y-1">
-			{#each rsos as rso}
-				<label class="flex items-center gap-1.5 text-xs cursor-pointer">
-					<input
-						type="checkbox"
-						checked={localSelectedRsoIds.includes(rso.rso_id)}
-						on:change={() => toggleRso(rso.rso_id)}
-						class="w-3 h-3"
-					/>
-					<span
-						class="w-2.5 h-2.5 rounded-sm flex-shrink-0 inline-block"
-						style="background-color: {rso.logo_color || '#6b7280'};"
-					></span>
-					<span>{rso.name}</span>
-				</label>
-			{/each}
-		</div>
+		{#if isFilterActive}
+			<div class="group">
+				<Button variant="quiet" size="sm" onclick={clearFilters}>Clear the filters</Button>
+			</div>
+		{/if}
 	</div>
-
-	<!-- Show -->
-	<div>
-		<div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Show</div>
-		<div class="space-y-1">
-			<label class="flex items-center gap-1.5 text-xs cursor-pointer">
-				<input
-					type="checkbox"
-					checked={localShowMidterms}
-					on:change={toggleMidterms}
-					class="w-3 h-3"
-				/>
-				<span>Midterms</span>
-			</label>
-			<label class="flex items-center gap-1.5 text-xs cursor-pointer">
-				<input
-					type="checkbox"
-					checked={localShowInternal}
-					on:change={toggleInternal}
-					class="w-3 h-3"
-				/>
-				<span>Internal events</span>
-			</label>
-		</div>
-	</div>
-
-	<!-- Clear Button -->
-	{#if isFilterActive}
-		<button
-			on:click={clearFilters}
-			class="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
-		>
-			Clear filters
-		</button>
-	{/if}
-  </div>
 </aside>
+
+<style>
+	.groups {
+		display: grid;
+		gap: 26px;
+		align-content: start;
+	}
+
+	.hlrow {
+		font-size: 14px;
+	}
+
+	.orgs {
+		display: grid;
+		font-size: 14px;
+	}
+
+	/*
+	 * A pad and a name, inside a target a hand can hit. The button brings a look
+	 * of its own that is not wanted here.
+	 */
+	.org,
+	.check {
+		font: inherit;
+		background: none;
+		border: 0;
+		padding: 0;
+		margin: 0;
+		color: inherit;
+		text-align: left;
+		min-height: 32px;
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		cursor: pointer;
+	}
+
+	.org[aria-pressed="true"] span {
+		font-weight: 600;
+	}
+
+	.org:focus-visible,
+	.check:focus-visible,
+	.opener:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 4px;
+	}
+
+	.shows {
+		display: grid;
+		font-size: 14.5px;
+	}
+
+	/* The opener belongs to the phone, where the rail folds away. */
+	.opener {
+		display: none;
+	}
+
+	@media (max-width: 768px) {
+		.opener {
+			display: inline-flex;
+			justify-self: start;
+		}
+
+		.groups {
+			display: none;
+		}
+
+		.groups.open {
+			display: grid;
+		}
+	}
+</style>

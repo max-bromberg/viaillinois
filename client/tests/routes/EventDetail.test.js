@@ -39,9 +39,7 @@ vi.mock('../../src/stores/auth.js', () => ({
   currentUser: { subscribe: (fn) => { fn(null); return () => {}; } },
 }));
 
-vi.mock('../../src/stores/ui.js', () => ({
-  showToast: vi.fn(),
-}));
+vi.mock('../../src/stores/ui.js', async importOriginal => ({ ...await importOriginal(), showToast: vi.fn() }));
 
 vi.mock('../../src/lib/router.js', () => ({
   navigate: vi.fn(),
@@ -305,5 +303,22 @@ describe('EventDetail, the actions on the poster', () => {
     await findByRole('heading', { name: 'IEEE Workshop' });
     await press(findByRole, 'Make a poster');
     expect(navigate).toHaveBeenCalledWith('/poster?event=1');
+  });
+});
+
+/**
+ * The poster takes the description as a snippet, because organizers write
+ * markdown and the poster sets plain paragraphs. Rendering it in both places at
+ * once is the mistake that shape invites, so it is pinned.
+ */
+describe('EventDetail, the description', () => {
+  it('renders the description once, inside the poster', async () => {
+    const { container } = render(EventDetail, { id: 1 });
+    await waitFor(() => expect(container.querySelector('.poster')).toBeTruthy());
+    const said = [...container.querySelectorAll('.txt')].filter(
+      node => node.textContent.includes('PCB design'),
+    );
+    expect(said).toHaveLength(1);
+    expect(said[0].closest('.poster')).toBeTruthy();
   });
 });

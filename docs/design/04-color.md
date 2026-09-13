@@ -96,7 +96,9 @@ scroll. The sky is measured against both inks; see the accessibility document.
 | Current | `160deg, #0a9a9e 0%, #007c80 60%, #005558 100%` (dark: `#52d0d5`, `#2fc4c8`, `#0a9a9e`) | the primary button, the switch track when on, a checked pad, the active page marker in the rail |
 | Board | `160deg, #0f2e2f 0%, #0a1516 55%, #1a1210 100%` | the kiosk under the night sky |
 
-A gradient anywhere else is a defect.
+The Current gradient also draws the 3 px underline under the word a rail or a listing is
+currently sorted or filtered by, which is where `.rail .when b::after` uses it. A gradient
+anywhere else is a defect.
 
 ## The lamp
 

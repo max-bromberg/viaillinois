@@ -23,19 +23,19 @@ const PRIMITIVES = [
   ['Numeral', Numeral, { value: 2, unit: 'tonight in ECEB' }],
 ];
 
-/**
- * The design system's own directories, primitives and composed parts alike. The
- * three lowercase ones beside them are what is left of the stock component kit,
- * and they go when the last screen that imports them is converted in step 4 of
- * docs/design/11-implementation.md.
- */
+/** The design system's own directories, primitives and composed parts alike. */
 function directories() {
   return readdirSync(UI, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && /^[A-Z]/.test(entry.name))
     .map(entry => entry.name);
 }
 
-/** What is left of the stock component kit, which step 4 removes. */
+/**
+ * What is left of the stock component kit. Step 4 removed the last of it, and
+ * this keeps it gone: a component copied back in from a registry would bring a
+ * rounded rectangle, a one pixel border and a set of colour names the design
+ * system does not use.
+ */
 function stock() {
   return readdirSync(UI, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && /^[a-z]/.test(entry.name))
@@ -112,11 +112,7 @@ describe('every primitive', () => {
     expect(directories()).toContain('Trace');
   });
 
-  /**
-   * The stock kit is on its way out. This says what is left of it, so that the
-   * step which removes the last of it has to come here and say so too.
-   */
-  it('leaves only the three stock components still to be replaced', () => {
-    expect(stock()).toEqual(['button', 'input', 'label']);
+  it('keeps the stock component kit gone', () => {
+    expect(stock()).toEqual([]);
   });
 });

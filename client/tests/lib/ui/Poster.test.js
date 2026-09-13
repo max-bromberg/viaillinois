@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { render, fireEvent } from '@testing-library/svelte';
 import { Poster } from '../../../src/lib/components/ui/Poster/index.js';
 import { organizationColor } from '../../../src/lib/organizationColor.js';
 
@@ -76,9 +76,43 @@ describe('Poster', () => {
     expect(tags).toEqual(['Corporate', 'Networking', 'Free Food']);
   });
 
-  it('offers one primary action and no more', () => {
+  /**
+   * An action with no handler is not drawn at all. Five controls that quietly do
+   * nothing is worse than none of them, and the page that uses the poster is the
+   * one that knows what each of them means.
+   */
+  it('draws no action it has not been told how to carry out', () => {
     const { container } = render(Poster, { event: EVENT });
+    expect(container.querySelectorAll('.poster .btn').length).toBe(0);
+    expect(container.textContent).not.toContain('Take it with you');
+  });
+
+  it('offers one primary action and no more', () => {
+    const { container } = render(Poster, {
+      event: EVENT,
+      onaddToCalendar: () => {},
+      ondownloadCalendarFile: () => {},
+    });
     expect(container.querySelectorAll('.poster .btn.primary').length).toBe(1);
+  });
+
+  it('carries out the action that was pressed', async () => {
+    const pressed = [];
+    const { getByRole } = render(Poster, {
+      event: EVENT,
+      url: 'viaillinois.com/events/3',
+      onaddToCalendar: () => pressed.push('calendar'),
+      oncopyLink: () => pressed.push('copy'),
+    });
+    await fireEvent.click(getByRole('button', { name: /Add to Google Calendar/ }));
+    await fireEvent.click(getByRole('button', { name: 'Copy link' }));
+    expect(pressed).toEqual(['calendar', 'copy']);
+  });
+
+  it('renders the description it is given, so a page that writes markdown can', () => {
+    const { container } = render(Poster, { event: EVENT, describe: undefined });
+    // Given no snippet it sets the event's own text as plain paragraphs.
+    expect(container.querySelector('.poster .txt').textContent).toContain('Recruiters from TI');
   });
 
   it('puts no box around the actions', () => {
@@ -88,7 +122,9 @@ describe('Poster', () => {
   });
 
   it('shows the link to copy, in mono, beside the code that carries it', () => {
-    const { container } = render(Poster, { event: EVENT, url: 'viaillinois.com/events/3' });
+    const { container } = render(Poster, {
+      event: EVENT, url: 'viaillinois.com/events/3', oncopyLink: () => {},
+    });
     expect(container.querySelector('.poster .link').textContent).toBe('viaillinois.com/events/3');
     expect(container.querySelector('.poster .share')).toBeTruthy();
   });
@@ -99,7 +135,9 @@ describe('Poster', () => {
   });
 
   it('shows the board its own tools, in a well cut at 14 px', () => {
-    const { container } = render(Poster, { event: EVENT, onBoard: true });
+    const { container } = render(Poster, {
+      event: EVENT, onBoard: true, onedit: () => {}, oncancelEvent: () => {},
+    });
     const board = container.querySelector('.poster .board');
     expect(board).toBeTruthy();
     expect(board.textContent).toContain('You are on the WECE board');

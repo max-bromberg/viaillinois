@@ -7,7 +7,22 @@
   import CalendarFilter from '../lib/CalendarFilter.svelte';
   import UpdatesWidget from '../lib/UpdatesWidget.svelte';
   import WeekTimeGrid from '../lib/WeekTimeGrid.svelte';
-  import { campusFields, calendarDayKey, campusTodayMarker, fallsOnDay } from '../lib/campusTime.js';
+  import { Button } from '../lib/components/ui/index.js';
+  import { organizationColor } from '../lib/organizationColor.js';
+  import { resolvedTheme } from '../stores/theme.js';
+  import { campusFields, calendarDayKey, campusTodayMarker } from '../lib/campusTime.js';
+
+  /**
+   * The calendar.
+   *
+   * The month grid keeps its structure and takes the tokens. Day numbers are
+   * condensed 700 at 16 px and today's number is signal. An entry is the
+   * organization's adapted mark colour as a 2 px trace on the left of its text,
+   * which is the one place a vertical colour line remains, because a calendar
+   * cell is too small for a lamp. Midterms use plum. There is no legend of
+   * coloured squares, because the filter rail's pads and names are the legend.
+   * See docs/design/08-surfaces.md.
+   */
 
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -57,12 +72,10 @@
     return d;
   }
 
-  /** Two columns stand for the same day. */
-  function isSameDay(a, b) {
-    const key = calendarDayKey(a);
-    return key !== '' && key === calendarDayKey(b);
-  }
-
+  /**
+   * A day marker is a local midnight standing for a campus day, so it is read
+   * in the reader's own zone rather than converted a second time.
+   */
   function fmt(date, opts) {
     return date.toLocaleDateString('en-US', opts);
   }
@@ -104,17 +117,24 @@
     d.setDate(d.getDate() + i);
     return d;
   });
+  // A range is written with the word rather than with a dash, which is what
+  // docs/design/10-voice.md asks of every range on the site.
   $: periodLabel = view === 'week'
     ? (weekStart.getMonth() === weekEnd.getMonth()
-        ? `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()}-${weekEnd.getDate()}, ${weekStart.getFullYear()}`
+        ? `${MONTHS[weekStart.getMonth()]} ${weekStart.getDate()} to ${weekEnd.getDate()}, ${weekStart.getFullYear()}`
         : `${fmt(weekStart, { month: 'short', day: 'numeric' })} to ${fmt(weekEnd, { month: 'short', day: 'numeric', year: 'numeric' })}`)
     : `${MONTHS[month]} ${year}`;
 
-  // ── RSO color map (reactive) ──────────────────────────────────────────────
-  $: rsoColorMap = rsos.reduce((acc, rso) => {
-    acc[rso.name] = rso.logo_color || '#6b7280';
-    return acc;
-  }, {});
+  $: period = view === 'week' ? 'week' : 'month';
+
+  // ── The organizations' marks ──────────────────────────────────────────────
+  // An organization's colour is stored exactly as its board gave it and is
+  // never drawn that way. See docs/design/04-color.md.
+  $: marks = Object.fromEntries(
+    rsos.map(rso => [rso.name, organizationColor(rso.logo_color, 'mark', $resolvedTheme)]),
+  );
+
+  const markOf = (name, table) => table[name] ?? 'var(--line-strong)';
 
   // ── Month grid ────────────────────────────────────────────────────────────
   $: firstWeekday = new Date(year, month, 1).getDay();
@@ -152,16 +172,7 @@
   // A day opened in one month is not a day in the next one.
   $: view, year, month, (expandedDay = null);
 
-  // ── Week cells (for consistency, computed from filtered data) ──────────────
-  $: weekCells = weekDays.map(day => {
-    const items = [
-      ...filteredEvents.filter(ev => fallsOnDay(ev.start_time, day))
-                       .map(ev => ({ ...ev, _type: 'event' })),
-      ...filteredMidterms.filter(mt => fallsOnDay(mt.start_time, day))
-                         .map(mt => ({ ...mt, _type: 'midterm' })),
-    ].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-    return { date: day, items };
-  });
+  $: showingThisMonth = month === today.getMonth() && year === today.getFullYear();
 
   // ── Filtered data (reactive derivations) ──────────────────────────────────
   $: filteredEvents = allEvents.filter(ev => {
@@ -208,7 +219,7 @@
         allMidterms = []; // stub not yet implemented, so degrade silently
       }
     } catch (err) {
-      error = err?.message || 'Failed to load events';
+      error = err?.message || 'The calendar did not load. Try again in a moment.';
       allEvents = [];
       allMidterms = [];
     } finally {
@@ -244,9 +255,8 @@
   <meta name="description" content="Week and month calendar view of ECE RSO events at UIUC." />
 </svelte:head>
 
-<div class="flex flex-col gap-4 md:flex-row md:gap-6">
-  <!-- Left sidebar: filter + updates widget -->
-  <div class="flex flex-col gap-4 w-full md:w-56 md:shrink-0">
+<div class="page">
+  <div class="rail">
     <CalendarFilter
       {keyword}
       {selectedTags}
@@ -259,109 +269,99 @@
     <UpdatesWidget />
   </div>
 
-  <!-- Main calendar area -->
-  <div class="flex-1 space-y-3 min-w-0">
-    <!-- Top bar: heading + legend + view toggle + navigation -->
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <div class="flex items-center gap-5">
-        <h1 class="text-2xl font-bold">Calendar</h1>
-        <div class="flex items-center gap-4 text-xs flex-wrap">
-          <span class="flex items-center gap-1.5 font-medium"><span class="w-3.5 h-3.5 rounded bg-sky-500 inline-block"></span> Public event</span>
-          <span class="flex items-center gap-1.5 font-medium"><span class="w-3.5 h-3.5 rounded bg-orange-500 inline-block"></span> Internal event</span>
-          <span class="flex items-center gap-1.5 font-medium"><span class="w-3.5 h-3.5 rounded bg-violet-500 inline-block"></span> Midterm</span>
-        </div>
+  <div class="main">
+    <div class="head">
+      <div>
+        <h1>Calendar</h1>
+        <p class="period">{periodLabel}</p>
       </div>
 
-      <div class="flex items-center gap-2">
-        <!-- View toggle -->
-        <div class="flex border rounded-md overflow-hidden text-xs">
+      <div class="controls">
+        <!--
+          Two words with the one in view underlined by the Current gradient,
+          which is how the site draws a choice between two readings of the same
+          listing. See docs/design/08-surfaces.md.
+        -->
+        <div class="when">
           <button
+            type="button"
+            class:on={view === 'week'}
             aria-pressed={view === 'week'}
-            class="px-3 py-1.5 transition-colors {view === 'week' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}"
             on:click={() => view = 'week'}
           >Week</button>
           <button
+            type="button"
+            class:on={view === 'month'}
             aria-pressed={view === 'month'}
-            class="px-3 py-1.5 transition-colors border-l {view === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}"
             on:click={() => view = 'month'}
           >Month</button>
         </div>
 
-        <!-- Today button -->
-        <button on:click={goToday}
-          class="px-3 py-1.5 text-xs border rounded-md hover:bg-accent transition-colors text-muted-foreground">Today</button>
-
-        <!-- Navigation buttons -->
-        <button on:click={prev}
-          class="px-2.5 py-1.5 text-sm border rounded-md hover:bg-accent transition-colors" aria-label="Previous">‹</button>
-        <span class="text-sm font-medium text-center min-w-[6rem]">{periodLabel}</span>
-        <button on:click={next}
-          class="px-2.5 py-1.5 text-sm border rounded-md hover:bg-accent transition-colors" aria-label="Next">›</button>
+        <div class="nav">
+          <Button variant="quiet" size="sm" onclick={prev}>Previous {period}</Button>
+          <Button variant="quiet" size="sm" onclick={next}>Next {period}</Button>
+          <Button variant="quiet" size="sm" onclick={goToday}>Today</Button>
+        </div>
       </div>
     </div>
 
-    {#if error}<p class="text-sm text-destructive">{error}</p>{/if}
+    {#if error}<p class="failed">{error}</p>{/if}
 
-    <!-- Calendar grid -->
     {#if view === 'week'}
       <WeekTimeGrid
         {weekDays}
         events={filteredEvents}
         midterms={filteredMidterms}
         {today}
-        {rsoColorMap}
+        {marks}
         {loading}
         on:eventclick={e => navigate('/events/' + e.detail.event_id)}
       />
     {:else}
-      <!-- Month view -->
-      <div class="border rounded-lg overflow-hidden bg-card">
-        <!-- Weekday header -->
-        <div class="grid grid-cols-7 bg-muted border-b">
+      <div class="month">
+        <div class="weekdays">
           {#each WEEKDAYS as day}
-            <div class="py-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">{day}</div>
+            <span>{day}</span>
           {/each}
         </div>
 
-        <!-- Cells -->
-        <div class="grid grid-cols-7 border-l border-t">
+        <div class="cells">
           {#each monthCells as cell}
             {#if cell === null}
-              <div data-month-cell class="border-r border-b bg-muted/20 min-h-[7rem]"></div>
+              <div data-month-cell class="cell empty"></div>
             {:else}
-              {@const isToday = cell.day === today.getDate() && month === today.getMonth() && year === today.getFullYear()}
-              <div data-month-cell class="border-r border-b min-h-[7rem] p-1.5 space-y-1">
-                <div class="flex justify-end">
-                  <span class="text-xs font-medium leading-none
-                    {isToday ? 'bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center' : 'text-muted-foreground'}">
-                    {cell.day}
-                  </span>
-                </div>
+              {@const isToday = showingThisMonth && cell.day === today.getDate()}
+              <div data-month-cell class="cell">
+                <span class="daynum" class:today={isToday}>{cell.day}</span>
+
                 {#if loading}
-                  {#each Array(2) as _}
-                    <div class="h-4 rounded bg-muted animate-pulse"></div>
+                  <!-- The shape of what is coming, in well colour, with no shimmer. -->
+                  {#each Array(2) as _, row (row)}
+                    <span class="shape"></span>
                   {/each}
                 {:else}
                   {#each (expandedDay === cell.day ? cell.items : cell.items.slice(0, VISIBLE_PER_DAY)) as item (item._type + (item.event_id ?? item.midterm_id))}
                     {#if item._type === 'event'}
                       <button
-                        class="w-full text-left text-xs rounded overflow-hidden flex cursor-pointer hover:opacity-80 transition-opacity"
+                        type="button"
+                        class="entry"
+                        style="--h: {markOf(item.rso_name, marks)}"
                         title="{item.title} · {item.rso_name}"
                         on:click={() => navigate('/events/' + item.event_id)}
-                      >
-                        <span class="w-1 flex-shrink-0" style="background-color: {rsoColorMap[item.rso_name] ?? '#6b7280'}"></span>
-                        <span class="flex-1 px-1 py-0.5 truncate {item.is_private ? 'bg-orange-500 text-white' : 'bg-sky-500 text-white'}">{item.title}</span>
-                      </button>
+                      ><span class="text">{item.title}</span></button>
                     {:else}
                       <div
-                        class="text-xs px-1.5 py-0.5 rounded truncate leading-tight bg-violet-500 text-white"
+                        class="entry exam"
+                        style="--h: var(--plum)"
                         title="Midterm: {item.title} ({item.course_code})"
-                      >📝 {item.course_code}</div>
+                      ><span class="text">{item.course_code}</span></div>
                     {/if}
                   {/each}
+
                   {#if cell.items.length > VISIBLE_PER_DAY}
                     <button
-                      class="w-full text-left text-xs text-muted-foreground hover:text-foreground pl-1 transition-colors"
+                      type="button"
+                      class="more"
                       on:click={() => expandedDay = expandedDay === cell.day ? null : cell.day}
                     >
                       {expandedDay === cell.day ? 'Show fewer' : `+${cell.items.length - VISIBLE_PER_DAY} more`}
@@ -374,6 +374,258 @@
         </div>
       </div>
     {/if}
-
   </div>
 </div>
+
+<style>
+  /*
+   * A 200 pixel rail of words at the left and the calendar at the right, 36
+   * pixels apart, which is the measure the feed uses. The page's own gutters
+   * come from the shell.
+   */
+  .page {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 36px;
+    align-items: start;
+  }
+
+  .rail {
+    display: grid;
+    gap: 26px;
+    align-content: start;
+  }
+
+  .main {
+    min-width: 0;
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 40px;
+    line-height: 0.95;
+    letter-spacing: 0.006em;
+    margin: 0;
+  }
+
+  .period {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--muted);
+    margin: 8px 0 0;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 26px;
+  }
+
+  .when {
+    display: inline-flex;
+    gap: 14px;
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .when button {
+    font: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    min-height: 32px;
+    color: var(--muted);
+    cursor: pointer;
+    position: relative;
+  }
+
+  .when button.on {
+    color: var(--ink);
+  }
+
+  .when button.on::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 3px;
+    height: 3px;
+    background: var(--g-current);
+    border-radius: 2px;
+  }
+
+  .when button:focus-visible,
+  .more:focus-visible,
+  .entry:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  /* An error is a sentence under the thing that failed, never a red box. */
+  .failed {
+    color: var(--danger);
+    font-size: 14px;
+    margin: 0 0 12px;
+  }
+
+  /*
+   * The grid is hairlines on the card, with no rounded rectangle around it and
+   * no fill on the days that belong to the months either side.
+   */
+  .month {
+    background: var(--card);
+    border-top: 1px solid var(--line);
+  }
+
+  .weekdays,
+  .cells {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .weekdays {
+    background: var(--well);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .weekdays span {
+    padding: 8px 0;
+    text-align: center;
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .cell {
+    min-height: 148px;
+    padding: 6px 6px 8px;
+    border-left: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  /*
+   * The rules are between the days rather than around the grid, so the month is
+   * a ruled block and not a box drawn around a calendar.
+   */
+  .cell:nth-child(7n + 1) {
+    border-left: 0;
+  }
+
+  .cell.empty {
+    background: var(--well);
+  }
+
+  /* docs/design/08-surfaces.md: day numbers are condensed 700 at 16 px. */
+  .daynum {
+    align-self: flex-end;
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .daynum.today {
+    color: var(--signal-text);
+  }
+
+  /*
+   * The one place a vertical colour line remains, because a calendar cell is
+   * too small for a lamp. See docs/design/08-surfaces.md.
+   */
+  .entry {
+    font: inherit;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-left: 2px solid var(--h);
+    padding: 6px 6px 6px 8px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    cursor: pointer;
+    transition: background 200ms ease;
+  }
+
+  .entry:hover,
+  .entry:focus-visible {
+    background: color-mix(in srgb, var(--h) 14%, var(--card));
+  }
+
+  .entry.exam {
+    cursor: default;
+  }
+
+  .entry .text {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.2;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .more {
+    font: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 0 0 0 10px;
+    min-height: 32px;
+    color: var(--primary);
+    cursor: pointer;
+  }
+
+  .shape {
+    height: 32px;
+    background: var(--well);
+  }
+
+  @media (max-width: 768px) {
+    .page {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .cell {
+      min-height: 96px;
+    }
+  }
+</style>

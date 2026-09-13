@@ -30,13 +30,36 @@
     showRoom = true,
     /** What happens when a link is followed. */
     onnavigate = undefined,
+    /**
+     * What each action does. An action with no handler is not drawn at all: a
+     * control that quietly does nothing is worse than one that is not there.
+     */
+    onaddToCalendar = undefined,
+    ondownloadCalendarFile = undefined,
+    oncopyLink = undefined,
+    ondownloadCode = undefined,
+    onmakePoster = undefined,
+    onedit = undefined,
+    oncancelEvent = undefined,
     class: className = '',
     /** The code that carries the link, drawn by the caller. */
     code,
+    /**
+     * The description. Organizers write it in markdown and the page renders it,
+     * so the poster takes it as a snippet rather than as text, and falls back to
+     * the event's own plain paragraphs when it is given none.
+     */
+    describe,
+    /** Anything else the page knows and the poster has no place for. */
+    aside: extra,
     /** What the board can do, beyond editing and cancelling. */
     boardActions,
     ...rest
   } = $props();
+
+  /** Whether anything in the "take it with you" block has somewhere to go. */
+  const takeable = $derived(Boolean(onaddToCalendar || ondownloadCalendarFile));
+  const shareable = $derived(Boolean(url && (oncopyLink || ondownloadCode || onmakePoster)));
 
   const colors = $derived(organizationColors(event.rso_color, theme));
   const cancelled = $derived(Boolean(event.cancelled_at));
@@ -103,28 +126,37 @@
           {#each tags as tag (tag)}<Highlight tone={tagHue(tag)}>{tag}</Highlight>{/each}
         </div>
       {/if}
-      {#if paragraphs.length > 0}
+      {#if describe}
+        <div class="txt">{@render describe()}</div>
+      {:else if paragraphs.length > 0}
         <div class="txt">{#each paragraphs as paragraph, at (at)}<p>{paragraph}</p>{/each}</div>
       {/if}
+      {@render extra?.()}
     </div>
     <aside>
-      <div>
-        <h4>Take it with you</h4>
-        <div class="stack">
-          <Button variant="primary" icon="cal">Add to Google Calendar</Button>
-          <Button variant="secondary">Download .ics</Button>
+      {#if takeable}
+        <div>
+          <h4>Take it with you</h4>
+          <div class="stack">
+            {#if onaddToCalendar}
+              <Button variant="primary" icon="cal" onclick={onaddToCalendar}>Add to Google Calendar</Button>
+            {/if}
+            {#if ondownloadCalendarFile}
+              <Button variant="secondary" onclick={ondownloadCalendarFile}>Download .ics</Button>
+            {/if}
+          </div>
         </div>
-      </div>
-      {#if url}
+      {/if}
+      {#if shareable}
         <div>
           <h4>Share</h4>
           <div class="link">{url}</div>
           <div class="share">
             {@render code?.()}
             <div class="stack">
-              <Button variant="quiet">Copy link</Button>
-              <Button variant="quiet">Download the QR code</Button>
-              <Button variant="quiet">Make a poster</Button>
+              {#if oncopyLink}<Button variant="quiet" onclick={oncopyLink}>Copy link</Button>{/if}
+              {#if ondownloadCode}<Button variant="quiet" onclick={ondownloadCode}>Download the QR code</Button>{/if}
+              {#if onmakePoster}<Button variant="quiet" onclick={onmakePoster}>Make a poster</Button>{/if}
             </div>
           </div>
         </div>
@@ -133,8 +165,10 @@
         <div class="board cut" style="--cut: 14px">
           <h4>You are on the {event.rso_name} board</h4>
           <div class="row">
-            <Button variant="secondary" size="sm" on="card">Edit</Button>
-            <Button variant="danger" size="sm" on="card">Cancel event</Button>
+            {#if onedit}<Button variant="secondary" size="sm" on="card" onclick={onedit}>Edit</Button>{/if}
+            {#if oncancelEvent}
+              <Button variant="danger" size="sm" on="card" onclick={oncancelEvent}>Cancel event</Button>
+            {/if}
             {@render boardActions?.()}
           </div>
         </div>

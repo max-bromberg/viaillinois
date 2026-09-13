@@ -5,7 +5,7 @@
   import { navigate } from '../lib/router.js';
   import { campusDate } from '../lib/campusTime.js';
   import ReadingPage from '../lib/ReadingPage.svelte';
-  import { Button } from '../lib/components/ui/index.js';
+  import { Icon } from '../lib/components/ui/index.js';
 
   /**
    * One update, as a page of its own.
@@ -53,14 +53,14 @@
       The update that was here has been renamed or taken down. The whole listing is a page
       away, and the one you were looking for may well be on it.
     </p>
-    <p class="back">
-      <Button variant="quiet" href="/updates" icon="back" onclick={back}>All updates</Button>
+    <p class="way">
+      <a class="back" href="/updates" onclick={back}><Icon name="back" />All updates</a>
     </p>
   </ReadingPage>
 {:else}
   <ReadingPage title={update.title} dateline={published}>
-    <p class="back">
-      <Button variant="quiet" href="/updates" icon="back" onclick={back}>All updates</Button>
+    <p class="way">
+      <a class="back" href="/updates" onclick={back}><Icon name="back" />All updates</a>
     </p>
     {@html html}
   </ReadingPage>
@@ -68,10 +68,34 @@
 
 <style>
   /*
-   * The way back sits above the prose and takes none of the reading measure's
-   * spacing, because it is a control rather than a sentence.
+   * The way back is the back link the event page uses: the back icon and the
+   * words, in the display face, quiet. It is not a button, so it is not drawn
+   * as one.
    */
-  .back {
+  .way {
     margin-top: 18px;
+  }
+
+  .back {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 32px;
+  }
+
+  .back:hover {
+    color: var(--ink);
+  }
+
+  .back:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
   }
 </style>

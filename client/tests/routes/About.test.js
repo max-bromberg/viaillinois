@@ -8,8 +8,8 @@ vi.mock('../../src/api/bugReports.js', () => ({
 vi.mock('../../src/lib/updates.js', () => ({
   // The module publishes them newest first, which is the order About draws.
   allUpdates: [
-    { slug: 'repeats', title: 'Events can repeat', date: '2026-09-02', summary: 'Weekly meetings.', body: '' },
-    { slug: 'welcome', title: 'Welcome to VIA', date: '2026-04-23', summary: 'The first one.', body: '' },
+    { slug: 'repeats', title: 'Events can repeat', date: '2026-09-02', summary: 'Weekly meetings.' },
+    { slug: 'welcome', title: 'Welcome to VIA', date: '2026-04-23', summary: 'The first one.' },
   ],
   formatDate: date => date,
 }));
@@ -69,5 +69,49 @@ describe('About', () => {
     const { findByRole } = render(About);
     const link = await findByRole('link', { name: /Events can repeat/ });
     expect(link.getAttribute('href')).toBe('/updates/repeats');
+  });
+
+  /** The page title is the one first level heading, and it names the tab. */
+  it('titles the page for whichever of the three is open', async () => {
+    navigate('/about/updates');
+    const updates = render(About);
+    expect(updates.getByRole('heading', { name: 'Updates', level: 1 })).toBeTruthy();
+    updates.unmount();
+
+    navigate('/about/report');
+    const report = render(About);
+    expect(report.getByRole('heading', { name: 'Report a bug', level: 1 })).toBeTruthy();
+  });
+
+  it('says which of the three is open, and only that one', async () => {
+    const { getAllByRole, getByRole } = render(About);
+    const open = getAllByRole('tab').filter(tab => tab.getAttribute('aria-selected') === 'true');
+    expect(open.map(tab => tab.textContent.trim())).toEqual(['About VIA']);
+    await fireEvent.click(getByRole('tab', { name: 'Updates' }));
+    await waitFor(() => {
+      expect(getAllByRole('tab').filter(t => t.getAttribute('aria-selected') === 'true')
+        .map(t => t.textContent.trim())).toEqual(['Updates']);
+    });
+  });
+
+  /** Dates are set in the data face, on the campus clock. */
+  it('dates each update in mono, on the campus clock', async () => {
+    navigate('/about/updates');
+    const { container, findByText } = render(About);
+    await findByText('Events can repeat');
+    const date = container.querySelector('time');
+    expect(date.textContent).toBe('Sep 2, 2026');
+    expect(date.classList.contains('mono')).toBe(true);
+  });
+
+  /**
+   * The review checklist in docs/design/11-implementation.md: no tile with a
+   * border round it, no caption in uppercase, and the jargon a first year would
+   * not know is written out in full.
+   */
+  it('carries no bordered tiles, no shouting and no jargon', () => {
+    const { container } = render(About);
+    expect(container.innerHTML).not.toMatch(/uppercase|rounded-lg|bg-card|shadow/);
+    expect(container.textContent).not.toMatch(/\bRSOs?\b/);
   });
 });

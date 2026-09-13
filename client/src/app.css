@@ -66,41 +66,6 @@
     --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --tagmix:var(--ink);
     color-scheme:light;
-    /*
-     * The names the stock component kit used, kept for one step so that screens
-     * which have not been converted yet keep working. They carry the new
-     * palette rather than the old cool grey, so the whole site takes the teal
-     * cast at once. docs/design/11-implementation.md removes them when the last
-     * surface that uses them lands in step 4.
-     */
-    --stock-background: 180 33.3% 97.1%;
-    --stock-foreground: 183.8 42.1% 7.5%;
-    --stock-muted: 180 22.6% 93.9%;
-    --stock-muted-foreground: 182.3 14.4% 35.3%;
-    --stock-popover: 0 0% 100%;
-    --stock-popover-foreground: 183.8 42.1% 7.5%;
-    --stock-card: 0 0% 100%;
-    --stock-card-foreground: 183.8 42.1% 7.5%;
-    --stock-border: 180 20.5% 85.7%;
-    --stock-input: 180 16.3% 74.7%;
-    --stock-primary: 181.9 100% 25.1%;
-    --stock-primary-foreground: 0 0% 100%;
-    --stock-secondary: 180 56.3% 93.7%;
-    --stock-secondary-foreground: 182 100% 17.3%;
-    --stock-accent: 180 56.3% 93.7%;
-    --stock-accent-foreground: 182 100% 17.3%;
-    --stock-destructive: 0 64.1% 45.9%;
-    --stock-destructive-foreground: 0 0% 100%;
-    --stock-ring: 181.9 100% 25.1%;
-    --stock-radius: 0.5rem;
-    --stock-sidebar-background: 180 22.6% 93.9%;
-    --stock-sidebar-foreground: 182.3 14.4% 35.3%;
-    --stock-sidebar-primary: 181.9 100% 25.1%;
-    --stock-sidebar-primary-foreground: 0 0% 100%;
-    --stock-sidebar-accent: 180 56.3% 93.7%;
-    --stock-sidebar-accent-foreground: 182 100% 17.3%;
-    --stock-sidebar-border: 180 20.5% 85.7%;
-    --stock-sidebar-ring: 181.9 100% 25.1%;
   }
 
   /*
@@ -152,41 +117,10 @@
     --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
     --tagmix:var(--card);
     color-scheme:dark;
-    /* The stock names again, on the dark palette. */
-    --stock-background: 185 37.5% 6.3%;
-    --stock-foreground: 180 25% 92.2%;
-    --stock-muted: 184.3 33.3% 8.2%;
-    --stock-muted-foreground: 180 12.6% 61%;
-    --stock-popover: 184 30.6% 9.6%;
-    --stock-popover-foreground: 180 25% 92.2%;
-    --stock-card: 184 30.6% 9.6%;
-    --stock-card-foreground: 180 25% 92.2%;
-    --stock-border: 182.9 25.3% 16.3%;
-    --stock-input: 182.3 22.4% 22.7%;
-    --stock-primary: 181.6 61.9% 48.4%;
-    --stock-primary-foreground: 177.9 77.8% 7.1%;
-    --stock-secondary: 181.9 51.6% 12.2%;
-    --stock-secondary-foreground: 181.5 57.7% 72.2%;
-    --stock-accent: 181.9 51.6% 12.2%;
-    --stock-accent-foreground: 181.5 57.7% 72.2%;
-    --stock-destructive: 0 100% 73.1%;
-    --stock-destructive-foreground: 177.9 77.8% 7.1%;
-    --stock-ring: 181.6 61.9% 48.4%;
-    --stock-sidebar-background: 184.3 33.3% 8.2%;
-    --stock-sidebar-foreground: 180 12.6% 61%;
-    --stock-sidebar-primary: 181.6 61.9% 48.4%;
-    --stock-sidebar-primary-foreground: 177.9 77.8% 7.1%;
-    --stock-sidebar-accent: 181.9 51.6% 12.2%;
-    --stock-sidebar-accent-foreground: 181.5 57.7% 72.2%;
-    --stock-sidebar-border: 182.9 25.3% 16.3%;
-    --stock-sidebar-ring: 181.6 61.9% 48.4%;
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
   body {
     margin: 0;
     background: var(--paper);
@@ -431,23 +365,3 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke
 .day .dh b,.ev .t,.exam .code,.mt .head h1,.poster .when .big,.kiosk .whenk .big,.mast .clock .t,.greet .clock .t,.kiosk .k-top .t,.tspec .num,.sky .lab b,.ribbon .wkc b,.greet .line b{letter-spacing:.006em}
 .poster h1{max-width:17ch}
 /* <<< design system */
-
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-}
-
-@layer utilities {
-  .shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--stock-muted))   0%,
-      hsl(var(--stock-accent))  50%,
-      hsl(var(--stock-muted))   100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 2s linear infinite;
-    animation-delay: -1s;
-    border-radius: var(--stock-radius);
-  }
-}

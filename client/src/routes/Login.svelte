@@ -4,15 +4,29 @@
   import { apiFetch } from '../api/base.js';
   import { getMe } from '../api/users.js';
   import { takeAfterSignIn } from '../lib/afterSignIn.js';
-  import { showToast } from '../stores/ui.js';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
+  import { Button, Field, Mark } from '../lib/components/ui/index.js';
+  import { showToast, pageTitle, bandShowsTitle } from '../stores/ui.js';
 
-  let netId = '';
-  let password = '';
-  let loading = false;
-  let showLocalForm = false;
+  /**
+   * Signing in.
+   *
+   * One primary button for the NetID, which is how almost everybody arrives,
+   * and a quiet button for the local account an administrator issues, which
+   * stays shut until somebody asks for it. See docs/design/08-surfaces.md.
+   *
+   * "Sign in" goes in the sky band in place of the greeting, through the store
+   * in stores/ui.js, and the page draws its own heading only where the band is
+   * not carrying one.
+   */
+  $effect(() => {
+    pageTitle.set('Sign in');
+    return () => pageTitle.set(null);
+  });
+
+  let netId = $state('');
+  let password = $state('');
+  let loading = $state(false);
+  let showLocalForm = $state(false);
 
   async function loginLocal() {
     loading = true;
@@ -35,40 +49,107 @@
   }
 </script>
 
-<div class="min-h-[80vh] flex items-center justify-center">
-  <div class="w-full max-w-sm space-y-6">
-    <div class="text-center space-y-2">
-      <img src="/via_logo_black.svg" alt="VIA" class="h-10 w-auto mx-auto" />
-      <p class="text-muted-foreground text-sm">Virtually Integrated Agenda</p>
-    </div>
+<svelte:head>
+  <title>Sign in: VIA</title>
+</svelte:head>
 
-    <div class="space-y-3">
-      <Button class="w-full" on:click={loginMicrosoft}>
-        Sign in with UIUC NetID
-      </Button>
+<div class="signin">
+  <Mark size={72} />
+  {#if !$bandShowsTitle}<h1>Sign in</h1>{/if}
+  <p>
+    VIA knows you by your NetID, which is how it knows which organizations you are on the
+    board of. Reading the event feed needs no account at all.
+  </p>
 
-      <button
-        class="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
-        on:click={() => showLocalForm = !showLocalForm}
-      >
-        {showLocalForm ? 'Hide' : 'Use password login (non-UIUC users)'}
-      </button>
+  <div class="ways">
+    <Button variant="primary" onclick={loginMicrosoft}>Sign in with your NetID</Button>
 
-      {#if showLocalForm}
-        <form on:submit|preventDefault={loginLocal} class="space-y-3 pt-2 border-t">
-          <div class="space-y-1">
-            <Label htmlFor="netId">Username</Label>
-            <Input id="netId" bind:value={netId} placeholder="username" autocomplete="username" required />
-          </div>
-          <div class="space-y-1">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" bind:value={password} autocomplete="current-password" required />
-          </div>
-          <Button type="submit" class="w-full" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
-      {/if}
-    </div>
+    <Button
+      variant="quiet"
+      aria-expanded={showLocalForm}
+      onclick={() => { showLocalForm = !showLocalForm; }}
+    >
+      {showLocalForm ? 'Hide the password form' : 'Sign in with a VIA password'}
+    </Button>
   </div>
+
+  {#if showLocalForm}
+    <form onsubmit={event => { event.preventDefault(); loginLocal(); }}>
+      <p class="note">
+        A VIA password is issued by an administrator, for the few people who have no NetID.
+      </p>
+      <Field label="Username" id="netId" bind:value={netId} autocomplete="username" required />
+      <Field
+        label="Password"
+        id="password"
+        type="password"
+        bind:value={password}
+        autocomplete="current-password"
+        required
+      />
+      <Button type="submit" variant="secondary" busy={loading}>Sign in</Button>
+    </form>
+  {/if}
 </div>
+
+<style>
+  .signin {
+    max-width: 62ch;
+    margin: 0 auto;
+    padding: 40px 0 64px;
+    display: grid;
+    justify-items: start;
+    gap: 18px;
+  }
+
+  /* The page title role: condensed 800 at 56 px. */
+  h1 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 56px;
+    line-height: 0.9;
+    letter-spacing: 0.006em;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  p {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 52ch;
+    margin: 0;
+  }
+
+  .ways {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 22px;
+    margin-top: 6px;
+  }
+
+  form {
+    display: grid;
+    justify-items: start;
+    gap: 20px;
+    margin-top: 10px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    width: 100%;
+  }
+
+  .note {
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 640px) {
+    h1 {
+      font-size: 40px;
+    }
+  }
+</style>

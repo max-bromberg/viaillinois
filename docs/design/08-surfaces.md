@@ -22,20 +22,26 @@ Organizations are pads and names. The internal events control is a pad.
 
 ## The event page
 
-A poster, as described in the component document. The board's tools appear only for a
-signed in board member of that organization. The lamp uses the organization's adapted lamp
-color at 18 percent.
+A poster, as described in the component document. There is no sky band: the navigation sits
+on paper above the poster, because a sky over a page that is not the agenda answers a
+question nobody asked there. The board's tools appear only for a signed in board member of
+that organization. The lamp uses the organization's adapted lamp color at 18 percent.
+
+In the reference render the lamp reaches up behind the navigation. In the client the
+navigation is drawn by the shell, above the poster, so that no surface can lose it by
+forgetting to draw one, and the lamp begins under it.
 
 ## Midterms
 
-The page title in condensed 800 at 56 px, "Midterms, Fall 2026", with the term name from
-the platform. A sentence in Plex Sans. The search field and the primary button at the
+No sky band; the navigation sits on paper. The page title in condensed 800 at 56 px,
+"Midterms, Fall 2026", with the term name from the platform. A sentence in Plex Sans. The search field and the primary button at the
 right. The term ribbon. The exam listing. The add form opens in a dialog styled from the
 same parts.
 
 ## The calendar
 
-The month grid keeps its structure and takes the tokens. Day numbers are condensed 700 at
+No sky band; the navigation sits on paper. The month grid keeps its structure and takes the
+tokens. Day numbers are condensed 700 at
 16 px. Today's number is signal. Entries are the organization's adapted mark color as a
 2 px trace on the left of the entry's text, which is the one place a vertical color line
 remains, because a calendar cell is too small for a lamp. Midterms use plum. The week view
@@ -56,6 +62,13 @@ These are board tools, and they follow the same rules with less ceremony: no sky
 field, the switch and the pad, tables built like the exam listing, and one primary button
 per screen. Recommendations in the scheduler are rows with a lamp in the organization's
 color and a numeral for the score.
+
+## Which surfaces carry a sky band
+
+The feed, with the greeting and the clock. The reading pages, login and the account page,
+with a page title in place of the greeting. Nowhere else: the event page, the midterm
+schedule, the calendar, the dashboard, the scheduler, the poster designer and the admin page
+carry the navigation on paper, and the kiosk carries no navigation at all.
 
 ## About, updates, terms and privacy
 

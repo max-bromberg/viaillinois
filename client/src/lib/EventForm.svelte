@@ -588,4 +588,19 @@
     gap: 18px;
     padding-top: 4px;
   }
+
+  /*
+   * A field written out here rather than taken from the Field component still
+   * has to carry the state on its line, so the rule and the pad turn primary
+   * when whatever sits between them has the focus.
+   */
+  .fld .in:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 2px 0 0 var(--primary);
+  }
+
+  .fld .in:focus-within :global(.pad) {
+    --h: var(--primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
 </style>

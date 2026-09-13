@@ -14,6 +14,9 @@
   import SchedulerInsightCard from '../lib/SchedulerInsightCard.svelte';
   import DatePicker from '../lib/DatePicker.svelte';
   import { searchLocations } from '../api/locations.js';
+  import { resolvedTheme } from '../stores/theme.js';
+  import { organizationColor } from '../lib/organizationColor.js';
+  import { Button, Field, Pad, Highlight, Switch, EmptyState } from '../lib/components/ui/index.js';
 
   $: if ($currentUser !== null && ($adminRsoIds || []).length === 0) navigate('/');
 
@@ -99,8 +102,20 @@
 
   const BUILDINGS = ['ECEB', 'CSL', 'CIF', 'Siebel'];
   const TIERS = ['required', 'strongly_preferred', 'nice_to_have'];
-  const TIER_LABELS = { required: 'Required', strongly_preferred: 'Strongly Preferred', nice_to_have: 'Nice to Have' };
-  const SENSITIVITY_LABELS = { low: 'Low (±1.5 days)', medium: 'Medium (±3 days)', high: 'High (±5 days)' };
+  const TIER_LABELS = { required: 'Required', strongly_preferred: 'Strongly preferred', nice_to_have: 'Nice to have' };
+  const SENSITIVITY_LABELS = {
+    low: 'Keep a day and a half clear',
+    medium: 'Keep three days clear',
+    high: 'Keep five days clear',
+  };
+  /** How long an event runs, in the words a board would use for it. */
+  const DURATIONS = [
+    { value: 30,  label: '30 minutes' },
+    { value: 60,  label: '1 hour' },
+    { value: 90,  label: '1 hour and a half' },
+    { value: 120, label: '2 hours' },
+    { value: 180, label: '3 hours' },
+  ];
 
   onMount(async () => {
     try {
@@ -132,8 +147,8 @@
 
   // ── Search ───────────────────────────────────────────────────────────────
   async function handleSearch() {
-    if (!startDate || !endDate) { showToast('Start and end date required', 'error'); return; }
-    if (new Date(startDate) >= new Date(endDate)) { showToast('Start date must be before end date', 'error'); return; }
+    if (!startDate || !endDate) { showToast('The scheduler needs a first date and a last date.', 'error'); return; }
+    if (new Date(startDate) >= new Date(endDate)) { showToast('The first date has to come before the last date.', 'error'); return; }
 
     searching = true;
     recommendations = null;
@@ -150,7 +165,7 @@
         recurrence,
       });
       if (!recommendations.curatedPicks.length && !recommendations.allOptions.length) {
-        showToast('No slots found for those constraints. Try relaxing the Required constraints.', 'error');
+        showToast('Nothing is free inside those constraints. Make a required constraint a preference and look again.', 'error');
       }
     } catch (e) {
       showToast(e.message, 'error');
@@ -172,12 +187,12 @@
         showToast(
           skipped?.length
             ? `Scheduled ${created} events. These weeks were left out because the room was taken: ${skipped.join(', ')}.`
-            : `Scheduled ${created} events`,
+            : `Scheduled ${created} events.`,
           skipped?.length ? 'error' : undefined
         );
       } else {
         await createEvent(e.detail);
-        showToast('Event scheduled successfully!');
+        showToast('The event is on the feed.');
       }
       navigate('/dashboard');
     } catch (err) {
@@ -237,533 +252,1026 @@
     return campusTime(iso);
   }
   function fmtDateTime(iso) {
-    return campusDateTime(iso, { separator: ' · ' });
+    return campusDateTime(iso);
   }
+
+  /**
+   * The organization's light, bent into the site's range for the theme the page
+   * is in. Every recommendation is lit by it, which is how a row says whose
+   * event it would be.
+   */
+  $: recommendationTone = organizationColor(selectedRso?.logo_color, 'lamp', $resolvedTheme);
+
+  /**
+   * What the scheduler has been told to look for, written as sentences.
+   *
+   * The review step used to be a grid of "Duration:", "Dates:", "Buildings:"
+   * and a value beside each, which is the one thing docs/design/10-voice.md
+   * says the site never does.
+   */
+  $: reviewLines = [
+    `The event runs for ${durationMinutes} minutes.`,
+    startDate && endDate
+      ? `It is looked for between ${startDate} and ${endDate}.`
+      : 'It is looked for on any date.',
+    enableTimeConstraint
+      ? `The hours ${timeStartHour}:00 to ${timeEndHour}:00 are ${TIER_LABELS[timeTier].toLowerCase()}.`
+      : 'Any hour of the day will do.',
+    repeat === 'none'
+      ? 'It happens once.'
+      : (repeatSentence ? `${repeatSentence}.` : 'It repeats.'),
+    dayConstraints.length > 0
+      ? `The days it may fall on are ${dayConstraints.map(d => `${d.day}, which is ${TIER_LABELS[d.tier]?.toLowerCase() ?? d.tier.replace(/_/g, ' ')}`).join(', ')}.`
+      : 'Any day of the week will do.',
+    buildingConstraints.length > 0
+      ? `The buildings it may be in are ${buildingConstraints.map(b => `${b.building}, which is ${TIER_LABELS[b.tier].toLowerCase()}`).join(', ')}.`
+      : 'Any building will do.',
+    excludedRooms.length > 0
+      ? `These rooms are left out: ${excludedRooms.map(r => `${r.building} ${r.room_number}`).join(', ')}.`
+      : 'No room is left out.',
+    targetCourses.length > 0
+      ? `It is meant for people taking ${targetCourses.join(', ')}, and the search keeps clear of their exams. ${SENSITIVITY_LABELS[midtermSensitivity]}.`
+      : 'No course was named, so no exam is worked around.',
+  ];
 </script>
 
-<svelte:head><title>Intelligent Scheduler: VIA</title></svelte:head>
+<svelte:head><title>The scheduler: VIA</title></svelte:head>
 
-<div class="max-w-5xl mx-auto space-y-6 pb-20">
+<div class="sched">
 
-  <!-- Header -->
-  <div class="space-y-1">
-    <h1 class="text-2xl font-bold flex items-center gap-2">
-      <svg class="text-primary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-      Intelligent Scheduler
-    </h1>
-    <p class="text-sm text-muted-foreground">
-      We balance room availability, competing events, course schedules, and exam pressure to find your best window.
+  <div class="head">
+    <h1 class="title">The scheduler</h1>
+    <p class="about">
+      The scheduler weighs which rooms are free, what else is on, when classes meet and how
+      close the exams are, and gives back the times that work best for the people you want
+      in the room.
     </p>
   </div>
 
   {#if showEventForm && selectedRec}
-    <!-- ── Event Form ─────────────────────────────────────────────────── -->
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">Finalize Event</h2>
-        <button class="text-sm text-muted-foreground hover:text-foreground" on:click={() => showEventForm = false}>← Back</button>
+    <!-- ── The event, from the time that was chosen ────────────────────── -->
+    <div class="tabbody">
+      <div class="panelhead">
+        <h2>File this event</h2>
+        <Button variant="quiet" size="sm" icon="back" onclick={() => showEventForm = false}>
+          Back to the times
+        </Button>
       </div>
-      <div class="bg-card border rounded-lg p-6">
-        <div class="grid grid-cols-2 gap-4 mb-6 p-4 bg-muted/30 rounded-md border text-sm">
-          <div>
-            <p class="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Time</p>
-            <p class="font-medium">{fmtDateTime(selectedRec.start)} to {fmtTime(selectedRec.end)}</p>
-          </div>
-          <div>
-            <p class="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Venue</p>
-            <p class="font-medium">{selectedRec.location?.building} {selectedRec.location?.room_number} · Cap {selectedRec.location?.max_capacity}</p>
-          </div>
-        </div>
-        <EventForm
-          rsoId={selectedRso?.rso_id}
-          initial={{
-            start_time: selectedRec.start, end_time: selectedRec.end,
-            location_id: selectedRec.location?.location_id,
-            building: selectedRec.location?.building,
-            room_number: selectedRec.location?.room_number,
-          }}
-          initialRecurrence={selectedRec.recurrence ? {
-            interval_weeks: selectedRec.recurrence.interval_weeks,
-            days_of_week: selectedRec.recurrence.days_of_week,
-            ends_on: selectedRec.recurrence.until,
-          } : null}
-          {semester}
-          {loading}
-          on:submit={handleCreateEvent}
-          on:cancel={() => showEventForm = false}
-        />
-      </div>
+
+      <p class="chosen">
+        <span class="when">{fmtDateTime(selectedRec.start)} to {fmtTime(selectedRec.end)}</span>
+        <span class="where mono">
+          {selectedRec.location?.building} {selectedRec.location?.room_number}, seats {selectedRec.location?.max_capacity}
+        </span>
+      </p>
+
+      <EventForm
+        rsoId={selectedRso?.rso_id}
+        initial={{
+          start_time: selectedRec.start, end_time: selectedRec.end,
+          location_id: selectedRec.location?.location_id,
+          building: selectedRec.location?.building,
+          room_number: selectedRec.location?.room_number,
+        }}
+        initialRecurrence={selectedRec.recurrence ? {
+          interval_weeks: selectedRec.recurrence.interval_weeks,
+          days_of_week: selectedRec.recurrence.days_of_week,
+          ends_on: selectedRec.recurrence.until,
+        } : null}
+        {semester}
+        {loading}
+        on:submit={handleCreateEvent}
+        on:cancel={() => showEventForm = false}
+      />
     </div>
 
   {:else}
-    <!-- ── RSO selector ──────────────────────────────────────────────── -->
     {#if schedulableRsos.length > 1}
-      <div class="flex flex-wrap gap-2">
+      <div class="switcher">
         {#each schedulableRsos as rso}
           <button
-            class="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border transition-colors
-              {selectedRso?.rso_id === rso.rso_id ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
+            type="button"
+            class="check"
+            aria-pressed={selectedRso?.rso_id === rso.rso_id}
             on:click={() => { selectedRso = rso; recommendations = null; }}
           >
-            {#if rso.logo_color}<span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background-color:{rso.logo_color}"></span>{/if}
-            {rso.name}
+            <Pad
+              tone={organizationColor(rso.logo_color, 'mark', $resolvedTheme)}
+              hollow={selectedRso?.rso_id !== rso.rso_id}
+            />
+            <span>{rso.name}</span>
           </button>
         {/each}
       </div>
     {/if}
 
     {#if selectedRso}
-      <!-- ── Mode toggle ─────────────────────────────────────────────── -->
-      <div class="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
-        <button class="px-4 py-1.5 text-sm rounded-md transition-all {inputMode === 'wizard' ? 'bg-background shadow font-medium' : 'text-muted-foreground hover:text-foreground'}"
-          on:click={() => inputMode = 'wizard'}>Wizard</button>
-        <button class="px-4 py-1.5 text-sm rounded-md transition-all {inputMode === 'advanced' ? 'bg-background shadow font-medium' : 'text-muted-foreground hover:text-foreground'}"
-          on:click={() => inputMode = 'advanced'}>Advanced</button>
+      <div class="tabs">
+        <button type="button" class="tab" aria-pressed={inputMode === 'wizard'}
+          on:click={() => inputMode = 'wizard'}>One step at a time</button>
+        <button type="button" class="tab" aria-pressed={inputMode === 'advanced'}
+          on:click={() => inputMode = 'advanced'}>Everything at once</button>
       </div>
 
       {#if inputMode === 'wizard'}
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- WIZARD MODE                                                  -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
-        <!-- Progress bar -->
-        <div class="flex gap-1.5 items-center">
-          {#each [1,2,3,4,5] as s}
-            <div class="h-1.5 flex-1 rounded-full {s <= wizardStep ? 'bg-primary' : 'bg-muted'}"></div>
+        <!-- ── One step at a time ───────────────────────────────────────── -->
+        <p class="progress">
+          {#each [1, 2, 3, 4, 5] as s}
+            <Pad hollow={s > wizardStep} />
           {/each}
-          <span class="text-xs text-muted-foreground ml-2">Step {wizardStep} of 5</span>
-        </div>
+          <span>Step {wizardStep} of 5</span>
+        </p>
 
-        <div class="border rounded-xl bg-card p-6 space-y-6 min-h-[320px]">
+        <div class="panel cut" style="--cut: 14px">
 
           {#if wizardStep === 1}
-            <h2 class="text-lg font-semibold">Basics</h2>
-            <div class="space-y-4 max-w-sm">
-              <div class="space-y-1.5">
-                <label class="text-sm font-medium" for="w-duration">Event Duration</label>
-                <select id="w-duration" bind:value={durationMinutes} class="w-full border rounded-md px-3 py-2 text-sm bg-background">
-                  <option value={30}>30 min</option>
-                  <option value={60}>1 hour</option>
-                  <option value={90}>1.5 hours</option>
-                  <option value={120}>2 hours</option>
-                  <option value={180}>3 hours</option>
+            <h2>The event itself</h2>
+            <div class="fld">
+              <label for="w-duration">How long it runs</label>
+              <div class="in">
+                <Pad />
+                <select id="w-duration" bind:value={durationMinutes} style="background: var(--well)">
+                  {#each DURATIONS as option}<option value={option.value}>{option.label}</option>{/each}
                 </select>
               </div>
             </div>
 
           {:else if wizardStep === 2}
-            <h2 class="text-lg font-semibold">When</h2>
-            <div class="space-y-5 max-w-sm">
-              <div class="space-y-1.5">
-                <label class="text-sm font-medium">Date Range</label>
-                <div class="grid grid-cols-2 gap-2">
-                  <DatePicker bind:value={startDate} placeholder="Start date" />
-                  <DatePicker bind:value={endDate} placeholder="End date" min={startDate} />
-                </div>
-              </div>
+            <h2>When it could be</h2>
 
-              <div class="space-y-2">
-                <label class="text-sm font-medium">Repeat</label>
-                <div class="flex flex-wrap gap-2">
-                  {#each REPEATS as option}
-                    <button
-                      type="button"
-                      aria-pressed={repeat === option.value}
-                      class="text-xs px-3 py-1 rounded-full border transition-colors
-                        {repeat === option.value ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
-                      on:click={() => chooseRepeat(option.value)}
-                    >{option.label}</button>
-                  {/each}
-                </div>
-                {#if repeat !== 'none'}
-                  <div class="rounded-md border p-3 space-y-3 bg-muted/30">
-                    <div class="space-y-1">
-                      <label class="text-xs font-medium">On these days, or any day if none are chosen</label>
-                      <div class="flex flex-wrap gap-1.5">
-                        {#each WEEKDAYS as day}
-                          <button
-                            type="button"
-                            aria-pressed={repeatDays.includes(day)}
-                            class="text-xs w-11 py-1 rounded border transition-colors
-                              {repeatDays.includes(day) ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
-                            on:click={() => toggleRepeatDay(day)}
-                          >{day}</button>
-                        {/each}
-                      </div>
-                    </div>
-                    <div class="space-y-1">
-                      <label class="text-xs font-medium">Until</label>
-                      <DatePicker bind:value={repeatUntil} placeholder="Last date" min={startDate} />
-                      {#if semester}
-                        <p class="text-xs text-muted-foreground">
-                          {semester.label} instruction ends on {semester.instruction_end}.
-                        </p>
-                      {/if}
-                    </div>
-                    {#if repeatSentence}
-                      <p class="text-xs font-medium">{repeatSentence}</p>
-                    {/if}
-                  </div>
-                {/if}
+            <fieldset class="group">
+              <legend>The dates to look between</legend>
+              <div class="pair">
+                <DatePicker bind:value={startDate} label="The first date" placeholder="First date" />
+                <DatePicker bind:value={endDate} label="The last date" placeholder="Last date" min={startDate} />
               </div>
+            </fieldset>
 
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <label class="text-sm font-medium">Days of Week</label>
-                </div>
-                <DayTierPicker value={dayConstraints} on:change={e => dayConstraints = e.detail} />
-              </div>
-
-              <div class="space-y-2">
-                <div class="flex items-center gap-2">
-                  <input type="checkbox" id="w-time-enable" bind:checked={enableTimeConstraint} class="rounded" />
-                  <label for="w-time-enable" class="text-sm font-medium">Time of day preference</label>
-                </div>
-                {#if enableTimeConstraint}
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <input type="number" bind:value={timeStartHour} min="0" max="23" class="w-14 border rounded-md px-2 py-1.5 text-xs bg-background" />
-                    <span class="text-sm text-muted-foreground">to</span>
-                    <input type="number" bind:value={timeEndHour} min="0" max="23" class="w-14 border rounded-md px-2 py-1.5 text-xs bg-background" />
-                    <select bind:value={timeTier} class="border rounded-md px-2 py-1.5 text-xs bg-background">
-                      {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
-                    </select>
-                  </div>
-                {/if}
-              </div>
-            </div>
-
-          {:else if wizardStep === 3}
-            <h2 class="text-lg font-semibold">Target Audience</h2>
-            <div class="space-y-4">
-              <p class="text-sm text-muted-foreground">Select courses your target audience is likely enrolled in. We'll avoid slots near exams and class sessions for these courses.</p>
-              <div class="max-h-52 overflow-y-auto border rounded-md p-2 space-y-0.5 bg-background/50">
-                {#each coursesList as course}
-                  <label class="flex items-center gap-2 cursor-pointer text-xs py-1 hover:bg-muted/50 px-1 rounded">
-                    <input type="checkbox" checked={targetCourses.includes(course.course_code)} on:change={() => toggleCourse(course.course_code)} class="rounded" />
-                    <span class="font-mono">{course.course_code}</span>
-                    <span class="text-muted-foreground truncate">{course.title}</span>
-                  </label>
+            <fieldset class="group">
+              <legend>Repeat</legend>
+              <div class="choices">
+                {#each REPEATS as option}
+                  <button
+                    type="button" class="check" aria-pressed={repeat === option.value}
+                    on:click={() => chooseRepeat(option.value)}
+                  >
+                    <Pad hollow={repeat !== option.value} />
+                    <span>{option.label}</span>
+                  </button>
                 {/each}
-                {#if coursesList.length === 0}<p class="text-xs text-muted-foreground p-2">Loading courses…</p>{/if}
               </div>
 
-              {#if targetCourses.length > 0}
-                <div class="space-y-2">
-                  <label class="text-sm font-medium">Midterm Sensitivity</label>
-                  <p class="text-xs text-muted-foreground">How aggressively to avoid time slots near target course exams.</p>
-                  <div class="flex gap-2">
-                    {#each ['low','medium','high'] as s}
-                      <button
-                        class="flex-1 py-2 text-xs rounded-md border transition-all {midtermSensitivity === s ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
-                        on:click={() => midtermSensitivity = s}
-                      >{SENSITIVITY_LABELS[s]}</button>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            </div>
-
-          {:else if wizardStep === 4}
-            <h2 class="text-lg font-semibold">Venue</h2>
-            <div class="space-y-5">
-              <div class="space-y-2">
-                <label class="text-sm font-medium">Preferred Buildings</label>
-                <p class="text-xs text-muted-foreground">Click to add, then set priority.</p>
-                <div class="flex flex-wrap gap-2">
-                  {#each BUILDINGS as b}
-                    {@const bc = buildingConstraints.find(x => x.building === b)}
-                    <div class="flex items-center gap-1">
-                      <button
-                        class="px-3 py-1.5 text-xs rounded-md border transition-all
-                          {bc ? 'bg-primary/10 text-primary border-primary/30' : 'border-border hover:bg-accent'}"
-                        on:click={() => toggleBuilding(b)}
-                      >{b}{bc ? ' ✓' : ''}</button>
-                      {#if bc}
-                        <select class="text-xs border rounded px-1 py-1 bg-background" value={bc.tier} on:change={e => setBuildingTier(b, e.target.value)}>
-                          {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
-                        </select>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-              <div class="space-y-2">
-                <label class="text-sm font-medium">Excluded Rooms</label>
-                <p class="text-xs text-muted-foreground">Search for specific rooms to block from results.</p>
-                <div class="relative">
-                  <input
-                    type="text" value={roomSearchQuery} on:input={onRoomSearchInput}
-                    placeholder="Search by building or room…"
-                    class="w-full border rounded-md px-3 py-2 text-sm bg-background"
-                  />
-                  {#if roomSearchResults.length > 0}
-                    <div class="absolute z-10 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md overflow-hidden">
-                      {#each roomSearchResults as room}
-                        <button class="w-full text-left px-3 py-2 text-xs hover:bg-accent flex justify-between" on:click={() => addExcludedRoom(room)}>
-                          <span class="font-medium">{room.building} {room.room_number}</span>
-                          <span class="text-muted-foreground">cap {room.max_capacity}</span>
+              {#if repeat !== 'none'}
+                <div class="inner">
+                  <fieldset class="group">
+                    <legend>On these days, or any day if none are chosen</legend>
+                    <div class="choices">
+                      {#each WEEKDAYS as day}
+                        <button
+                          type="button" class="check" aria-pressed={repeatDays.includes(day)}
+                          on:click={() => toggleRepeatDay(day)}
+                        >
+                          <Pad hollow={!repeatDays.includes(day)} />
+                          <span>{day}</span>
                         </button>
                       {/each}
                     </div>
-                  {/if}
-                </div>
-                {#if excludedRooms.length > 0}
-                  <div class="flex flex-wrap gap-1.5 mt-1">
-                    {#each excludedRooms as room}
-                      <span class="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-                        {room.building} {room.room_number}
-                        <button class="ml-0.5 hover:opacity-70" on:click={() => removeExcludedRoom(room.location_id)}>✕</button>
-                      </span>
-                    {/each}
+                  </fieldset>
+
+                  <div class="group">
+                    <span class="name" id="wizard-until">Until</span>
+                    <DatePicker
+                      bind:value={repeatUntil} label="Until" describedBy="wizard-until"
+                      placeholder="Last date" min={startDate}
+                    />
+                    {#if semester}
+                      <p class="help">{semester.label} instruction ends on {semester.instruction_end}.</p>
+                    {/if}
                   </div>
-                {/if}
+
+                  {#if repeatSentence}<p class="says">{repeatSentence}</p>{/if}
+                </div>
+              {/if}
+            </fieldset>
+
+            <fieldset class="group">
+              <legend>How much each day of the week matters</legend>
+              <DayTierPicker value={dayConstraints} on:change={e => dayConstraints = e.detail} />
+            </fieldset>
+
+            <fieldset class="group">
+              <legend>The hours of the day</legend>
+              <div class="setting">
+                <Switch label="Hold the search to a window of the day" bind:checked={enableTimeConstraint} />
+                <span>Hold the search to a window of the day</span>
               </div>
+              {#if enableTimeConstraint}
+                <div class="window">
+                  <Field label="From this hour" id="w-time-start" type="number" min="0" max="23"
+                    bind:value={timeStartHour} class="hour" />
+                  <Field label="To this hour" id="w-time-end" type="number" min="0" max="23"
+                    bind:value={timeEndHour} class="hour" />
+                  <div class="fld">
+                    <label for="w-time-tier">How much that matters</label>
+                    <div class="in">
+                      <Pad />
+                      <select id="w-time-tier" bind:value={timeTier} style="background: var(--well)">
+                        {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              {/if}
+            </fieldset>
+
+          {:else if wizardStep === 3}
+            <h2>Who it is for</h2>
+            <p class="help">
+              Name the courses the people you want are taking. The scheduler keeps clear of
+              their exams and of the hours those classes meet.
+            </p>
+            <div class="courses">
+              {#each coursesList as course}
+                <button
+                  type="button" class="check course"
+                  aria-pressed={targetCourses.includes(course.course_code)}
+                  on:click={() => toggleCourse(course.course_code)}
+                >
+                  <Pad hollow={!targetCourses.includes(course.course_code)} />
+                  <span class="code mono">{course.course_code}</span>
+                  <span class="ttl">{course.title}</span>
+                </button>
+              {/each}
+              {#if coursesList.length === 0}
+                <p class="help">Reading the course list.</p>
+              {/if}
             </div>
 
-          {:else if wizardStep === 5}
-            <h2 class="text-lg font-semibold">Review & Generate</h2>
-            <div class="text-sm space-y-3">
-              <div class="grid grid-cols-2 gap-x-6 gap-y-2">
-                <div><span class="text-muted-foreground">Duration:</span> <span class="font-medium">{durationMinutes} min</span></div>
-                <div><span class="text-muted-foreground">Dates:</span> <span class="font-medium">{startDate || 'any'} → {endDate || 'any'}</span></div>
-                <div><span class="text-muted-foreground">Time window:</span> <span class="font-medium">{enableTimeConstraint ? `${timeStartHour}:00 to ${timeEndHour}:00 (${TIER_LABELS[timeTier]})` : 'Any'}</span></div>
-                <div><span class="text-muted-foreground">Target courses:</span> <span class="font-medium">{targetCourses.length > 0 ? targetCourses.join(', ') : 'None'}</span></div>
-                <div><span class="text-muted-foreground">Midterm sensitivity:</span> <span class="font-medium">{targetCourses.length > 0 ? midtermSensitivity : 'N/A'}</span></div>
-                <div><span class="text-muted-foreground">Buildings:</span> <span class="font-medium">{buildingConstraints.length > 0 ? buildingConstraints.map(b => `${b.building} (${TIER_LABELS[b.tier]})`).join(', ') : 'Any'}</span></div>
-                <div><span class="text-muted-foreground">Days:</span> <span class="font-medium">{dayConstraints.length > 0 ? dayConstraints.map(d => `${d.day}·${d.tier.slice(0,3)}`).join(', ') : 'Any'}</span></div>
+            {#if targetCourses.length > 0}
+              <fieldset class="group">
+                <legend>How far from an exam a time has to be</legend>
+                <div class="choices">
+                  {#each ['low', 'medium', 'high'] as s}
+                    <button
+                      type="button" class="check" aria-pressed={midtermSensitivity === s}
+                      on:click={() => midtermSensitivity = s}
+                    >
+                      <Pad hollow={midtermSensitivity !== s} />
+                      <span>{SENSITIVITY_LABELS[s]}</span>
+                    </button>
+                  {/each}
+                </div>
+              </fieldset>
+            {/if}
+
+          {:else if wizardStep === 4}
+            <h2>Where it could be</h2>
+
+            <fieldset class="group">
+              <legend>The buildings to look in</legend>
+              <div class="choices">
+                {#each BUILDINGS as b}
+                  {@const bc = buildingConstraints.find(x => x.building === b)}
+                  <span class="building">
+                    <button type="button" class="check" aria-pressed={!!bc} on:click={() => toggleBuilding(b)}>
+                      <Pad hollow={!bc} />
+                      <span>{b}</span>
+                    </button>
+                    {#if bc}
+                      <select
+                        aria-label="How much {b} matters" value={bc.tier}
+                        style="background: var(--well)"
+                        on:change={e => setBuildingTier(b, e.target.value)}
+                      >
+                        {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
+                      </select>
+                    {/if}
+                  </span>
+                {/each}
               </div>
-            </div>
+            </fieldset>
+
+            <fieldset class="group">
+              <legend>Rooms to leave out</legend>
+              <div class="finder">
+                <div class="fld">
+                  <label for="w-room-search">Search for a room</label>
+                  <div class="in">
+                    <Pad />
+                    <input
+                      id="w-room-search" type="text" value={roomSearchQuery}
+                      on:input={onRoomSearchInput}
+                      placeholder="A building or a room number"
+                    />
+                  </div>
+                </div>
+                {#if roomSearchResults.length > 0}
+                  <ul class="found">
+                    {#each roomSearchResults as room}
+                      <li>
+                        <button type="button" class="room" on:click={() => addExcludedRoom(room)}>
+                          <Pad hollow />
+                          <span class="where">{room.building} {room.room_number}</span>
+                          <span class="seats mono">seats {room.max_capacity}</span>
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+              {#if excludedRooms.length > 0}
+                <ul class="left-out hlrow">
+                  {#each excludedRooms as room}
+                    <li>
+                      <Highlight
+                        tone="var(--danger)"
+                        onclick={() => removeExcludedRoom(room.location_id)}
+                        aria-label="Put {room.building} {room.room_number} back in the search"
+                      >{room.building} {room.room_number}</Highlight>
+                    </li>
+                  {/each}
+                </ul>
+                <p class="help">Click a room to put it back in the search.</p>
+              {/if}
+            </fieldset>
+
+          {:else if wizardStep === 5}
+            <h2>What the scheduler will look for</h2>
+            <ul class="review">
+              {#each reviewLines as line}<li>{line}</li>{/each}
+            </ul>
           {/if}
         </div>
 
-        <!-- Wizard nav -->
-        <div class="flex justify-between">
-          <button
-            class="px-4 py-2 text-sm border rounded-md hover:bg-accent disabled:opacity-30"
-            disabled={wizardStep === 1}
-            on:click={() => wizardStep--}
-          >← Back</button>
+        <div class="walk">
+          <Button variant="secondary" icon="back" disabled={wizardStep === 1} onclick={() => wizardStep--}>
+            Back a step
+          </Button>
           {#if wizardStep < 5}
-            <button class="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90" on:click={() => wizardStep++}>Next →</button>
+            <Button variant="primary" onclick={() => wizardStep++}>Next</Button>
           {:else}
-            <button
-              class="px-6 py-2 text-sm bg-primary text-primary-foreground rounded-md font-semibold hover:bg-primary/90 disabled:opacity-50"
-              disabled={searching}
-              on:click={handleSearch}
-            >{searching ? 'Calculating…' : 'Generate Suggestions'}</button>
+            <Button variant="primary" busy={searching} onclick={handleSearch}>
+              {searching ? 'Looking for a time' : 'Find a time'}
+            </Button>
           {/if}
         </div>
 
       {:else}
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- ADVANCED MODE                                                -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <!-- ── Everything at once ───────────────────────────────────────── -->
+        <div class="both">
+          <div class="asking">
 
-          <!-- Left: constraint form -->
-          <div class="lg:col-span-2 space-y-5">
-
-            <div class="border rounded-lg p-4 bg-card space-y-4">
-              <h3 class="font-semibold text-sm">Basics</h3>
-              <div class="space-y-1.5">
-                <label class="text-xs text-muted-foreground font-medium" for="a-duration">Duration</label>
-                <select id="a-duration" bind:value={durationMinutes} class="w-full border rounded-md px-3 py-1.5 text-sm bg-background">
-                  <option value={30}>30 min</option><option value={60}>1 hour</option>
-                  <option value={90}>1.5 hours</option><option value={120}>2 hours</option>
-                  <option value={180}>3 hours</option>
-                </select>
-              </div>
-              <div class="space-y-1.5">
-                <label class="text-xs text-muted-foreground font-medium">Date Range</label>
-                <div class="grid grid-cols-2 gap-2">
-                  <DatePicker bind:value={startDate} placeholder="Start date" />
-                  <DatePicker bind:value={endDate} placeholder="End date" min={startDate} />
+            <section class="group">
+              <h3>The event itself</h3>
+              <div class="fld">
+                <label for="a-duration">How long it runs</label>
+                <div class="in">
+                  <Pad />
+                  <select id="a-duration" bind:value={durationMinutes} style="background: var(--paper)">
+                    {#each DURATIONS as option}<option value={option.value}>{option.label}</option>{/each}
+                  </select>
                 </div>
               </div>
-            </div>
+              <fieldset class="group">
+                <legend>The dates to look between</legend>
+                <div class="pair">
+                  <DatePicker bind:value={startDate} label="The first date" placeholder="First date" />
+                  <DatePicker bind:value={endDate} label="The last date" placeholder="Last date" min={startDate} />
+                </div>
+              </fieldset>
+            </section>
 
-            <div class="border rounded-lg p-4 bg-card space-y-4">
-              <h3 class="font-semibold text-sm">Schedule Constraints</h3>
-              <div class="space-y-2">
-                <label class="text-xs text-muted-foreground font-medium">Days of Week</label>
+            <section class="group">
+              <h3>When it could be</h3>
+              <fieldset class="group">
+                <legend>How much each day of the week matters</legend>
                 <DayTierPicker value={dayConstraints} on:change={e => dayConstraints = e.detail} />
+              </fieldset>
+              <div class="setting">
+                <Switch label="Hold the search to a window of the day" bind:checked={enableTimeConstraint} />
+                <span>Hold the search to a window of the day</span>
               </div>
-              <div class="space-y-2">
-                <div class="flex items-center gap-2">
-                  <input type="checkbox" id="a-time-enable" bind:checked={enableTimeConstraint} class="rounded" />
-                  <label for="a-time-enable" class="text-xs font-medium text-muted-foreground">Time of day</label>
-                </div>
-                {#if enableTimeConstraint}
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <input type="number" bind:value={timeStartHour} min="0" max="23" class="w-14 border rounded-md px-2 py-1.5 text-xs bg-background" />
-                    <span class="text-xs text-muted-foreground">to</span>
-                    <input type="number" bind:value={timeEndHour} min="0" max="23" class="w-14 border rounded-md px-2 py-1.5 text-xs bg-background" />
-                    <select bind:value={timeTier} class="border rounded-md px-2 py-1.5 text-xs bg-background">
-                      {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
-                    </select>
-                  </div>
-                {/if}
-              </div>
-            </div>
-
-            <div class="border rounded-lg p-4 bg-card space-y-4">
-              <h3 class="font-semibold text-sm">Target Audience</h3>
-              <div class="max-h-44 overflow-y-auto border rounded-md p-2 space-y-0.5 bg-background/50 text-xs">
-                {#each coursesList as course}
-                  <label class="flex items-center gap-2 cursor-pointer py-0.5 hover:bg-muted/50 px-1 rounded">
-                    <input type="checkbox" checked={targetCourses.includes(course.course_code)} on:change={() => toggleCourse(course.course_code)} class="rounded" />
-                    <span class="font-mono">{course.course_code}</span>
-                    <span class="text-muted-foreground truncate">{course.title}</span>
-                  </label>
-                {/each}
-              </div>
-              {#if targetCourses.length > 0}
-                <div class="space-y-1.5">
-                  <label class="text-xs text-muted-foreground font-medium">Midterm Sensitivity</label>
-                  <div class="flex gap-1.5">
-                    {#each ['low','medium','high'] as s}
-                      <button class="flex-1 py-1.5 text-[10px] rounded border transition-all {midtermSensitivity === s ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent'}"
-                        on:click={() => midtermSensitivity = s}>{s.charAt(0).toUpperCase() + s.slice(1)}</button>
-                    {/each}
+              {#if enableTimeConstraint}
+                <div class="window">
+                  <Field label="From this hour" id="a-time-start" type="number" min="0" max="23"
+                    bind:value={timeStartHour} class="hour" />
+                  <Field label="To this hour" id="a-time-end" type="number" min="0" max="23"
+                    bind:value={timeEndHour} class="hour" />
+                  <div class="fld">
+                    <label for="a-time-tier">How much that matters</label>
+                    <div class="in">
+                      <Pad />
+                      <select id="a-time-tier" bind:value={timeTier} style="background: var(--paper)">
+                        {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
+                      </select>
+                    </div>
                   </div>
                 </div>
               {/if}
-            </div>
+            </section>
 
-            <div class="border rounded-lg p-4 bg-card space-y-4">
-              <h3 class="font-semibold text-sm">Venue</h3>
-              <div class="flex flex-wrap gap-2">
-                {#each BUILDINGS as b}
-                  {@const bc = buildingConstraints.find(x => x.building === b)}
-                  <div class="flex items-center gap-1">
-                    <button
-                      class="px-2.5 py-1 text-xs rounded border {bc ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border hover:bg-accent'}"
-                      on:click={() => toggleBuilding(b)}
-                    >{b}</button>
-                    {#if bc}
-                      <select class="text-[10px] border rounded px-1 py-0.5 bg-background" value={bc.tier} on:change={e => setBuildingTier(b, e.target.value)}>
-                        {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
-                      </select>
-                    {/if}
-                  </div>
+            <section class="group">
+              <h3>Who it is for</h3>
+              <div class="courses">
+                {#each coursesList as course}
+                  <button
+                    type="button" class="check course"
+                    aria-pressed={targetCourses.includes(course.course_code)}
+                    on:click={() => toggleCourse(course.course_code)}
+                  >
+                    <Pad hollow={!targetCourses.includes(course.course_code)} />
+                    <span class="code mono">{course.course_code}</span>
+                    <span class="ttl">{course.title}</span>
+                  </button>
                 {/each}
               </div>
-              <div class="space-y-2">
-                <label class="text-xs text-muted-foreground font-medium">Excluded Rooms</label>
-                <div class="relative">
-                  <input
-                    type="text" value={roomSearchQuery} on:input={onRoomSearchInput}
-                    placeholder="Search to exclude a room…"
-                    class="w-full border rounded-md px-3 py-1.5 text-xs bg-background"
-                  />
-                  {#if roomSearchResults.length > 0}
-                    <div class="absolute z-10 top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-md overflow-hidden">
-                      {#each roomSearchResults as room}
-                        <button class="w-full text-left px-3 py-1.5 text-xs hover:bg-accent flex justify-between" on:click={() => addExcludedRoom(room)}>
-                          <span class="font-medium">{room.building} {room.room_number}</span>
-                          <span class="text-muted-foreground">cap {room.max_capacity}</span>
-                        </button>
-                      {/each}
+              {#if targetCourses.length > 0}
+                <fieldset class="group">
+                  <legend>How far from an exam a time has to be</legend>
+                  <div class="choices">
+                    {#each ['low', 'medium', 'high'] as s}
+                      <button
+                        type="button" class="check" aria-pressed={midtermSensitivity === s}
+                        on:click={() => midtermSensitivity = s}
+                      >
+                        <Pad hollow={midtermSensitivity !== s} />
+                        <span>{SENSITIVITY_LABELS[s]}</span>
+                      </button>
+                    {/each}
+                  </div>
+                </fieldset>
+              {/if}
+            </section>
+
+            <section class="group">
+              <h3>Where it could be</h3>
+              <fieldset class="group">
+                <legend>The buildings to look in</legend>
+                <div class="choices">
+                  {#each BUILDINGS as b}
+                    {@const bc = buildingConstraints.find(x => x.building === b)}
+                    <span class="building">
+                      <button type="button" class="check" aria-pressed={!!bc} on:click={() => toggleBuilding(b)}>
+                        <Pad hollow={!bc} />
+                        <span>{b}</span>
+                      </button>
+                      {#if bc}
+                        <select
+                          aria-label="How much {b} matters" value={bc.tier}
+                          style="background: var(--paper)"
+                          on:change={e => setBuildingTier(b, e.target.value)}
+                        >
+                          {#each TIERS as t}<option value={t}>{TIER_LABELS[t]}</option>{/each}
+                        </select>
+                      {/if}
+                    </span>
+                  {/each}
+                </div>
+              </fieldset>
+
+              <fieldset class="group">
+                <legend>Rooms to leave out</legend>
+                <div class="finder">
+                  <div class="fld">
+                    <label for="a-room-search">Search for a room</label>
+                    <div class="in">
+                      <Pad />
+                      <input
+                        id="a-room-search" type="text" value={roomSearchQuery}
+                        on:input={onRoomSearchInput}
+                        placeholder="A building or a room number"
+                      />
                     </div>
+                  </div>
+                  {#if roomSearchResults.length > 0}
+                    <ul class="found">
+                      {#each roomSearchResults as room}
+                        <li>
+                          <button type="button" class="room" on:click={() => addExcludedRoom(room)}>
+                            <Pad hollow />
+                            <span class="where">{room.building} {room.room_number}</span>
+                            <span class="seats mono">seats {room.max_capacity}</span>
+                          </button>
+                        </li>
+                      {/each}
+                    </ul>
                   {/if}
                 </div>
                 {#if excludedRooms.length > 0}
-                  <div class="flex flex-wrap gap-1.5">
+                  <ul class="left-out hlrow">
                     {#each excludedRooms as room}
-                      <span class="flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-md bg-destructive/10 text-destructive border border-destructive/20">
-                        {room.building} {room.room_number}
-                        <button class="hover:opacity-70" on:click={() => removeExcludedRoom(room.location_id)}>✕</button>
-                      </span>
+                      <li>
+                        <Highlight
+                          tone="var(--danger)"
+                          onclick={() => removeExcludedRoom(room.location_id)}
+                          aria-label="Put {room.building} {room.room_number} back in the search"
+                        >{room.building} {room.room_number}</Highlight>
+                      </li>
                     {/each}
-                  </div>
+                  </ul>
+                  <p class="help">Click a room to put it back in the search.</p>
                 {/if}
-              </div>
-            </div>
+              </fieldset>
+            </section>
 
-            <button
-              class="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold text-sm hover:bg-primary/90 disabled:opacity-50"
-              disabled={searching}
-              on:click={handleSearch}
-            >{searching ? 'Calculating…' : 'Generate Suggestions'}</button>
+            <div class="walk">
+              <Button variant="primary" busy={searching} onclick={handleSearch}>
+                {searching ? 'Looking for a time' : 'Find a time'}
+              </Button>
+            </div>
           </div>
 
-          <!-- Right: results -->
-          <div class="lg:col-span-3">
+          <div class="answering">
             {#if searching}
-              <div class="space-y-3">
-                {#each Array(3) as _}
-                  <div class="h-32 rounded-xl border bg-card/50 shimmer"></div>
-                {/each}
+              <div class="waiting" aria-hidden="true">
+                {#each Array(3) as _}<div class="bone cut" style="--cut: 14px"></div>{/each}
               </div>
             {:else if recommendations}
-              <div class="space-y-4">
-                <div class="flex gap-1 bg-muted rounded-lg p-1 w-fit">
-                  <button class="px-3 py-1 text-sm rounded-md {outputTab === 'curated' ? 'bg-background shadow font-medium' : 'text-muted-foreground'}" on:click={() => outputTab = 'curated'}>Curated Picks</button>
-                  <button class="px-3 py-1 text-sm rounded-md {outputTab === 'all' ? 'bg-background shadow font-medium' : 'text-muted-foreground'}" on:click={() => outputTab = 'all'}>All Options ({recommendations.allOptions.length})</button>
+              <div class="results">
+                <div class="tabs">
+                  <button type="button" class="tab" aria-pressed={outputTab === 'curated'}
+                    on:click={() => outputTab = 'curated'}>The best few</button>
+                  <button type="button" class="tab" aria-pressed={outputTab === 'all'}
+                    on:click={() => outputTab = 'all'}>Every time found ({recommendations.allOptions.length})</button>
                 </div>
                 {#if outputTab === 'curated'}
-                  <div class="space-y-4">
+                  <div class="rows">
                     {#each recommendations.curatedPicks as rec, i}
-                      <SchedulerInsightCard recommendation={rec} rank={i + 1} compact={false} on:select={handleSelect} />
+                      <SchedulerInsightCard recommendation={rec} rank={i + 1} compact={false}
+                        tone={recommendationTone} on:select={handleSelect} />
                     {/each}
                   </div>
                 {:else}
-                  <div class="space-y-2">
+                  <div class="rows">
                     {#each recommendations.allOptions as rec}
-                      <SchedulerInsightCard recommendation={rec} compact={true} on:select={handleSelect} />
+                      <SchedulerInsightCard recommendation={rec} compact={true}
+                        tone={recommendationTone} on:select={handleSelect} />
                     {/each}
                   </div>
                 {/if}
               </div>
             {:else}
-              <div class="h-64 flex flex-col items-center justify-center border-2 border-dashed rounded-xl text-muted-foreground text-center p-8 space-y-2">
-                <p class="text-sm">Set your constraints and click Generate Suggestions.</p>
-              </div>
+              <EmptyState
+                lead="No times yet."
+                say="Say what the event needs on the left and the scheduler will read the rooms, the other events on the feed, the class timetable and the exam schedule, and come back with the times that work."
+              />
             {/if}
           </div>
         </div>
       {/if}
 
-      <!-- ── Output for wizard mode ──────────────────────────────────── -->
+      <!-- ── What the search found, when the wizard asked for it ─────────── -->
       {#if inputMode === 'wizard' && recommendations}
-        <div class="space-y-4 mt-2">
-          <div class="flex gap-1 bg-muted rounded-lg p-1 w-fit">
-            <button class="px-3 py-1 text-sm rounded-md {outputTab === 'curated' ? 'bg-background shadow font-medium' : 'text-muted-foreground'}" on:click={() => outputTab = 'curated'}>Curated Picks</button>
-            <button class="px-3 py-1 text-sm rounded-md {outputTab === 'all' ? 'bg-background shadow font-medium' : 'text-muted-foreground'}" on:click={() => outputTab = 'all'}>All Options ({recommendations.allOptions.length})</button>
+        <div class="results">
+          <div class="tabs">
+            <button type="button" class="tab" aria-pressed={outputTab === 'curated'}
+              on:click={() => outputTab = 'curated'}>The best few</button>
+            <button type="button" class="tab" aria-pressed={outputTab === 'all'}
+              on:click={() => outputTab = 'all'}>Every time found ({recommendations.allOptions.length})</button>
           </div>
           {#if outputTab === 'curated'}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="rows">
               {#each recommendations.curatedPicks as rec, i}
-                <SchedulerInsightCard recommendation={rec} rank={i + 1} compact={false} on:select={handleSelect} />
+                <SchedulerInsightCard recommendation={rec} rank={i + 1} compact={false}
+                  tone={recommendationTone} on:select={handleSelect} />
               {/each}
             </div>
           {:else}
-            <div class="space-y-2">
+            <div class="rows">
               {#each recommendations.allOptions as rec}
-                <SchedulerInsightCard recommendation={rec} compact={true} on:select={handleSelect} />
+                <SchedulerInsightCard recommendation={rec} compact={true}
+                  tone={recommendationTone} on:select={handleSelect} />
               {/each}
             </div>
           {/if}
         </div>
       {:else if inputMode === 'wizard' && searching}
-        <div class="space-y-3">
-          {#each Array(3) as _}
-            <div class="h-32 rounded-xl border bg-card/50 shimmer"></div>
-          {/each}
+        <div class="waiting" aria-hidden="true">
+          {#each Array(3) as _}<div class="bone cut" style="--cut: 14px"></div>{/each}
         </div>
       {/if}
 
     {:else}
-      <div class="h-48 flex items-center justify-center border-2 border-dashed rounded-xl text-muted-foreground text-sm">Loading your RSO access…</div>
+      <p class="help">Reading which organizations you can schedule for.</p>
     {/if}
   {/if}
 </div>
 
 <style>
-  .shimmer {
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-    background-size: 200% 100%;
-    animation: shimmer 2s infinite;
+  .sched {
+    display: grid;
+    gap: 22px;
+    align-content: start;
+    padding-bottom: 60px;
   }
-  @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+  .head {
+    display: grid;
+    gap: 8px;
+  }
+
+  /* A board tool carries its title at forty pixels, not fifty six. */
+  .title {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 40px;
+    line-height: 1.05;
+    letter-spacing: .006em;
+    margin: 0;
+  }
+
+  .about {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14.5px;
+    max-width: 66ch;
+  }
+
+  .switcher,
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+  }
+
+  .check {
+    font: inherit;
+    font-size: 14.5px;
+    background: none;
+    border: 0;
+    padding: 0;
+    gap: 10px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .check[aria-pressed="false"] span {
+    color: var(--muted);
+  }
+
+  .check:focus-visible,
+  .tab:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px;
+  }
+
+  .tab {
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 700;
+    font-size: 15px;
+    background: none;
+    border: 0;
+    padding: 0 0 8px;
+    margin-bottom: -9px;
+    min-height: 32px;
+    color: var(--muted);
+    cursor: pointer;
+    position: relative;
+  }
+
+  .tab[aria-pressed="true"] {
+    color: var(--ink);
+  }
+
+  .tab[aria-pressed="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--g-current);
+  }
+
+  /* The step is said in pads and in words, so it never rides on colour alone. */
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .progress span {
+    margin-left: 8px;
+  }
+
+  /*
+   * The one container: the well colour, cut at fourteen pixels. It is not a
+   * rounded rectangle with a hairline round it, and it carries no shadow.
+   */
+  .panel {
+    background: var(--well);
+    padding: 24px;
+    display: grid;
+    gap: 22px;
+    align-content: start;
+    min-height: 320px;
+  }
+
+  .panel h2,
+  .panelhead h2 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 800;
+    font-size: 26px;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .asking h3 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 800;
+    font-size: 20px;
+    line-height: 1.1;
+    margin: 0;
+  }
+
+  .panelhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+  }
+
+  .tabbody {
+    display: grid;
+    gap: 20px;
+    align-content: start;
+  }
+
+  .chosen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 18px;
+    margin: 0;
+  }
+
+  .chosen .when {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  .chosen .where {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .group {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+    align-content: start;
+  }
+
+  .group legend,
+  .name {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 0;
+  }
+
+  .inner {
+    display: grid;
+    gap: 16px;
+    padding-left: 22px;
+  }
+
+  .pair,
+  .window {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 22px;
+  }
+
+  .window :global(.fld.hour) {
+    max-width: 120px;
+  }
+
+  .setting {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14.5px;
+  }
+
+  .says {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-weight: 700;
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .help {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 0;
+    max-width: 62ch;
+  }
+
+  .fld .in select,
+  .fld .in input {
+    font: inherit;
+    font-size: 16px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    outline: 0;
+    width: 100%;
+    padding: 2px 0;
+  }
+
+  .building {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .building select {
+    font: inherit;
+    font-size: 13px;
+    border: 0;
+    border-bottom: 1.5px solid var(--line-strong);
+    color: var(--ink);
+    padding: 4px 0;
+    min-height: 32px;
+  }
+
+  /* The course list is a listing, so it is hairlines rather than a boxed panel. */
+  .courses {
+    display: grid;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .course {
+    display: grid;
+    grid-template-columns: auto 92px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    text-align: left;
+    padding: 6px 2px;
+    font-size: 13.5px;
+    min-height: 32px;
+  }
+
+  .course + .course {
+    border-top: 1px solid var(--line);
+  }
+
+  .course .code {
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  .course .ttl {
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finder {
+    position: relative;
+    max-width: 420px;
+  }
+
+  .found {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .found li + li .room {
+    border-top: 1px solid var(--line);
+  }
+
+  .room {
+    font: inherit;
+    font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 8px 2px;
+    min-height: 32px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .room .where {
+    flex: 1;
+  }
+
+  .room .seats {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .left-out {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .review {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    font-size: 15px;
+    max-width: 66ch;
+  }
+
+  .walk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+  }
+
+  .both {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 34px;
+    align-items: start;
+  }
+
+  .asking {
+    display: grid;
+    gap: 26px;
+    align-content: start;
+  }
+
+  .results {
+    display: grid;
+    gap: 18px;
+  }
+
+  .rows {
+    display: grid;
+    gap: 6px;
+  }
+
+  /* Loading draws the shape of the rows in the well colour, with no shimmer. */
+  .waiting {
+    display: grid;
+    gap: 6px;
+  }
+
+  .bone {
+    height: 116px;
+    background: var(--well);
+  }
+
+  @media (max-width: 900px) {
+    .both {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /*
+   * A field written out here rather than taken from the Field component still
+   * has to carry the state on its line, so the rule and the pad turn primary
+   * when whatever sits between them has the focus.
+   */
+  .fld .in:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 2px 0 0 var(--primary);
+  }
+
+  .fld .in:focus-within :global(.pad) {
+    --h: var(--primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
 </style>

@@ -44,7 +44,7 @@
       {/each}
     </div>
 
-    <Button variant="quiet" size="sm" href="/about/updates" icon="arrow" onclick={event => open(event, '/about/updates')}>
+    <Button variant="quiet" size="sm" href="/about/updates" onclick={event => open(event, '/about/updates')}>
       All updates
     </Button>
   </section>

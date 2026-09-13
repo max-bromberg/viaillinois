@@ -52,6 +52,15 @@ describe('BugReportForm', () => {
     expect(await rendered.findByText(/Thank you/i)).toBeTruthy();
   });
 
+  it('lets the reporter send a second one, on an empty form', async () => {
+    const rendered = render(BugReportForm);
+    await fill(rendered);
+    await fireEvent.click(rendered.getByRole('button', { name: /Send report/i }));
+    await fireEvent.click(await rendered.findByRole('button', { name: /Report something else/i }));
+    const summary = await rendered.findByLabelText(/what went wrong/i);
+    expect(summary.value).toBe('');
+  });
+
   it('says an address to reply to is optional, and sends it when given', async () => {
     const rendered = render(BugReportForm);
     await fill(rendered);
@@ -63,11 +72,36 @@ describe('BugReportForm', () => {
     expect(submitBugReport.mock.calls[0][0].contact).toBe('jdoe2@illinois.edu');
   });
 
-  it('says what went wrong rather than failing quietly', async () => {
+  /**
+   * An error is a sentence in danger text under the thing that failed, never a
+   * red box. See docs/design/08-surfaces.md.
+   */
+  it('says what went wrong rather than failing quietly, in a sentence', async () => {
     submitBugReport.mockRejectedValue(new Error('VIA is busy. Please try again shortly.'));
     const rendered = render(BugReportForm);
     await fill(rendered);
     await fireEvent.click(rendered.getByRole('button', { name: /Send report/i }));
-    expect(await rendered.findByText(/VIA is busy/)).toBeTruthy();
+    const said = await rendered.findByText(/VIA is busy/);
+    expect(said.tagName).toBe('P');
+    expect(said.getAttribute('style') ?? '').not.toMatch(/border|background/);
+  });
+
+  /**
+   * About sets the page title, so the form carries no heading of its own, and
+   * the one primary button on that screen is the one that sends the report.
+   */
+  it('carries no heading of its own, and one primary button', () => {
+    const { container } = render(BugReportForm);
+    expect(container.querySelector('h1')).toBe(null);
+    expect(container.querySelectorAll('.btn.primary').length).toBe(1);
+  });
+
+  /** Every field is the design system's field, which has no box around it. */
+  it('draws its fields as fields, each with a label joined to its control', () => {
+    const { container, getByLabelText } = render(BugReportForm);
+    expect(container.querySelectorAll('.fld').length).toBe(5);
+    for (const name of [/what is it about/i, /what went wrong/i, /anything else/i, /which page/i, /how to reach you/i]) {
+      expect(getByLabelText(name)).toBeTruthy();
+    }
   });
 });

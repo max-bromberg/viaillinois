@@ -51,7 +51,7 @@ describe('SkyBand', () => {
     const { container } = render(SkyBand, {
       sky: 'dusk', links: LINKS, here: '/about', title: 'About VIA',
     });
-    expect(container.querySelector('.greet h2 b').textContent).toBe('About VIA');
+    expect(container.querySelector('.greet h1').textContent).toBe('About VIA');
   });
 
   it('lets the page below it stay paper, by holding the sky inside itself', () => {

@@ -1,4 +1,6 @@
 <script>
+  import { pageTitle, bandShowsTitle } from '../stores/ui.js';
+
   /**
    * A reading page.
    *
@@ -9,10 +11,10 @@
    * document: the page title in the condensed display face at 56 px, then
    * prose in Plex Sans at a 62 character measure with headings at 30 px.
    *
-   * The design document puts the page title in the sky band in place of the
-   * greeting. The band's title comes from a prop that App.svelte does not pass
-   * yet, and App.svelte and AppChrome.svelte are not ours to change, so the
-   * title is set here until it is.
+   * The page title goes in the sky band, in place of the greeting. The title
+   * travels there through the store in stores/ui.js, and this draws its own
+   * heading only where the band is not showing one, so that no surface ends up
+   * with no heading at all.
    *
    * See docs/design/08-surfaces.md and docs/design/05-typography.md.
    */
@@ -25,10 +27,15 @@
     class: className = '',
     children,
   } = $props();
+
+  $effect(() => {
+    pageTitle.set(title);
+    return () => pageTitle.set(null);
+  });
 </script>
 
 <article class={['reading', className].filter(Boolean).join(' ')}>
-  <h1>{title}</h1>
+  {#if !$bandShowsTitle}<h1>{title}</h1>{/if}
   {#if dateline}<p class="dateline mono">{dateline}</p>{/if}
   {@render children?.()}
 </article>

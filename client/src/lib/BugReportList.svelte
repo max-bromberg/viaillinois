@@ -3,7 +3,7 @@
   import { getBugReports, setBugReportStatus } from '../api/bugReports.js';
   import { showToast } from '../stores/ui.js';
   import { campusDateTime } from './campusTime.js';
-  import { Button } from '$lib/components/ui/button';
+  import { Button, Highlight, EmptyState } from './components/ui/index.js';
 
   /**
    * What people have reported.
@@ -11,13 +11,18 @@
    * Kept here rather than sent to a spreadsheet directly, so that no student's
    * report leaves the platform on its way to being read, and offered as a
    * spreadsheet file for whoever is tracking this work in one.
+   *
+   * The listing is built the way the exam listing is: rows told apart by
+   * hairlines, with no card and no shadow under them. A status is a highlighter
+   * rather than a filled pill, and the filter is a highlighter that says
+   * whether it is on.
    */
-  let reports = [];
-  let loading = false;
-  let openOnly = false;
+  let reports = $state([]);
+  let loading = $state(false);
+  let openOnly = $state(false);
 
-  $: shown = openOnly ? reports.filter(r => r.status === 'Open') : reports;
-  $: openCount = reports.filter(r => r.status === 'Open').length;
+  const shown = $derived(openOnly ? reports.filter(r => r.status === 'Open') : reports);
+  const openCount = $derived(reports.filter(r => r.status === 'Open').length);
 
   async function load() {
     loading = true;
@@ -62,69 +67,181 @@
   onMount(load);
 </script>
 
-<div class="space-y-4">
-  <section class="border rounded-lg p-5 bg-card shadow-sm space-y-4">
-    <div class="flex items-start justify-between gap-4 flex-wrap">
-      <div>
-        <h2 class="text-base font-semibold">Bug reports</h2>
-        <p class="text-sm text-muted-foreground">
-          What people have reported through the form on the About page.
-          {openCount} of {reports.length} {reports.length === 1 ? 'is' : 'are'} still open.
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <button
-          class="px-3 py-1.5 text-xs border rounded-md transition-colors
-            {openOnly ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent text-muted-foreground'}"
-          on:click={() => openOnly = !openOnly}
-        >Open only</button>
-        <Button type="button" variant="outline" size="sm" on:click={downloadCsv}>Download as CSV</Button>
-      </div>
-    </div>
-
-    {#if loading && reports.length === 0}
-      <p class="text-sm text-muted-foreground">Loading the reports.</p>
-    {:else if shown.length === 0}
-      <p class="text-sm text-muted-foreground">
-        {openOnly ? 'Nothing is open. That is the reading you want.' : 'Nobody has reported anything yet.'}
+<section class="reports">
+  <div class="head">
+    <div>
+      <h2>Bug reports</h2>
+      <p>
+        What people have reported through the form on the About page.
+        {openCount} of {reports.length} {reports.length === 1 ? 'is' : 'are'} still open.
       </p>
-    {:else}
-      <ul class="border rounded-md divide-y">
-        {#each shown as report (report.report_id)}
-          <li class="px-4 py-3 space-y-1.5">
-            <div class="flex items-start justify-between gap-4 flex-wrap">
-              <div class="min-w-0 space-y-0.5">
-                <p class="text-sm font-medium">{report.summary}</p>
-                <p class="text-xs text-muted-foreground">
-                  {report.area} · {campusDateTime(report.created_at)}
-                  {#if report.page} · {report.page}{/if}
-                  {#if report.reported_by} · {report.reported_by}{/if}
-                </p>
-              </div>
-              <div class="flex items-center gap-2 shrink-0">
-                <span class="text-xs px-1.5 py-0.5 rounded {report.status === 'Open' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}">{report.status}</span>
-                {#if report.status === 'Open'}
-                  <button
-                    class="px-2.5 py-1 text-xs border border-input rounded-md hover:bg-accent transition-colors"
-                    on:click={() => setStatus(report.report_id, 'Closed')}
-                  >Close report {report.report_id}</button>
-                {:else}
-                  <button
-                    class="px-2.5 py-1 text-xs border border-input rounded-md hover:bg-accent transition-colors"
-                    on:click={() => setStatus(report.report_id, 'Open')}
-                  >Reopen report {report.report_id}</button>
-                {/if}
-              </div>
+    </div>
+    <div class="tools">
+      <Highlight pressed={openOnly} onclick={() => { openOnly = !openOnly; }}>Open only</Highlight>
+      <Button type="button" variant="secondary" size="sm" onclick={downloadCsv}>Download as CSV</Button>
+    </div>
+  </div>
+
+  {#if loading && reports.length === 0}
+    <p class="say">Reading the reports.</p>
+  {:else if shown.length === 0}
+    <EmptyState
+      lead={openOnly ? 'Nothing is open.' : 'Nobody has reported anything yet.'}
+      say={openOnly
+        ? 'That is the reading you want. Turn the filter off to read the ones that have been dealt with.'
+        : 'The form on the About page is where a report arrives from, and anybody can send one without signing in.'}
+    />
+  {:else}
+    <ul>
+      {#each shown as report (report.report_id)}
+        <li>
+          <div class="row">
+            <div class="what">
+              <p class="title">{report.summary}</p>
+              <p class="meta mono">
+                {report.area} · {campusDateTime(report.created_at)}
+                {#if report.page} · {report.page}{/if}
+                {#if report.reported_by} · {report.reported_by}{/if}
+              </p>
             </div>
-            {#if report.detail}
-              <p class="text-sm text-muted-foreground whitespace-pre-wrap">{report.detail}</p>
-            {/if}
-            {#if report.contact}
-              <p class="text-xs text-muted-foreground">Reply to: {report.contact}</p>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </section>
-</div>
+            <div class="state">
+              <Highlight tone={report.status === 'Open' ? 'var(--primary)' : 'var(--muted)'} off={report.status !== 'Open'}>
+                {report.status}
+              </Highlight>
+              {#if report.status === 'Open'}
+                <Button type="button" variant="secondary" size="sm" onclick={() => setStatus(report.report_id, 'Closed')}>
+                  Close report {report.report_id}
+                </Button>
+              {:else}
+                <Button type="button" variant="secondary" size="sm" onclick={() => setStatus(report.report_id, 'Open')}>
+                  Reopen report {report.report_id}
+                </Button>
+              {/if}
+            </div>
+          </div>
+          {#if report.detail}
+            <p class="detail">{report.detail}</p>
+          {/if}
+          {#if report.contact}
+            <p class="meta">Reply to: {report.contact}</p>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</section>
+
+<style>
+  .reports {
+    display: grid;
+    gap: 18px;
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .head p {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--muted);
+    margin: 8px 0 0;
+    max-width: 58ch;
+  }
+
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  /* A tag or a status sits inside a 32 px target, filter or not. */
+  .tools :global(.hl) {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .tools :global(.hl:focus-visible) {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  li {
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .what {
+    min-width: 0;
+  }
+
+  .title {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.15;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .meta {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 6px 0 0;
+  }
+
+  .state {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: none;
+  }
+
+  .detail {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    white-space: pre-wrap;
+    margin: 8px 0 0;
+    max-width: 62ch;
+  }
+
+  .say {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 0;
+  }
+</style>

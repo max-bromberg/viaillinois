@@ -36,7 +36,13 @@ function selects() {
 describe('native selects', () => {
   it('are painted by the theme rather than by the browser', () => {
     const unpainted = selects()
-      .filter(({ tag }) => !/bg-background|bg-card|bg-muted|bg-input/.test(tag))
+      /*
+       * The design system paints a control from the token file rather than
+       * from a utility class, so a background written as a token counts as
+       * painted. The utility classes stay in the list while the screens that
+       * have not been converted yet still carry them.
+       */
+      .filter(({ tag }) => !/bg-background|bg-card|bg-muted|bg-input|background:\s*var\(--/.test(tag))
       .map(({ where }) => where);
     expect(unpainted).toEqual([]);
   });

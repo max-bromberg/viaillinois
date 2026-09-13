@@ -119,6 +119,10 @@ request to match, with a reason.
 ## Review checklist
 
 A pull request that touches the interface is checked against this list before review.
+`client/tests/lib/reviewChecklist.test.js` holds the items a test can hold: the raw hex
+value, the emoji, the rounded rectangle with a one pixel border, the shadow, the eyebrow
+label, the stock color names, the text below 12 px, and the negative tracking. The rest are
+a matter of judgement and stay a matter of judgement.
 
 - No eyebrow label above a heading.
 - No color bar or stripe on the edge of any element, except the 2 px trace on a calendar
@@ -127,7 +131,8 @@ A pull request that touches the interface is checked against this list before re
 - No number inside a bordered tile.
 - No rounded rectangle with a one pixel border as a container.
 - No shadow on anything that does not float.
-- No gradient outside the sky, the primary button, the lamp and the kiosk board.
+- No gradient outside the sky, the primary button, the lamp, the kiosk board, and the
+  underline under the word a rail or a listing is currently sorted or filtered by.
 - No emoji in place of an icon.
 - No raw hex value outside the token file.
 - No negative tracking on the condensed display face.

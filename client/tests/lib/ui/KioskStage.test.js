@@ -159,3 +159,50 @@ describe('KioskStage', () => {
     expect(children[1].dataset.testid).toBe('rail');
   });
 });
+
+/**
+ * The stage shows what is next, and what is next is not always what is on today.
+ * Both of these were found by holding the kiosk against the reference render:
+ * the stage could say a time with no day on it, and it could say "Until" about
+ * an event that had not started.
+ */
+describe('KioskStage, on an event that is not today', () => {
+  const NOW = '2026-09-10T18:00:00-05:00';
+  const soon = {
+    event_id: 9,
+    title: 'Battery Pack Build Night',
+    rso_name: 'Illini Solar Car',
+    logo_color: '#F59E0B',
+    start_time: '2026-09-13T19:00:00-05:00',
+    end_time: '2026-09-13T22:00:00-05:00',
+    building: 'ECEB',
+    room_number: '2070',
+  };
+
+  it('says which day it is on', () => {
+    const { container } = render(KioskStage, { event: soon, now: NOW });
+    const day = container.querySelector('.onday');
+    expect(day).toBeTruthy();
+    expect(day.textContent).toBe('Sunday');
+    expect(day.getAttribute('datetime')).toBe('2026-09-13');
+  });
+
+  it('says nothing about the day when the event is today, because the clock already does', () => {
+    const today = { ...soon, start_time: '2026-09-10T19:00:00-05:00', end_time: '2026-09-10T22:00:00-05:00' };
+    const { container } = render(KioskStage, { event: today, now: NOW });
+    expect(container.querySelector('.onday')).toBe(null);
+  });
+
+  it('says when it starts, not when it ends, until it has started', () => {
+    const { container } = render(KioskStage, { event: soon, now: NOW });
+    expect(container.querySelector('.whenk .k').textContent).toBe('Starts');
+    expect(container.querySelector('.whenk .big').textContent.replace(/\s+/g, '')).toContain('7:00');
+  });
+
+  it('says when it ends once it has started', () => {
+    const running = { ...soon, start_time: '2026-09-10T17:00:00-05:00', end_time: '2026-09-10T20:00:00-05:00' };
+    const { container } = render(KioskStage, { event: running, now: NOW });
+    expect(container.querySelector('.whenk .k').textContent).toBe('Until');
+    expect(container.querySelector('.whenk .big').textContent.replace(/\s+/g, '')).toContain('8:00');
+  });
+});

@@ -1,10 +1,22 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { importCalendar } from '../api/calendar.js';
-  import { Button } from '$lib/components/ui/button';
-  import { Label } from '$lib/components/ui/label';
+  import { Button, Icon } from './components/ui/index.js';
   import { campusDateTime } from './campusTime.js';
   import { repeatSummary } from './recurrenceLabel.js';
+
+  /**
+   * Importing a term from a calendar file.
+   *
+   * A heading, a sentence, the file, and then what the file would do, read as
+   * rows with a hairline above each rather than as a boxed list. Nothing is
+   * written until somebody has looked at the preview and said so.
+   *
+   * Both buttons here are secondary. The panel opens inside the logistics
+   * dashboard, the midterm schedule and the admin page, each of which has its
+   * own primary button, and there is one primary button per screen. See
+   * docs/design/07-components.md.
+   */
 
   /** Which listing to import into. */
   export let kind = 'events';
@@ -60,55 +72,53 @@
   }
 </script>
 
-<div class="border rounded-lg p-4 space-y-4">
-  <div class="space-y-1">
-    <h3 class="font-semibold text-sm">Import from a calendar file</h3>
-    <p class="text-xs text-muted-foreground">
-      Export an .ics file from Google Calendar, Outlook or Apple Calendar and load it here.
-      Nothing is saved until you have looked at the preview.
-    </p>
-  </div>
+<div class="import">
+  <h3>Import from a calendar file</h3>
+  <p class="lede">
+    Export an .ics file from Google Calendar, Outlook or Apple Calendar and load it here.
+    Nothing is saved until you have looked at the preview.
+  </p>
 
-  <div class="space-y-1">
-    <Label htmlFor="ics-text">Calendar file</Label>
-    <input type="file" accept=".ics,text/calendar" on:change={readFile} class="text-xs" />
+  <div class="file">
+    <label for="ics-text">Calendar file</label>
+    <input type="file" accept=".ics,text/calendar" on:change={readFile} />
     <textarea
       id="ics-text"
+      class="mono"
       bind:value={ics}
       rows="4"
       placeholder="or paste the contents of the .ics file here"
-      class="w-full rounded-md border bg-background px-3 py-2 text-xs font-mono"
     ></textarea>
   </div>
 
-  <Button type="button" on:click={preview} disabled={busy}>
-    {busy ? 'Reading...' : 'Preview'}
+  <Button variant="secondary" size="sm" onclick={preview} disabled={busy}>
+    {busy ? 'Reading' : 'Preview'}
   </Button>
 
   {#if error}
-    <p class="text-sm text-destructive">{error}</p>
+    <p class="failed">{error}</p>
   {/if}
 
   {#if result}
-    <p class="text-sm">
+    <p class="said">
       {result.created} added, {result.updated} updated{result.skipped ? `, ${result.skipped} skipped` : ''}.
     </p>
   {/if}
 
   {#if plan}
     {#if plan.entries.length}
-      <ul class="border rounded-md divide-y text-sm max-h-72 overflow-y-auto">
+      <ul class="entries">
         {#each plan.entries as entry}
-          <li class="px-3 py-2">
-            <div class="flex items-baseline justify-between gap-2">
-              <span class="font-medium">{entry.title}</span>
-              <span class="text-xs text-muted-foreground">
+          <li>
+            <div class="line">
+              <span class="name">{entry.title}</span>
+              <span class="does">
                 {entry.action === 'update' ? 'updates an existing entry' : 'new'}
               </span>
             </div>
-            <p class="text-xs text-muted-foreground">{formatted(entry.start)}</p>
+            <p class="note">{formatted(entry.start)}</p>
             {#if entry.kind === 'series'}
-              <p class="text-xs text-primary">
+              <p class="note repeat">
                 {repeatSummary({
                   interval_weeks: entry.recurrence.interval_weeks,
                   days_of_week: String(entry.recurrence.days_of_week).split(','),
@@ -116,36 +126,36 @@
                 })}, {entry.occurrences} events
               </p>
               {#if entry.action === 'update'}
-                <p class="text-xs text-muted-foreground">
+                <p class="note">
                   {entry.creating} added, {entry.updating} updated{entry.removing ? `, ${entry.removing} removed` : ''}
                 </p>
               {/if}
             {:else if entry.repeats === 'not expanded'}
-              <p class="text-xs text-muted-foreground">
+              <p class="note">
                 Repeats on a rule VIA does not expand, so only this one is imported.
               </p>
             {/if}
             {#if entry.location_match}
-              <p class="text-xs text-muted-foreground">📍 {entry.location_match}</p>
+              <p class="note room"><Icon name="pin" />{entry.location_match}</p>
             {:else if entry.location_text}
-              <p class="text-xs text-muted-foreground">📍 {entry.location_text} (kept as written)</p>
+              <p class="note room"><Icon name="pin" />{entry.location_text} (kept as written)</p>
             {/if}
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="text-sm text-muted-foreground">Nothing in that file can be imported.</p>
+      <p class="note">Nothing in that file can be imported.</p>
     {/if}
 
     {#if plan.skipped}
-      <p class="text-xs text-muted-foreground">
+      <p class="note">
         {plan.skipped} {plan.skipped === 1 ? 'entry could not be read' : 'entries could not be read'},
         because they have no title or no start time.
       </p>
     {/if}
 
     {#if plan.notExpanded}
-      <p class="text-xs text-muted-foreground">
+      <p class="note">
         {plan.notExpanded}
         {plan.notExpanded === 1 ? 'repeating entry uses a rule VIA does not expand' : 'repeating entries use rules VIA does not expand'},
         such as a monthly one. The first occurrence of each is imported.
@@ -153,7 +163,7 @@
     {/if}
 
     {#if plan.duplicates}
-      <p class="text-xs text-muted-foreground">
+      <p class="note">
         {plan.duplicates}
         {plan.duplicates === 1 ? 'entry appears more than once' : 'entries appear more than once'}
         in that file. The first of each was kept.
@@ -161,18 +171,157 @@
     {/if}
 
     {#if plan.unmatched?.length}
-      <div class="text-xs text-muted-foreground">
+      <div class="note">
         <p>These name no course VIA knows about, so they were left out:</p>
-        <ul class="list-disc list-inside">
+        <ul class="unmatched">
           {#each plan.unmatched as title}<li>{title}</li>{/each}
         </ul>
       </div>
     {/if}
 
     {#if plan.entries.length}
-      <Button type="button" on:click={confirm} disabled={busy}>
+      <Button variant="secondary" size="sm" onclick={confirm} disabled={busy}>
         Import {plan.entries.length} {plan.entries.length === 1 ? 'entry' : 'entries'}
       </Button>
     {/if}
   {/if}
 </div>
+
+<style>
+  /* No box around the panel. It is a heading, a sentence and what follows. */
+  .import {
+    display: grid;
+    gap: 14px;
+    justify-items: start;
+  }
+
+  h3 {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 22px;
+    line-height: 1;
+    margin: 0;
+  }
+
+  .lede {
+    color: var(--ink-2);
+    font-size: 14px;
+    margin: 0;
+    max-width: 62ch;
+  }
+
+  .file {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    max-width: 62ch;
+  }
+
+  label {
+    font-family: var(--display);
+    font-stretch: 80%;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  input[type="file"] {
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+
+  input[type="file"]:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  /* The field's own line, carried down the whole box rather than under one row. */
+  textarea {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--well);
+    border: 0;
+    border-bottom: 2px solid var(--line-strong);
+    padding: 10px 12px;
+    resize: vertical;
+    width: 100%;
+  }
+
+  textarea:focus {
+    border-bottom-color: var(--primary);
+  }
+
+  /* An error is a sentence under the thing that failed, never a red box. */
+  .failed {
+    color: var(--danger);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .said {
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 62ch;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .entries > li {
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .name {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .does {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .note {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 4px 0 0;
+  }
+
+  .note.repeat {
+    color: var(--primary);
+  }
+
+  /* An icon never appears without a label; the room is the label beside it. */
+  .room {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    color: var(--ink-2);
+  }
+
+  .unmatched {
+    margin: 4px 0 0;
+    padding-left: 18px;
+  }
+</style>

@@ -1,5 +1,5 @@
 <script>
-  import { SkyBand, Dial, Button } from './components/ui/index.js';
+  import { SkyBand, Nav, Dial, Button } from './components/ui/index.js';
   import { themeMode } from '../stores/theme.js';
   import { currentUser, authResolved, isGlobalAdmin } from '../stores/auth.js';
   import { firstName } from './greeting.js';
@@ -15,6 +15,17 @@
    * See docs/design/08-surfaces.md.
    */
   let {
+    /**
+     * How much of the band this surface carries.
+     *
+     * The feed gets the greeting and the clock. A reading page, login and the
+     * account page get a title in place of the greeting. Everything else gets
+     * the navigation on paper and no band at all, which is what the reference
+     * render draws for the event page, the midterm schedule and the board tools:
+     * a sky over a page that is not the agenda would be answering a question
+     * nobody asked there.
+     */
+    band = 'greeting',
     /** Which path is open. */
     here = '/',
     /** A page title, which stands in place of the greeting away from the feed. */
@@ -62,34 +73,59 @@
   const name = $derived(firstName($currentUser));
 </script>
 
-<SkyBand
-  {links}
-  {here}
-  at={now}
-  {name}
-  {title}
-  tonight={counts.tonight}
-  {where}
-  week={counts.week}
-  midterm={counts.midterm}
-  {onnavigate}
->
-  {#snippet controls()}
-    <Dial mode={$themeMode} onchange={mode => themeMode.set(mode)} />
-    <!--
-      Nothing until the answer to who is looking arrives. Showing "Sign in"
-      first and correcting it a moment later is a flicker on every page a signed
-      in board member opens.
-    -->
-    {#if $authResolved}
-      {#if $currentUser}
-        <Button variant="quiet" size="sm" href="/account" onclick={() => onnavigate?.('/account')}>
-          {$currentUser.net_id}
-        </Button>
-        <Button variant="secondary" size="sm" onclick={() => onsignout?.()}>Sign out</Button>
-      {:else}
-        <Button variant="primary" size="sm" href="/login" onclick={() => onnavigate?.('/login')}>Sign in</Button>
-      {/if}
+{#if band === 'bare'}
+  <div class="bare">
+    <Nav {links} {here} {onnavigate}>{@render bandControls()}</Nav>
+  </div>
+{:else}
+  <SkyBand
+    {links}
+    {here}
+    at={now}
+    name={band === 'title' ? null : name}
+    {title}
+    tonight={band === 'title' ? null : counts.tonight}
+    {where}
+    week={band === 'title' ? null : counts.week}
+    midterm={band === 'title' ? null : counts.midterm}
+    {onnavigate}
+  >
+    {#snippet controls()}
+      {@render bandControls()}
+    {/snippet}
+  </SkyBand>
+{/if}
+
+{#snippet bandControls()}
+  <Dial mode={$themeMode} onchange={mode => themeMode.set(mode)} />
+  <!--
+    Nothing until the answer to who is looking arrives. Showing "Sign in" first
+    and correcting it a moment later is a flicker on every page a signed in board
+    member opens.
+  -->
+  {#if $authResolved}
+    {#if $currentUser}
+      <Button variant="quiet" size="sm" href="/account" onclick={() => onnavigate?.('/account')}>
+        {$currentUser.net_id}
+      </Button>
+      <Button variant="secondary" size="sm" onclick={() => onsignout?.()}>Sign out</Button>
+    {:else if here !== '/login'}
+      <!--
+        One primary button per screen. The login page is itself the way in, so
+        the band does not offer a second one beside it.
+      -->
+      <Button variant="primary" size="sm" href="/login" onclick={() => onnavigate?.('/login')}>Sign in</Button>
     {/if}
-  {/snippet}
-</SkyBand>
+  {/if}
+{/snippet}
+
+<style>
+  /*
+   * The navigation on paper. It keeps the band's own height and padding so that
+   * the page below it begins where it does on the feed, and it takes no sky,
+   * because the surfaces that draw it are not the agenda.
+   */
+  .bare {
+    background: var(--paper);
+  }
+</style>

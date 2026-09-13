@@ -66,7 +66,10 @@ describe('App, before it knows who is looking', () => {
     path.store.set('/dashboard');
     const { container, queryByRole } = render(App);
     expect(queryByRole('heading', { name: 'Upcoming' })).toBeNull();
-    expect(container.querySelector('.shimmer, .animate-pulse')).toBeTruthy();
+    // The skeleton draws the shape of the page it is waiting for, in well
+    // colour, with nothing moving. It used to shimmer.
+    expect(container.querySelector('.page .agenda')).toBeTruthy();
+    expect(container.innerHTML).not.toContain('shimmer');
   });
 
   it('draws the page once the answer arrives', async () => {

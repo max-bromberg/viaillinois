@@ -47,50 +47,6 @@ const config = {
 				warn: "var(--warn)",
 				danger: "var(--danger)",
 				plum: "var(--plum)",
-				// The stock names, carried for one step. See src/app.css.
-				border: "hsl(var(--stock-border) / <alpha-value>)",
-				input: "hsl(var(--stock-input) / <alpha-value>)",
-				ring: "hsl(var(--stock-ring) / <alpha-value>)",
-				background: "hsl(var(--stock-background) / <alpha-value>)",
-				foreground: "hsl(var(--stock-foreground) / <alpha-value>)",
-				primary: {
-					DEFAULT: "hsl(var(--stock-primary) / <alpha-value>)",
-					foreground: "hsl(var(--stock-primary-foreground) / <alpha-value>)"
-				},
-				secondary: {
-					DEFAULT: "hsl(var(--stock-secondary) / <alpha-value>)",
-					foreground: "hsl(var(--stock-secondary-foreground) / <alpha-value>)"
-				},
-				destructive: {
-					DEFAULT: "hsl(var(--stock-destructive) / <alpha-value>)",
-					foreground: "hsl(var(--stock-destructive-foreground) / <alpha-value>)"
-				},
-				muted: {
-					DEFAULT: "hsl(var(--stock-muted) / <alpha-value>)",
-					foreground: "hsl(var(--stock-muted-foreground) / <alpha-value>)"
-				},
-				accent: {
-					DEFAULT: "hsl(var(--stock-accent) / <alpha-value>)",
-					foreground: "hsl(var(--stock-accent-foreground) / <alpha-value>)"
-				},
-				popover: {
-					DEFAULT: "hsl(var(--stock-popover) / <alpha-value>)",
-					foreground: "hsl(var(--stock-popover-foreground) / <alpha-value>)"
-				},
-				card: {
-					DEFAULT: "hsl(var(--stock-card) / <alpha-value>)",
-					foreground: "hsl(var(--stock-card-foreground) / <alpha-value>)"
-				},
-				sidebar: {
-					DEFAULT: "hsl(var(--stock-sidebar-background))",
-					foreground: "hsl(var(--stock-sidebar-foreground))",
-					primary: "hsl(var(--stock-sidebar-primary))",
-					"primary-foreground": "hsl(var(--stock-sidebar-primary-foreground))",
-					accent: "hsl(var(--stock-sidebar-accent))",
-					"accent-foreground": "hsl(var(--stock-sidebar-accent-foreground))",
-					border: "hsl(var(--stock-sidebar-border))",
-					ring: "hsl(var(--stock-sidebar-ring))",
-        		},
 			},
 			fontFamily: {
 				display: ["Bricolage Grotesque", "IBM Plex Sans", "ui-sans-serif", "system-ui", "sans-serif"],

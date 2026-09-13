@@ -79,14 +79,21 @@ describe('Greeting', () => {
     expect(line.getAttribute('aria-atomic')).toBe('true');
   });
 
-  it('carries the heading of the page, since the greeting is what the page opens with', () => {
+  it('greets in a second level heading, because the greeting is not the page title', () => {
     const { container } = render(Greeting, { hour: 20 });
     expect(container.querySelector('h2')).toBeTruthy();
+    expect(container.querySelector('h1')).toBe(null);
   });
 
+  /**
+   * A page title is the page's own first level heading and it happens to be set
+   * in the band, so it is an h1. The greeting is not a heading of that kind: it
+   * names the reader, and the agenda under it carries the page's structure.
+   */
   it('sets a title in place of the greeting on a page that is not the feed', () => {
     const { container } = render(Greeting, { hour: 20, title: 'Midterms, Fall 2026' });
-    expect(container.querySelector('h2 b').textContent).toBe('Midterms, Fall 2026');
-    expect(container.querySelector('h2').textContent).not.toContain('Good evening');
+    expect(container.querySelector('h1').textContent).toBe('Midterms, Fall 2026');
+    expect(container.querySelector('h2')).toBe(null);
+    expect(container.textContent).not.toContain('Good evening');
   });
 });

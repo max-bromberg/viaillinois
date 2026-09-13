@@ -1,7 +1,10 @@
 <script>
-  import { allUpdates, formatDate } from '../lib/updates.js';
+  import { allUpdates } from '../lib/updates.js';
   import { currentPath, navigate, routeParams } from '../lib/router.js';
+  import { campusDate } from '../lib/campusTime.js';
   import BugReportForm from '../lib/BugReportForm.svelte';
+  import ReadingPage from '../lib/ReadingPage.svelte';
+  import { EmptyState } from '../lib/components/ui/index.js';
 
   /**
    * About holds more than one thing.
@@ -10,6 +13,11 @@
    * put two entries there for one thing a reader looks at rarely. Each tab has
    * an address of its own so that a reader can be linked straight to it, and
    * the pages the updates have always had at /updates are untouched.
+   *
+   * All three are reading pages. The three words at the top are the same
+   * control the filter rail uses for Upcoming and Past: words, with the open
+   * one underlined by the Current gradient, rather than a strip of tabs with a
+   * border under them.
    */
   const TABS = [
     { slug: '',        label: 'About VIA' },
@@ -17,28 +25,45 @@
     { slug: 'report',  label: 'Report a bug' },
   ];
 
-  $: tab = $currentPath === '/about' ? '' : ($routeParams.tab ?? '');
+  const tab = $derived($currentPath === '/about' ? '' : ($routeParams.tab ?? ''));
+  const title = $derived(TABS.find(entry => entry.slug === tab)?.label ?? 'About VIA');
+
+  const headTitle = $derived(
+    tab === 'updates' ? 'Updates: VIA' : tab === 'report' ? 'Report a bug: VIA' : 'About: VIA',
+  );
 
   function open(slug) {
     navigate(slug === '' ? '/about' : `/about/${slug}`);
   }
+
+  function read(event, href) {
+    event.preventDefault();
+    navigate(href);
+  }
+
+  /**
+   * The day an update was published, on the campus clock. A plain date read as
+   * an instant is midnight in UTC, which is the evening before on campus.
+   */
+  const dayOf = date =>
+    campusDate(`${date}T00:00`, { month: 'short', day: 'numeric', year: 'numeric' });
 </script>
 
 <svelte:head>
-  <title>{tab === 'updates' ? 'Updates: VIA' : tab === 'report' ? 'Report a bug: VIA' : 'About: VIA'}</title>
-  <meta name="description" content="VIA is the centralized event platform for UIUC ECE student organizations, one place to discover events, coordinate scheduling, and stay on top of midterms." />
+  <title>{headTitle}</title>
+  <meta name="description" content="VIA is where the student organizations of the Electrical and Computer Engineering department at Illinois keep what is on, in one place: the event feed, the calendar and the midterm schedule." />
 </svelte:head>
 
-<div class="max-w-2xl mx-auto space-y-6">
-
-  <div class="flex gap-1 border-b" role="tablist">
-    {#each TABS as entry}
+<ReadingPage {title}>
+  <div class="tabs" role="tablist">
+    {#each TABS as entry (entry.slug)}
       <button
         role="tab"
+        type="button"
+        class="tab"
+        class:open={tab === entry.slug}
         aria-selected={tab === entry.slug}
-        class="px-4 py-2 text-sm font-medium transition-colors
-          {tab === entry.slug ? 'border-b-2 border-primary text-primary -mb-px' : 'text-muted-foreground hover:text-foreground'}"
-        on:click={() => open(entry.slug)}
+        onclick={() => open(entry.slug)}
       >{entry.label}</button>
     {/each}
   </div>
@@ -46,153 +71,212 @@
   {#if tab === 'report'}
     <BugReportForm />
   {:else if tab === 'updates'}
-    <div class="space-y-4">
-      <h1 class="text-2xl font-bold">Platform Updates</h1>
-      {#if allUpdates.length === 0}
-        <p class="text-muted-foreground">No updates yet.</p>
-      {:else}
+    <p>
+      What has changed on the platform, newest first. Each one has a page of its own that
+      you can link to.
+    </p>
+
+    {#if allUpdates.length === 0}
+      <EmptyState
+        lead="Nothing has landed yet."
+        say="The first update goes up when the first piece of work ships. The About page says what the platform does in the meantime."
+      />
+    {:else}
+      <div class="updates">
         {#each allUpdates as update (update.slug)}
           <a
             href="/updates/{update.slug}"
-            on:click|preventDefault={() => navigate(`/updates/${update.slug}`)}
-            class="block group rounded-lg border bg-card p-5 hover:border-primary transition-colors"
+            onclick={event => read(event, `/updates/${update.slug}`)}
           >
-            <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-              <h2 class="text-base font-semibold group-hover:text-primary transition-colors">{update.title}</h2>
-              <time class="text-xs text-muted-foreground shrink-0">{formatDate(update.date)}</time>
-            </div>
-            {#if update.summary}
-              <p class="text-sm text-muted-foreground">{update.summary}</p>
-            {/if}
+            <h2>{update.title}</h2>
+            <time class="mono" datetime={update.date}>{dayOf(update.date)}</time>
+            {#if update.summary}<p class="say">{update.summary}</p>{/if}
           </a>
         {/each}
-      {/if}
-    </div>
+      </div>
+    {/if}
   {:else}
-
-  <!-- Hero -->
-  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
-    <h1 class="text-3xl font-bold tracking-tight">About VIA</h1>
-    <p class="text-muted-foreground text-lg leading-relaxed">
-      <strong class="text-foreground">Virtually Integrated Agenda</strong> is the shared event hub
-      for UIUC ECE student organizations, one place to discover what's happening and
-      coordinate your schedule.
+    <p>
+      VIA, which is short for Virtually Integrated Agenda, is where the student
+      organizations of the Electrical and Computer Engineering department at the University
+      of Illinois Urbana-Champaign keep what is on. One feed, one calendar, one exam
+      schedule, and one place for a board to file an event.
     </p>
-  </div>
 
-  <!-- The problem / why -->
-  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-3">
-    <h2 class="text-xl font-semibold">Why VIA?</h2>
-    <p class="text-sm text-muted-foreground leading-relaxed">
-      UIUC's ECE department is home to many active student organizations, each running
-      their own events across scattered channels: mailing lists, Discord servers, physical
-      flyers. Students miss events they'd love, and RSO leaders burn time duplicating
-      announcements everywhere.
-    </p>
-    <p class="text-sm text-muted-foreground leading-relaxed">
-      VIA gives every ECE RSO a shared public calendar and a private coordination layer,
-      so members always know what's on, and board members can plan without the noise.
-    </p>
-  </div>
+    <section>
+      <h2>Why it exists</h2>
+      <p>
+        The department is home to a lot of active student organizations, and each of them
+        announces its events somewhere different: a mailing list, a Discord server, a paper
+        flyer by a lecture hall door. Students miss events they would have gone to, and
+        board members spend their evenings posting the same announcement in five places.
+      </p>
+      <p>
+        VIA gives every organization one public listing and one private place to coordinate,
+        so that members know what is on and boards can plan without the noise.
+      </p>
+    </section>
 
-  <!-- For students -->
-  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-4">
-    <h2 class="text-xl font-semibold">For ECE students</h2>
-    <div class="grid sm:grid-cols-2 gap-4">
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Event Feed</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Browse all upcoming ECE RSO events in one scrollable feed. Filter by tag,
-          keyword, or date to find exactly what you're looking for.
-        </p>
-      </div>
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Calendar View</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          See the full month at a glance. Spot conflicts, plan ahead, and never
-          double-book yourself during crunch time.
-        </p>
-      </div>
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Midterm Tracker</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Community-sourced exam dates for ECE courses, all in one table. Know
-          which weeks are brutal before you commit to an evening.
-        </p>
-      </div>
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Discovery</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Come for one organization's events and find the ones you had never
-          heard of, hosting something on the same evening.
-        </p>
-      </div>
-    </div>
-  </div>
+    <section>
+      <h2>For students</h2>
+      <p>
+        The event feed carries everything upcoming in one place, and you can narrow it by
+        tag, by word or by date. The calendar lays the same events out across the month, so
+        you can see what a week looks like before you promise an evening to anybody. The
+        midterm schedule collects exam dates for the department's courses, kept by students
+        and confirmed by course staff.
+      </p>
+      <p>
+        Reading one organization's events is also how you find the ones you had never heard
+        of, running something in the same building on the same night.
+      </p>
+    </section>
 
-  <!-- For RSOs -->
-  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-4">
-    <h2 class="text-xl font-semibold">For RSO boards</h2>
-    <div class="grid sm:grid-cols-2 gap-4">
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Event Management</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Create, edit, and delete events from a clean logistics dashboard.
-          Set visibility, tags, location, and capacity in one place.
-        </p>
-      </div>
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Instant Reach</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Your events surface automatically to the entire ECE student body,
-          no mailing lists to manage, no flyers to print.
-        </p>
-      </div>
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Cross-RSO Coordination</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Board members see all internal ECE events on the calendar, making it
-          easy to avoid scheduling on top of other organizations' big nights.
-        </p>
-      </div>
-      <div class="border rounded-lg p-4 bg-card space-y-1.5">
-        <h3 class="font-medium text-sm">Venue Recommendations</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Get venue suggestions based on your event type, expected
-          attendance, and past booking history.
-        </p>
-      </div>
-    </div>
-  </div>
+    <section>
+      <h2>For boards</h2>
+      <p>
+        The logistics dashboard is where a board files an event, edits it, cancels it, and
+        sets its visibility, its tags, its location and how many people it expects. What a
+        board publishes reaches the whole department with no mailing list to keep and no
+        flyer to print.
+      </p>
+      <p>
+        Board members also see the events that are internal to their organizations on the
+        calendar, which is what makes it possible to avoid scheduling on top of somebody
+        else's big night. The scheduler suggests a venue from the kind of event, the number
+        of people expected, and what has been booked before.
+      </p>
+    </section>
 
-  <!-- Origin note -->
-  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
-    <h2 class="text-xl font-semibold">Background</h2>
-    <p class="text-sm text-muted-foreground leading-relaxed">
-      VIA was built by a team of four Illinois ECE students who wanted to solve
-      a real problem in their own community. It started as a CS 411 Database Systems
-      course project and grew into a real platform.
-    </p>
-  </div>
+    <section>
+      <h2>Where it came from</h2>
+      <p>
+        VIA was built by four Illinois students in the Electrical and Computer Engineering
+        department who wanted to fix something in their own building. It started as a CS 411
+        Database Systems course project. The course has ended and the platform has not: it is
+        a volunteer project with real users now, run in public.
+      </p>
+    </section>
 
-  <!-- Contact -->
-  <div class="rounded-xl p-6 bg-background/95 backdrop-blur-sm border space-y-2">
-    <h2 class="text-xl font-semibold">Contact</h2>
-    <p class="text-sm text-muted-foreground leading-relaxed">
-      Write to
-      <a href="mailto:mzainab2@illinois.edu" class="underline underline-offset-2 hover:text-foreground transition-colors">mzainab2@illinois.edu</a>
-      with anything about VIA: a problem with the site, a student organization that wants
-      to be listed, a request about your own information, a copyright complaint, or a
-      security issue you have found.
-    </p>
-    <p class="text-sm text-muted-foreground leading-relaxed">
-      Requests about your information are described in the
-      <a href="/privacy" class="underline underline-offset-2 hover:text-foreground transition-colors">Privacy Policy</a>,
-      and the <a href="/terms" class="underline underline-offset-2 hover:text-foreground transition-colors">Terms of Use</a>
-      set out what applies when you use the platform.
-    </p>
-  </div>
-
+    <section>
+      <h2>Contact</h2>
+      <p>
+        Write to
+        <a href="mailto:mzainab2@illinois.edu">mzainab2@illinois.edu</a>
+        with anything about VIA: a problem with the site, a student organization that wants
+        to be listed, a request about your own information, a copyright complaint, or a
+        security issue you have found.
+      </p>
+      <p>
+        Requests about your information are described in the
+        <a href="/privacy" onclick={event => read(event, '/privacy')}>Privacy Policy</a>,
+        and the
+        <a href="/terms" onclick={event => read(event, '/terms')}>Terms of Use</a>
+        set out what applies when you use the platform.
+      </p>
+    </section>
   {/if}
+</ReadingPage>
 
-</div>
+<style>
+  /*
+   * The three words, with the open one underlined by the Current gradient.
+   * This is the control the filter rail uses for Upcoming and Past, which is
+   * the site's way of saying that one of a few things is open.
+   */
+  .tabs {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+
+  .tab {
+    font: inherit;
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 800;
+    font-size: 16px;
+    line-height: 1.2;
+    background: none;
+    border: 0;
+    padding: 0 0 8px;
+    min-height: 32px;
+    color: var(--muted);
+    cursor: pointer;
+    position: relative;
+  }
+
+  .tab.open {
+    color: var(--ink);
+  }
+
+  .tab.open::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--g-current);
+  }
+
+  .tab:hover {
+    color: var(--ink);
+  }
+
+  .tab:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  /* The listing: rows told apart by a hairline, with the date in mono. */
+  .updates {
+    margin-top: 26px;
+    display: grid;
+  }
+
+  .updates a {
+    display: grid;
+    gap: 4px;
+    padding: 18px 0;
+    border-top: 1px solid var(--line);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .updates a:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+
+  .updates h2 {
+    font-family: var(--display);
+    font-stretch: 90%;
+    font-variation-settings: "opsz" 96;
+    font-weight: 700;
+    font-size: 19px;
+    line-height: 1.15;
+    letter-spacing: 0;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .updates a:hover h2 {
+    color: var(--primary);
+  }
+
+  .updates time {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .updates .say {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--muted);
+    margin: 2px 0 0;
+    max-width: 62ch;
+  }
+</style>
