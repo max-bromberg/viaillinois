@@ -59,7 +59,7 @@
     --sky-ink:var(--ink);
     --g-current:linear-gradient(160deg,#0a9a9e 0%,#007c80 60%,#005558 100%);
     --g-board:linear-gradient(160deg,#0f2e2f 0%,#0a1516 55%,#1a1210 100%);
-    --lamp:14%;
+    --lamp:14%;--lamp-hover:30%;--lamp-poster:18%;
     --shadow-float:0 2px 6px rgba(11,26,27,.06),0 18px 48px -12px rgba(11,26,27,.22);
     --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     --display:"Bricolage Grotesque","IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
@@ -123,7 +123,7 @@
       --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
       --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
       --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
-      --lamp:22%;
+      --lamp:22%;--lamp-hover:38%;--lamp-poster:26%;
       --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
       --tagmix:var(--card);
       color-scheme:dark;    }
@@ -148,7 +148,7 @@
     --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
     --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
     --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
-    --lamp:22%;
+    --lamp:22%;--lamp-hover:38%;--lamp-poster:26%;
     --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
     --tagmix:var(--card);
     color-scheme:dark;
@@ -198,28 +198,37 @@
   }
 }
 
-/* The three voices, as the reference stylesheet names them. */
-@layer components {
-  .mono {
-    font-family: var(--mono);
-    font-variant-numeric: tabular-nums;
-  }
-  .disp {
-    font-family: var(--display);
-    font-variation-settings: "opsz" 96;
-  }
-  .cond {
-    font-family: var(--display);
-    font-stretch: 75%;
-    font-variation-settings: "opsz" 96;
-    letter-spacing: 0;
-  }
-  .wide {
-    font-family: var(--display);
-    font-stretch: 100%;
-    font-variation-settings: "opsz" 96;
-  }
-}
+/* >>> design system: copied from docs/design/reference/foundation.css by scripts/syncDesignCss.js */
+svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.disp{font-family:var(--display);font-variation-settings:"opsz" 96}
+.cond{font-family:var(--display);font-stretch:75%;font-variation-settings:"opsz" 96;letter-spacing:-.005em}
+.wide{font-family:var(--display);font-stretch:100%;font-variation-settings:"opsz" 96}
+.cut{clip-path:polygon(0 0,calc(100% - var(--cut,12px)) 0,100% var(--cut,12px),100% 100%,0 100%)}
+.cutbl{clip-path:polygon(0 0,100% 0,100% 100%,var(--cut,12px) 100%,0 calc(100% - var(--cut,12px)))}
+.pad{display:inline-block;width:10px;height:10px;border-radius:2.5px;transform:rotate(45deg) scale(.85);background:var(--h,var(--primary))}
+.pad.hollow{background:transparent;border:1.5px solid var(--h,var(--primary))}
+.pad.lit{box-shadow:0 0 0 4px color-mix(in srgb,var(--h,var(--primary)) 22%,transparent)}
+.hl{position:relative;isolation:isolate;font-weight:500;color:color-mix(in srgb,var(--h) 70%,var(--ink));white-space:nowrap}
+.hl::before{content:"";position:absolute;left:-4px;right:-4px;bottom:-1px;height:52%;background:color-mix(in srgb,var(--h) 30%,transparent);transform:skewX(-10deg) rotate(-1.2deg);z-index:-1;border-radius:2px}
+.hl.off{color:var(--muted);font-weight:400}
+.hl.off::before{background:transparent;border-bottom:1.5px dotted var(--line-strong);height:0;bottom:-2px;transform:none}
+.hlrow{display:flex;flex-wrap:wrap;gap:10px 18px;font-size:14.5px;line-height:1.3}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--h,var(--signal)) 24%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--h,var(--signal)) 0%,transparent)}}
+@keyframes settle{from{transform:translateY(8px)}to{transform:translateY(0)}}
+@keyframes drift{0%{background-position:0 0}100%{background-position:0 100%}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+.hl{color:color-mix(in srgb,var(--h) 62%,var(--ink))}
+.ocut{position:relative;isolation:isolate;border:0!important;--w:1.5px;--c:var(--cut,10px);clip-path:polygon(0 0,calc(100% - var(--c)) 0,100% var(--c),100% 100%,0 100%);background:var(--oc,var(--ink))}
+.ocut::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--ofill,var(--paper));clip-path:polygon(var(--w) var(--w),calc(100% - var(--c) - var(--w) * .414) var(--w),calc(100% - var(--w)) calc(var(--c) + var(--w) * .414),calc(100% - var(--w)) calc(100% - var(--w)),var(--w) calc(100% - var(--w)))}
+.hl:focus-visible,.check:focus-visible,.dial:focus-visible,.tswitch:focus-visible,.pad:focus-visible{outline:2px solid var(--primary);outline-offset:4px;border-radius:2px}
+.check,.hl{min-height:32px;display:inline-flex;align-items:center;cursor:pointer}
+.hlrow{gap:2px 18px}
+.check .pad,.hl .pad{min-height:0;height:12px;width:12px}
+.mast h1 b,.greet h2 b,.poster h1,.kiosk h1,.tspec .row1{letter-spacing:.012em}
+.mast h1,.greet h2,.sh h2,.cond,.tspec .big,.ev .b .title{letter-spacing:0}
+.day .dh b,.ev .t,.exam .code,.mt .head h1,.poster .when .big,.kiosk .whenk .big,.mast .clock .t,.greet .clock .t,.kiosk .k-top .t,.tspec .num,.sky .lab b,.ribbon .wkc b,.greet .line b{letter-spacing:.006em}
+/* <<< design system */
 
 @keyframes shimmer {
   0%   { background-position: -200% 0; }

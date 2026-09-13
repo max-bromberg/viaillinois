@@ -31,7 +31,7 @@ function tokensOf(css, selector) {
  * beside them for one step so that screens which have not been converted yet
  * keep working, and those are not expected to appear in the reference.
  */
-const SYSTEM = /^--(paper|card|well|line|line-strong|ink|ink-2|muted|faint|primary|primary-fg|primary-soft|primary-soft-fg|signal|signal-text|signal-soft|ok|warn|danger|plum|cat-\d|sky-\w+|sky-ink|g-current|g-board|lamp|shadow-float|sans|display|mono|tagmix)$/;
+const SYSTEM = /^--(paper|card|well|line|line-strong|ink|ink-2|muted|faint|primary|primary-fg|primary-soft|primary-soft-fg|signal|signal-text|signal-soft|ok|warn|danger|plum|cat-\d|sky-\w+|sky-ink|g-current|g-board|lamp|lamp-hover|lamp-poster|shadow-float|sans|display|mono|tagmix)$/;
 
 describe('the light theme', () => {
   const mine = tokensOf(APP, ':root');
@@ -42,9 +42,27 @@ describe('the light theme', () => {
     expect(mine[name]).toBe(theirs[name]);
   });
 
-  it('adds no design token of its own invention', () => {
-    const invented = Object.keys(mine).filter(name => SYSTEM.test(name) && !(name in theirs));
+  /**
+   * The colour document gives three lamp strengths per theme and the reference
+   * stylesheet names only the first, because the reference page never draws a
+   * row under a cursor. The other two are named in the client so that no
+   * component carries the numbers itself. Anything else is drift.
+   */
+  const NAMED_HERE = {
+    '--lamp-hover': { ':root': '30%', '.dark': '38%' },
+    '--lamp-poster': { ':root': '18%', '.dark': '26%' },
+  };
+
+  it('adds no design token beyond the two lamp strengths the reference leaves unnamed', () => {
+    const invented = Object.keys(mine).filter(
+      name => SYSTEM.test(name) && !(name in theirs) && !(name in NAMED_HERE),
+    );
     expect(invented).toEqual([]);
+  });
+
+  it.each(Object.entries(NAMED_HERE))('carries %s at the strength the colour document gives', (name, byTheme) => {
+    expect(tokensOf(APP, ':root')[name]).toBe(byTheme[':root']);
+    expect(tokensOf(APP, '\\.dark')[name]).toBe(byTheme['.dark']);
   });
 });
 
