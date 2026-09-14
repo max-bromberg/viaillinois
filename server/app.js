@@ -25,6 +25,7 @@ import seoRouter      from './routes/seo.js';
 import { createHtmlShellHandler } from './middleware/htmlShell.js';
 import midtermsRouter from './routes/midterms.js';
 import kioskRouter    from './routes/kiosk.js';
+import shareCardRouter from './routes/shareCard.js';
 import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
 import { createInternalRouter } from './routes/internal/index.js';
@@ -159,6 +160,11 @@ app.use(seoRouter);
 app.use('/api/v1/midterms',   midtermsRouter);
 // The same answer for everybody, and a lobby screen asks for it over and over.
 app.use('/api/v1/kiosk',      publicFor({ edgeSeconds: 30 }), kioskRouter);
+
+// The picture a reader fetches when somebody pastes a VIA link. Outside the
+// API prefix on purpose: it answers crawlers rather than the client, and it is
+// an image rather than a document.
+app.use('/og', shareCardRouter);
 app.use('/api/v1/admin',      adminRouter);
 app.use('/api/v1/scheduler',  schedulerRouter);
 // The Discord bot's door. Off the /api/v1 prefix on purpose, so the public

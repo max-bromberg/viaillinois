@@ -3,6 +3,7 @@ import { getConfirmedMidterms } from '../db/queries/midterms.js';
 import { eventSchema, eventListSchema, siteSchema, organizationSchema } from '../lib/seo/structuredData.js';
 import { escapeHtml } from '../lib/seo/render.js';
 import { toIsoWithOffset, CAMPUS_TIME_ZONE } from '../lib/timezone.js';
+import { cardAlt } from './shareCard.js';
 
 /**
  * What each address should say about itself.
@@ -82,6 +83,15 @@ async function homePage(site) {
   };
 }
 
+/**
+ * The picture a page is shared with.
+ *
+ * No page set one at all, and the renderer only writes og:image when a page
+ * names it, so the picture sitting in public/ was referenced by nothing and a
+ * shared VIA link arrived with no picture on it whatsoever.
+ */
+const sharedCard = site => `${site}/og/card.png`;
+
 async function eventPage(id, site) {
   let event = null;
   try {
@@ -96,6 +106,10 @@ async function eventPage(id, site) {
       description: SITE_DESCRIPTION,
       canonical: `${site}/events/${id}`,
       robots: NOINDEX,
+      // The shared card rather than this event's own. An internal event is not
+      // shown to anybody outside the organization, and the address of a card
+      // drawn for one would be a way to read its title without being let in.
+      image: sharedCard(site),
     };
   }
 
@@ -109,6 +123,9 @@ async function eventPage(id, site) {
       + 'at the University of Illinois Urbana-Champaign.',
     canonical: `${site}/events/${event.event_id}`,
     robots: INDEX,
+    // Its own card, carrying its own title, organization, date and room.
+    image: `${site}/og/event/${event.event_id}.png`,
+    imageAlt: cardAlt(event),
     type: 'article',
     jsonLd: [eventSchema(event, site)],
     content:
@@ -177,15 +194,19 @@ const STATIC_PAGES = {
 export async function describePage(path, site) {
   const clean = path.split('?')[0].replace(/\/+$/, '') || '/';
 
-  if (clean === '/') return homePage(site);
+  // Every page that is not one event shares one card, added here rather than
+  // in each builder so a page added later cannot quietly ship without one.
+  const withCard = page => ({ image: sharedCard(site), ...page });
+
+  if (clean === '/') return withCard(await homePage(site));
 
   const event = /^\/events\/(\d+)$/.exec(clean);
-  if (event) return eventPage(Number(event[1]), site);
+  if (event) return withCard(await eventPage(Number(event[1]), site));
 
-  if (clean === '/midterms') return midtermsPage(site);
+  if (clean === '/midterms') return withCard(await midtermsPage(site));
 
   if (STATIC_PAGES[clean]) {
-    return { ...STATIC_PAGES[clean], canonical: `${site}${clean}`, robots: INDEX };
+    return withCard({ ...STATIC_PAGES[clean], canonical: `${site}${clean}`, robots: INDEX });
   }
 
   if (PRIVATE_PATHS.has(clean) || clean.startsWith('/kiosk')) {
