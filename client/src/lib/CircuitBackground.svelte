@@ -1,6 +1,7 @@
 <script>
   import { LIGHT, SIGNAL } from './posterPalette.js';
   import { onMount, onDestroy } from 'svelte';
+  import { ambientSchedule } from './circuitAmbient.js';
   import {
     generateNodes, generateSegments, buildAdjacency,
     nearestNode, pointAt, probe, advanceSignals,
@@ -16,7 +17,14 @@
    * Touching it sends current out from the nearest pad, spreading through the
    * traces and fading as it goes, so every moving thing is where the cursor
    * already is and nowhere else.
+   *
+   * A lobby screen has nobody to touch it, and that same rule leaves a wall of
+   * static lines for weeks. Asked for ambient, the board fires its own current
+   * on an irregular timer instead, paced in circuitAmbient.js to read as a
+   * room's own movement rather than as something asking to be looked at. It
+   * still stops completely for anybody who has asked for reduced motion.
    */
+  let { ambient = false } = $props();
 
   // Sparse on purpose. Fewer pads, further apart, with fewer traces each.
   const NODE_COUNT    = 34;
@@ -218,6 +226,23 @@
     wake();
   }
 
+  let ambientTimer = null;
+
+  /** Fire one pulse from a pad chosen at random, then schedule the next. */
+  function ambientPulse() {
+    if (!ambientSchedule.shouldRun({ ambient, reduced }) || document.hidden) {
+      ambientTimer = setTimeout(ambientPulse, ambientSchedule.nextDelay());
+      return;
+    }
+    const pad = nodes[Math.floor(Math.random() * nodes.length)];
+    if (pad) {
+      pad.energy = 1;
+      signals = signals.concat(probe(pad.id, adjacency, 1));
+      wake();
+    }
+    ambientTimer = setTimeout(ambientPulse, ambientSchedule.nextDelay());
+  }
+
   function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
@@ -249,6 +274,10 @@
     lastWidth = window.innerWidth;
     init();
 
+    if (ambientSchedule.shouldRun({ ambient, reduced })) {
+      ambientTimer = setTimeout(ambientPulse, ambientSchedule.nextDelay());
+    }
+
     // The resting colour comes from the theme, so it has to be re-read when
     // the theme is switched.
     themeWatcher = new MutationObserver(() => { readTheme(); render(); });
@@ -262,6 +291,7 @@
   });
 
   onDestroy(() => {
+    clearTimeout(ambientTimer);
     if (rafId !== null) cancelAnimationFrame(rafId);
     clearTimeout(resizeTimer);
     themeWatcher?.disconnect();

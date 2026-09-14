@@ -135,9 +135,9 @@ describe('KioskCard', () => {
     expect(container.textContent).toContain('ECE 210 Midterm 1');
   });
 
-  it('says where it is in the rotation', () => {
+  it('says where it is in the rotation, beside the mark that leads the screen', () => {
     const { container } = draw({ position: 3, count: 12 });
-    expect(container.querySelector('.foot').textContent).toContain('3 of 12');
+    expect(container.querySelector('.k-top .brand').textContent).toContain('3 of 12');
   });
 
   /**

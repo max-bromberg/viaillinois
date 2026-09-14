@@ -54,6 +54,12 @@ describe('the review checklist', () => {
       '#e6f0f0', '#c3d3d3', '#8fa8a8', '#5f7879', '#8fdfe1', '#ffffff', '#fff',
       // The value an organization's colour picker starts on.
       '#000000',
+      // The code in Qr, which a camera reads rather than an eye. It has to be
+      // dark modules on a light field in both themes, so it cannot take a
+      // colour that inverts: drawn from the tokens, the dark reading would be
+      // light on dark and no reader could resolve it. This is the light
+      // palette's ink, fixed.
+      '#0b1a1b',
     ]);
     expect(found(/#[0-9a-fA-F]{3,8}\b/g, hit => !ALLOWED.has(hit.toLowerCase()))).toEqual([]);
   });

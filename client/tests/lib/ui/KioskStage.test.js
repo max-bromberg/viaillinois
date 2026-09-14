@@ -138,17 +138,22 @@ describe('KioskStage', () => {
       .toBe(new Date(WORKSHOP.start_time).toISOString());
   });
 
-  it('signs the screen with the mark, the domain and the position in the rotation', () => {
+  /*
+   * The mark used to sign the screen off at the bottom. A lobby display is read
+   * from across a room and from the top down, so what says whose screen this is
+   * belongs where the eye lands rather than where it finishes.
+   */
+  it('leads the screen with the mark, the domain and the position in the rotation', () => {
     const { container } = draw({ position: 2, count: 7 });
-    const foot = container.querySelector('.main .foot');
-    expect(foot.querySelector('svg').getAttribute('aria-label')).toBe('VIA');
-    expect(foot.textContent).toContain('viaillinois.com');
-    expect(foot.textContent).toContain('2 of 7');
+    const brand = container.querySelector('.k-top .brand');
+    expect(brand.querySelector('svg').getAttribute('aria-label')).toBe('VIA');
+    expect(brand.textContent).toContain('viaillinois.com');
+    expect(brand.textContent).toContain('2 of 7');
   });
 
-  it('leaves the position out of the foot when there is only one event to show', () => {
+  it('leaves the position out when there is only one event to show', () => {
     const { container } = draw({ position: 1, count: 1 });
-    expect(container.querySelector('.main .foot').textContent).not.toContain('1 of 1');
+    expect(container.querySelector('.k-top .brand').textContent).not.toContain('1 of 1');
   });
 
   it('puts the rail it is given beside the stage, inside the same screen', () => {
@@ -183,7 +188,9 @@ describe('KioskStage, on an event that is not today', () => {
     const { container } = render(KioskStage, { event: soon, now: NOW });
     const day = container.querySelector('.onday');
     expect(day).toBeTruthy();
-    expect(day.textContent).toBe('Sunday');
+    // The word is the reading somebody walking past wants, and the figures
+    // beside it settle it for anybody unsure which Sunday is meant.
+    expect(day.textContent.trim()).toMatch(/^Sunday\s*Sep 13$/);
     expect(day.getAttribute('datetime')).toBe('2026-09-13');
   });
 

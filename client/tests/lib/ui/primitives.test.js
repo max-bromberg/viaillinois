@@ -82,13 +82,20 @@ describe('every primitive', () => {
   it.each(directories())('%s holds no raw hex value in its source, outside the one the night band needs', directory => {
     const source = readFileSync(resolve(UI, directory, `${directory}.svelte`), 'utf8');
     const found = [...source.matchAll(/#[0-9a-fA-F]{6}\b/g)].map(match => match[0]);
-    // Two places cannot take a colour from a token that changes with the theme.
+    // Three places cannot take a colour from a token that changes with the theme.
     // The night band is dark in either theme, so its ink is the light ink, the
     // secondary ink and the muted grey of the dark palette, and the contrast test
     // holds those against every sky. The mark is white on the kiosk and on the
     // night sky, which docs/design/03-the-look.md states outright as the one
     // variation the mark takes; its teal is the --mark token.
-    const allowed = new Set(['#e6f0f0', '#c3d3d3', '#8fa8a8', '#ffffff']);
+    //
+    // The third is the code in Qr. A reader has to see dark modules on a light
+    // field, and it is a camera in whatever light a lobby happens to have rather
+    // than an eye reading a page. Drawn from --ink and --paper it would invert
+    // with the theme and the dark reading would be light modules on a dark
+    // field, which no reader can resolve. So the two values are fixed: the light
+    // palette's ink and white, whatever the page around them is doing.
+    const allowed = new Set(['#e6f0f0', '#c3d3d3', '#8fa8a8', '#ffffff', '#0b1a1b']);
     expect(found.filter(value => !allowed.has(value.toLowerCase()))).toEqual([]);
   });
 
