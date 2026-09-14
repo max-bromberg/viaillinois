@@ -47,7 +47,7 @@
         <span class="gap" aria-hidden="true">to</span>
       {:else}
         <button
-          class="page"
+          class="pagenumber"
           class:here={item === currentPage}
           aria-current={item === currentPage ? 'page' : undefined}
           aria-label="Page {item}"

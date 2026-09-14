@@ -5,11 +5,11 @@
   /**
    * The foot of every page.
    *
-   * It used to carry two captions in uppercase over its lists, and it signed
-   * off with a heart character standing in for an icon. The voice document
-   * rules out both, so the captions are gone and the sign off is the one the
-   * voice document writes: made in the building, for the people who walk past
-   * the lobby screen.
+   * It used to carry two captions in uppercase over its lists, which the voice
+   * document rules out, and then two blocks of prose which said what the rest
+   * of the page already says. One of them tied the platform to a building.
+   * VIA serves a department's organizations, and a department is people rather
+   * than an address, so the sign off names the people.
    *
    * The mark is drawn rather than loaded, because it is white on the night sky
    * and an image cannot be recoloured. See docs/design/07-components.md.
@@ -40,12 +40,7 @@
   <div class="inner">
     <div class="cols">
       <div class="brand">
-        <Mark size={64} />
-        <p>
-          Virtually Integrated Agenda, where the student organizations of the Electrical and
-          Computer Engineering department at the University of Illinois Urbana-Champaign keep
-          what is on.
-        </p>
+        <Mark size={96} />
       </div>
 
       <nav aria-label="More of the site">
@@ -53,11 +48,6 @@
           <a href={place.href} onclick={event => follow(event, place.href)}>{place.label}</a>
         {/each}
       </nav>
-
-      <p class="signoff">
-        Made in ECEB, for everyone who walks past the lobby screen. Kept by students, for
-        students, and open to every organization in the department.
-      </p>
     </div>
 
     <div class="bottom">
@@ -66,6 +56,7 @@
         {#each BOTTOM as place (place.href)}
           <a href={place.href} onclick={event => follow(event, place.href)}>{place.label}</a>
         {/each}
+        <span class="signoff">Made with <span class="heart" aria-hidden="true">❤</span><span class="only">love</span> for Illinois ECE</span>
         <span class="mono">v{__APP_VERSION__}</span>
       </p>
     </div>
@@ -83,16 +74,17 @@
   }
 
   .inner {
-    max-width: 1180px;
+    max-width: var(--wrap);
     margin: 0 auto;
     padding: 36px 32px 40px;
   }
 
   .cols {
-    display: grid;
-    grid-template-columns: 1.2fr 1fr 1.2fr;
-    gap: 40px;
-    align-items: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px 48px;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .brand {
@@ -101,20 +93,16 @@
     justify-items: start;
   }
 
-  .brand p,
-  .signoff {
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: var(--muted);
-    max-width: 46ch;
-  }
-
-  /* The places to go are set in the navigation role, as they are in the band. */
+  /*
+   * The places to go are set in the navigation role, as they are in the band,
+   * and they run in a row there too. Down a column they took the height of
+   * five lines to say what fits comfortably on one.
+   */
   nav {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: start;
+    flex-wrap: wrap;
+    gap: 4px 26px;
+    align-items: center;
   }
 
   nav a {
@@ -169,6 +157,32 @@
 
   .bottom a:hover {
     color: var(--ink);
+  }
+
+  /* The sign off sits in the bottom row, beside the version it was written for. */
+  .bottom .signoff {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .bottom .heart {
+    color: var(--signal);
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  /* The word behind the character, for anybody reading the page rather than looking at it. */
+  .only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 
   .bottom .mono {

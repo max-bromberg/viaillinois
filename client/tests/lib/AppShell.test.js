@@ -162,6 +162,6 @@ describe('the sky in the shell', () => {
     const { container } = render(App);
     await waitFor(() => expect(container.querySelector('.clock .d')).toBeTruthy());
     const { campusSky } = await import('../../src/lib/campusTime.js');
-    expect(container.querySelector('.clock .d').textContent).toContain(`${campusSky(new Date()).sky} over ECEB`);
+    expect(container.querySelector('.clock .d').textContent).toContain(`${campusSky(new Date()).sky} over Urbana`);
   });
 });

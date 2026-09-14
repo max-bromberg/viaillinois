@@ -152,3 +152,40 @@ describe('an internal event in the week view', () => {
     expect(container.querySelector('.entry .pad')).toBe(null);
   });
 });
+
+/**
+ * An event block was drawn in the same fill as the grid it sits on.
+ *
+ * The week grid is hairlines on the card, and the block filled itself with the
+ * card too, so the only part of an event a reader could see was the two pixel
+ * hue bar down its left edge. The block's own area, which is where the title
+ * and the time are, was invisible in both themes, because both surfaces read
+ * the same token.
+ *
+ * The block is tinted with the organization's hue now, which is the device the
+ * rest of the design already uses to say which organization something belongs
+ * to, so the block is both visible and identifiable at a glance.
+ */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const fillOf = (file, selector) => {
+  const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+  const at = source.indexOf(`\n  ${selector} {`);
+  const rule = source.slice(at, source.indexOf('}', at));
+  return rule.match(/background:\s*([^;]+);/)?.[1]?.trim() ?? null;
+};
+
+describe('an event block in the week view', () => {
+  it('is not drawn in the same fill as the grid behind it', () => {
+    const block = fillOf('src/lib/WeekTimeGrid.svelte', '.entry');
+    const grid = fillOf('src/routes/Calendar.svelte', '.month');
+    expect(block).toBeTruthy();
+    expect(grid).toBe('var(--card)');
+    expect(block).not.toBe(grid);
+  });
+
+  it('carries the organization hue into its fill, not only into its edge', () => {
+    expect(fillOf('src/lib/WeekTimeGrid.svelte', '.entry')).toContain('var(--h)');
+  });
+});

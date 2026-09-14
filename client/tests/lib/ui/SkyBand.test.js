@@ -37,7 +37,7 @@ describe('SkyBand', () => {
     const { container } = render(SkyBand, {
       sky: 'dusk', links: LINKS, here: '/', at: '2026-09-10T18:41:00-05:00',
     });
-    expect(container.querySelector('.clock .d').textContent).toContain('dusk over ECEB');
+    expect(container.querySelector('.clock .d').textContent).toContain('dusk over Urbana');
   });
 
   it('greets by the hour it is showing', () => {

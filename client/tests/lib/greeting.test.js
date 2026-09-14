@@ -100,3 +100,35 @@ describe('the counts', () => {
     expect(tonight).toBe(0);
   });
 });
+
+/**
+ * The headline number under the greeting counted only what was on in one
+ * building, and said so: "2 tonight in ECEB". That framed the whole platform
+ * around an address. The organizations VIA serves belong to a department, they
+ * meet in several buildings between them, and a student who follows one that
+ * meets in Everitt was being told there was nothing on tonight.
+ */
+describe('what tonight counts', () => {
+  const tonightAt = building => ({
+    start_time: '2026-09-10T18:00:00-05:00',
+    building,
+  });
+
+  it('counts everything on tonight when no building is named', () => {
+    const { tonight } = greetingCounts({
+      events: [tonightAt('ECEB'), tonightAt('Everitt'), tonightAt('CSL')],
+      now: NOW,
+      where: null,
+    });
+    expect(tonight).toBe(3);
+  });
+
+  it('still counts one building when one is named, which the kiosk needs', () => {
+    const { tonight } = greetingCounts({
+      events: [tonightAt('ECEB'), tonightAt('Everitt')],
+      now: NOW,
+      where: 'ECEB',
+    });
+    expect(tonight).toBe(1);
+  });
+});

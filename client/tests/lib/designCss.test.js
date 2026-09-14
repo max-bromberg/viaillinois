@@ -158,3 +158,31 @@ describe('an outlined button fills with what it stands on', () => {
     expect(APP_CSS.match(/--sky-night-top:/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+/**
+ * A page away from the feed puts its own title in the band, and the band draws
+ * it as an h1 because it is that page's first level heading. The stylesheet
+ * dressed h2, which is the greeting, and named h1 nowhere, so every page title
+ * on the site fell through to the browser's own h1. Tailwind's preflight resets
+ * that to inherit, so About, Calendar and Midterms were each announced in small
+ * regular body text.
+ *
+ * This is the same fault the feed heading had in the review before the release,
+ * one level up: a rule that names one heading level and a page that draws the
+ * other.
+ */
+describe('a page title in the band', () => {
+  const APP_CSS = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+
+  it('is dressed at all', () => {
+    expect(APP_CSS).toMatch(/\.greet h1\{/);
+  });
+
+  it('is set in the display face rather than left to the browser', () => {
+    const rule = APP_CSS.slice(APP_CSS.indexOf('.greet h1{'));
+    const body = rule.slice(0, rule.indexOf('}'));
+    expect(body).toContain('var(--display)');
+    expect(body).toMatch(/font-weight:\s*[78]00/);
+    expect(body).toMatch(/font-size:\s*\d\dpx/);
+  });
+});

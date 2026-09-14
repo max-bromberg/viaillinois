@@ -16,7 +16,7 @@ import { Icon, ICONS } from '../../../src/lib/components/ui/Icon/index.js';
  */
 describe('Icon', () => {
   it('draws every shape the reference render uses', () => {
-    expect(Object.keys(ICONS).sort()).toEqual(['arrow', 'back', 'bolt', 'cal', 'moon', 'pin', 'share', 'sun']);
+    expect(Object.keys(ICONS).sort()).toEqual(['arrow', 'back', 'bolt', 'cal', 'moon', 'next', 'pin', 'prev', 'share', 'sun']);
   });
 
   it('draws the shape it is asked for', () => {
@@ -55,5 +55,32 @@ describe('Icon', () => {
 
   it('refuses a shape it does not have, rather than drawing nothing', () => {
     expect(() => render(Icon, { name: 'sparkles' })).toThrow();
+  });
+});
+
+/**
+ * A direction needs a shape that points.
+ *
+ * The calendar's Previous and Next controls were quiet buttons, and a quiet
+ * button draws a pad. Both drew the same pad, so neither said which way it
+ * went: the only thing distinguishing them was the word. The existing arrow
+ * and back shapes are a long shaft with a head, which reads as "go to" rather
+ * than "step one along" and is faint at the size a control like this uses.
+ *
+ * These are chevrons on the chamfer's own 45 degrees, which is the angle the
+ * cut takes on every card, button and band in the design.
+ */
+describe('the direction shapes', () => {
+  it('offers a chevron each way', () => {
+    const { container } = render(Icon, { name: 'next' });
+    expect(container.querySelector('svg.i path')).toBeTruthy();
+  });
+
+  it('draws them as mirror images of one another', () => {
+    const next = render(Icon, { name: 'next' }).container.querySelector('path').getAttribute('d');
+    const prev = render(Icon, { name: 'prev' }).container.querySelector('path').getAttribute('d');
+    expect(next).toBeTruthy();
+    expect(prev).toBeTruthy();
+    expect(prev).not.toBe(next);
   });
 });

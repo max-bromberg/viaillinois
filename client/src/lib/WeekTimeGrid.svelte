@@ -255,7 +255,15 @@
     overflow: hidden;
     text-align: left;
     font: inherit;
-    background: var(--card);
+    /*
+     * The grid behind this is hairlines on the card, so a block filled with the
+     * card is a block nobody can see: only the hue bar on its left edge showed,
+     * and the area holding the title and the time read as empty grid in both
+     * themes. The hue already says which organization the event belongs to on
+     * the edge, and carrying it into the fill makes the block itself visible
+     * and identifiable at the same time.
+     */
+    background: color-mix(in srgb, var(--h) 10%, var(--card));
     border: 0;
     border-left: 2px solid var(--h);
     padding: 4px 6px;
@@ -265,7 +273,7 @@
 
   .entry:hover,
   .entry:focus-visible {
-    background: color-mix(in srgb, var(--h) 14%, var(--card));
+    background: color-mix(in srgb, var(--h) 22%, var(--card));
   }
 
   .entry:focus-visible {

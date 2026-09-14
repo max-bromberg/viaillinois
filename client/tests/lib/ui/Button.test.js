@@ -92,3 +92,28 @@ describe('Button', () => {
     expect(buttonOf(container).parentElement.classList.contains('on-card')).toBe(true);
   });
 });
+
+/**
+ * An icon that says which way a control goes belongs on the side it points.
+ * "Next week" with a chevron in front of the words points back at the words,
+ * and reads as a decoration rather than as a direction.
+ */
+describe('a button with a trailing icon', () => {
+  it('puts it after the label rather than before', () => {
+    const { container } = render(Button, {
+      variant: 'quiet', trailingIcon: 'next', children: undefined,
+    });
+    const control = container.querySelector('.btn');
+    const icon = control.querySelector('svg.i');
+    expect(icon).toBeTruthy();
+    expect(control.lastElementChild).toBe(icon);
+  });
+
+  it('still puts a leading icon first', () => {
+    const { container } = render(Button, { variant: 'quiet', icon: 'prev', children: undefined });
+    const control = container.querySelector('.btn');
+    const icon = control.querySelector('svg.i');
+    expect(icon).toBeTruthy();
+    expect(control.firstElementChild).toBe(icon);
+  });
+});

@@ -39,7 +39,7 @@
     /** How many events are on tonight. */
     tonight = null,
     /** Where tonight's events are. */
-    where = 'ECEB',
+    where = null,
     /** How many events are on this week. */
     week = null,
     /** The next midterm: how many days away, and which course. */

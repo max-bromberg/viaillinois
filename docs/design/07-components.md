@@ -85,8 +85,11 @@ baseline.
 
 ### Icon (`svg.i`)
 
-The eight shapes the reference render draws: pin, calendar, arrow, back, bolt, share, sun
-and moon. They take the stroke weight of the traces in the mark and the color of whatever
+The ten shapes the reference render draws: pin, calendar, arrow, back, bolt, share, sun,
+moon, and the two direction chevrons, previous and next. Arrow and back are a shaft with a
+head and mean go to somewhere. The chevrons are a step one along, which is what a calendar
+paging a week at a time is doing, and they are drawn on the chamfer's own 45 degrees so
+that a direction belongs to the same geometry as every cut on the page. They take the stroke weight of the traces in the mark and the color of whatever
 text they sit in. The first version of the site used emoji, which draw differently on every
 platform, so the page had one face on a phone and another on the lobby screen. Adding a
 shape means adding it to the reference render first.

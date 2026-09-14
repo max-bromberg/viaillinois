@@ -41,7 +41,7 @@
   }
 
   .page {
-    max-width: 1180px;
+    max-width: var(--wrap);
     margin: 0 auto;
   }
 

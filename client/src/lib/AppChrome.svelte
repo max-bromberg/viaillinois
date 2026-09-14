@@ -33,7 +33,7 @@
     /** The counts for the greeting line. */
     counts = { tonight: null, week: null, midterm: null },
     /** Where tonight's events are. */
-    where = 'ECEB',
+    where = null,
     /** What happens when a link is followed. */
     onnavigate = undefined,
     /** What happens when somebody signs out. */

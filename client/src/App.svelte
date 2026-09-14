@@ -242,7 +242,7 @@
   }
 
   .page-body {
-    max-width: 1180px;
+    max-width: var(--wrap);
     margin: 0 auto;
     width: 100%;
     padding: 28px 32px 34px;

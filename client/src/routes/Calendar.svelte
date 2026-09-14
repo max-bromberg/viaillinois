@@ -298,8 +298,8 @@
         </div>
 
         <div class="nav">
-          <Button variant="quiet" size="sm" onclick={prev}>Previous {period}</Button>
-          <Button variant="quiet" size="sm" onclick={next}>Next {period}</Button>
+          <Button variant="quiet" size="sm" icon="prev" onclick={prev}>Previous {period}</Button>
+          <Button variant="quiet" size="sm" trailingIcon="next" onclick={next}>Next {period}</Button>
           <Button variant="quiet" size="sm" onclick={goToday}>Today</Button>
         </div>
       </div>

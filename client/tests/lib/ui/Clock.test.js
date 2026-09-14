@@ -42,11 +42,26 @@ describe('Clock', () => {
 
   it('says which sky it is under when it is told, because the band is the site clock', () => {
     const { container } = render(Clock, { at: AT, sky: 'dusk' });
-    expect(container.querySelector('.d').textContent).toContain('dusk over ECEB');
+    expect(container.querySelector('.d').textContent).toContain('dusk over Urbana');
   });
 
   it('draws nothing rather than a wrong time when it is given no time', () => {
     const { container } = render(Clock, { at: null });
     expect(container.querySelector('.clock')).toBe(null);
+  });
+});
+
+/**
+ * The clock said the sky was over ECEB. The building is where the lobby screen
+ * hangs, and it is not what VIA is: the organizations it serves belong to a
+ * department, most of them meet in several buildings, and some of what they run
+ * is not in a building at all. A reader in Everitt is under the same sky.
+ */
+describe('where the clock says it is', () => {
+  it('names the campus rather than one building', () => {
+    const { container } = render(Clock, { at: '2026-09-14T18:41:00-05:00', sky: 'clear' });
+    const caption = container.querySelector('.clock .d').textContent;
+    expect(caption).not.toContain('ECEB');
+    expect(caption).toContain('Urbana');
   });
 });
