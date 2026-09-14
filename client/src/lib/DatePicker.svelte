@@ -112,7 +112,7 @@
   <button
     type="button"
     class="trigger"
-    class:empty={!value}
+    class:unset={!value}
     aria-label={label}
     aria-describedby={describedBy}
     aria-expanded={open}
@@ -125,7 +125,7 @@
 
   {#if open}
     <div class="sheet cut" style="--cut: 14px">
-      <div class="nav">
+      <div class="months">
         <button type="button" class="step" aria-label="Previous month" on:click={prevMonth}>
           <Icon name="back" />
         </button>
@@ -145,7 +145,7 @@
           {:else}
             <button
               type="button"
-              class="day"
+              class="date"
               class:on={isSelected(day)}
               class:now={isToday(day)}
               aria-pressed={isSelected(day)}
@@ -195,7 +195,7 @@
     cursor: pointer;
   }
 
-  .trigger.empty .said {
+  .trigger.unset .said {
     color: var(--muted);
   }
 
@@ -225,7 +225,7 @@
     user-select: none;
   }
 
-  .nav {
+  .months {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -276,7 +276,7 @@
     color: var(--muted);
   }
 
-  .day {
+  .date {
     font: inherit;
     background: none;
     border: 0;
@@ -290,7 +290,7 @@
     color: var(--ink);
   }
 
-  .day .n {
+  .date .n {
     font-family: var(--display);
     font-stretch: 75%;
     font-weight: 700;
@@ -298,26 +298,26 @@
     line-height: 1;
   }
 
-  .day .mark {
+  .date .mark {
     height: 8px;
     display: block;
   }
 
-  .day.on .n {
+  .date.on .n {
     color: var(--primary);
   }
 
   /* Today's number is the signal colour, as it is on the calendar. */
-  .day.now .n {
+  .date.now .n {
     color: var(--signal-text);
   }
 
-  .day:hover:not(:disabled) .n,
-  .day:focus-visible .n {
+  .date:hover:not(:disabled) .n,
+  .date:focus-visible .n {
     color: var(--primary);
   }
 
-  .day:focus-visible {
+  .date:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
   }
@@ -327,7 +327,7 @@
    * of the faint gray, so it is the muted ink held back rather than the faint
    * token.
    */
-  .day:disabled {
+  .date:disabled {
     cursor: default;
     color: var(--muted);
     opacity: .5;

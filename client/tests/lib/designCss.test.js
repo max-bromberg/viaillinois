@@ -130,3 +130,31 @@ describe('the phone layout', () => {
     expect(PHONE).toMatch(/\.greet\{[^}]*padding:\d+px 16px/);
   });
 });
+
+/**
+ * A secondary button is an outline with the surface behind it showing through
+ * the middle, and the middle was filled with paper wherever it stood. On the
+ * night sky band that is wrong twice over: the band is dark in both themes and
+ * fixes its own ink light, so under the light theme the button drew light text
+ * on a near white fill and the sign out control in the header had no visible
+ * label at all. The fill is a token now, and the band says what it is.
+ */
+describe('an outlined button fills with what it stands on', () => {
+  const APP_CSS = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+
+  it('reads its fill from a token rather than always from paper', () => {
+    expect(APP_CSS).toContain('.btn.secondary.cut::before{background:var(--btn-fill,var(--paper))}');
+  });
+
+  it('is told by the night band that it stands on the night sky', () => {
+    const band = APP_CSS.slice(APP_CSS.indexOf('.skyband.night{'));
+    expect(band.slice(0, band.indexOf('}'))).toContain('--btn-fill:var(--sky-night-top)');
+  });
+
+  it('has a night sky top colour in both themes, because the band is dark in both', () => {
+    // Two definitions for the dark theme, the system preference and the stamped
+    // choice, and one for the light theme, which is how every other token in
+    // this stylesheet is written.
+    expect(APP_CSS.match(/--sky-night-top:/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+});

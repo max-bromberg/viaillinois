@@ -65,7 +65,7 @@
 </script>
 
 <div class="picker">
-  <div class="nav">
+  <div class="months">
     <button type="button" class="step" aria-label="Previous month" on:click={() => step(-1)}>
       <Icon name="back" />
     </button>
@@ -85,7 +85,7 @@
       {:else}
         <button
           type="button"
-          class="day"
+          class="date"
           aria-pressed={chosen.has(dateOf(day))}
           aria-label="{MONTHS[viewMonth]} {day}, {viewYear}"
           disabled={disabled(day)}
@@ -110,7 +110,7 @@
     width: 268px;
   }
 
-  .nav {
+  .months {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -166,7 +166,7 @@
    * chosen day used to be a filled rectangle, which is the one shape the
    * design does not use for a state.
    */
-  .day {
+  .date {
     font: inherit;
     background: none;
     border: 0;
@@ -180,7 +180,7 @@
     color: var(--ink);
   }
 
-  .day .n {
+  .date .n {
     font-family: var(--display);
     font-stretch: 75%;
     font-weight: 700;
@@ -188,21 +188,21 @@
     line-height: 1;
   }
 
-  .day .mark {
+  .date .mark {
     height: 8px;
     display: block;
   }
 
-  .day[aria-pressed="true"] .n {
+  .date[aria-pressed="true"] .n {
     color: var(--primary);
   }
 
-  .day:hover:not(:disabled) .n,
-  .day:focus-visible .n {
+  .date:hover:not(:disabled) .n,
+  .date:focus-visible .n {
     color: var(--primary);
   }
 
-  .day:focus-visible {
+  .date:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
   }
@@ -212,7 +212,7 @@
    * of the faint gray, so it is the muted ink held back rather than the faint
    * token.
    */
-  .day:disabled {
+  .date:disabled {
     cursor: default;
     color: var(--muted);
     opacity: .5;

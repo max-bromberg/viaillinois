@@ -12,10 +12,28 @@ import { campusFields, campusStartOfDay, toInstant } from './campusTime.js';
  * does not know is left out rather than shown as a zero.
  */
 
-/** The first name of whoever is signed in, or nothing. */
+/**
+ * The first name of whoever is signed in, or nothing.
+ *
+ * Two orders reach this. A name typed into the admin page is given name first,
+ * and a name from Azure AD is the directory's own order, which for this campus
+ * is the family name, a comma, then the given name. A comma is what separates
+ * the two cases, so it decides which side of the string the given name is on.
+ * Read as words alone, "Bromberg, Maxwell" greets somebody as "Bromberg,",
+ * which is how this read on the live front page.
+ */
 export function firstName(user) {
-  const full = user?.full_name ?? '';
-  const first = String(full).trim().split(/\s+/)[0];
+  const full = String(user?.full_name ?? '').trim();
+  if (full === '') return null;
+
+  const comma = full.indexOf(',');
+  // After the comma is the given name. A name that ends on its comma has
+  // nothing there, so the family name is used rather than nothing at all.
+  const given = comma === -1
+    ? full
+    : full.slice(comma + 1).trim() || full.slice(0, comma).trim();
+
+  const first = (given.split(/\s+/)[0] ?? '').replace(/,+$/, '');
   return first === '' ? null : first;
 }
 

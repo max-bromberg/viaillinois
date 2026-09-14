@@ -12,6 +12,7 @@
   --sky-afternoon:linear-gradient(180deg,#d8f3f3 0%,#edf8f8 55%,var(--paper) 100%);
   --sky-evening:linear-gradient(180deg,#ffd2bb 0%,#fbe3d9 30%,#d9f1f1 68%,var(--paper) 100%);
   --sky-night:linear-gradient(180deg,#0f2224 0%,#1c3538 45%,#4b5f60 80%,var(--paper) 100%);
+  --sky-night-top:#0f2224;
   --sky-ink:var(--ink);
   --g-current:linear-gradient(160deg,#0a9a9e 0%,#007c80 60%,#005558 100%);
   --g-board:linear-gradient(160deg,#0f2e2f 0%,#0a1516 55%,#1a1210 100%);
@@ -34,6 +35,7 @@
   --sky-afternoon:linear-gradient(180deg,#0f2e2f 0%,#0d2224 55%,var(--paper) 100%);
   --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
   --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
+  --sky-night-top:#05090a;
   --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
   --lamp:22%;
   --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
@@ -51,6 +53,7 @@
   --sky-afternoon:linear-gradient(180deg,#0f2e2f 0%,#0d2224 55%,var(--paper) 100%);
   --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
   --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
+  --sky-night-top:#05090a;
   --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
   --lamp:22%;
   --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
@@ -182,7 +185,7 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .mock{position:relative;background:var(--paper);box-shadow:var(--shadow-float);overflow:hidden}
 .cap{color:var(--muted);font-size:13.5px;max-width:70ch;margin-top:14px}
 .skyband{background:var(--sky-evening);--cut:44px;padding:0 0 34px;position:relative;overflow:hidden}
-.skyband.night{background:var(--sky-night);--sky-ink:#e6f0f0;--ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;--signal:#ff8a66;--signal-text:#ff8a66;color:#e6f0f0}
+.skyband.night{background:var(--sky-night);--btn-fill:var(--sky-night-top);--sky-ink:#e6f0f0;--ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;--signal:#ff8a66;--signal-text:#ff8a66;color:#e6f0f0}
 .nav{height:64px;display:flex;align-items:center;gap:26px;padding:0 28px}
 .nav .w{font-family:var(--display);font-stretch:75%;font-weight:600;font-size:14px;color:var(--ink-2);margin-left:-12px}
 .skyband.night .nav .w{color:#c3d3d3}
@@ -361,7 +364,7 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .btn.secondary.cut{background:var(--ink);box-shadow:none;border:0}
 .btn.secondary.cut,.btn.danger.cut,.btn.primary.cut{position:relative;isolation:isolate;--w:1.5px;--c:var(--cut,10px)}
 .btn.secondary.cut::before,.btn.danger.cut::before,.btn.primary.cut::before{content:"";position:absolute;inset:0;z-index:-1;clip-path:polygon(var(--w) var(--w),calc(100% - var(--c) - var(--w) * .414) var(--w),calc(100% - var(--w)) calc(var(--c) + var(--w) * .414),calc(100% - var(--w)) calc(100% - var(--w)),var(--w) calc(100% - var(--w)))}
-.btn.secondary.cut::before{background:var(--paper)}
+.btn.secondary.cut::before{background:var(--btn-fill,var(--paper))}
 .btn.danger.cut{background:var(--danger);box-shadow:none}
 .btn.danger.cut::before{background:var(--paper)}
 .btn.primary.cut{--w:0px;background:var(--ink)}

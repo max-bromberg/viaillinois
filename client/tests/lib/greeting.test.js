@@ -27,6 +27,28 @@ describe('the name in the greeting', () => {
     expect(firstName({ full_name: '' })).toBe(null);
     expect(firstName({ net_id: 'jdoe2' })).toBe(null);
   });
+
+  /**
+   * Azure AD hands back a display name in the directory's own order, which for
+   * this campus is the family name, a comma, then the given name. Read as
+   * whitespace separated words, the first of those is "Bromberg," and the
+   * greeting drew "Good evening, Bromberg,." on the front page of the live
+   * site. The comma is the whole signal that the order is reversed.
+   */
+  it('reads the given name when the directory writes the family name first', () => {
+    expect(firstName({ full_name: 'Bromberg, Maxwell' })).toBe('Maxwell');
+    expect(firstName({ full_name: 'Bromberg,Maxwell' })).toBe('Maxwell');
+    expect(firstName({ full_name: 'Van Der Berg, Anna Marie' })).toBe('Anna');
+  });
+
+  it('keeps the plain order working, and never answers with a comma', () => {
+    expect(firstName({ full_name: '  Max   Bromberg  ' })).toBe('Max');
+    expect(firstName({ full_name: 'Cher' })).toBe('Cher');
+    // A trailing comma with nothing after it is a family name on its own, which
+    // is still better than greeting somebody with punctuation.
+    expect(firstName({ full_name: 'Bromberg,' })).toBe('Bromberg');
+    expect(firstName({ full_name: ', Maxwell' })).toBe('Maxwell');
+  });
 });
 
 describe('the counts', () => {
