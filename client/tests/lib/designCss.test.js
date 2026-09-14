@@ -186,3 +186,46 @@ describe('a page title in the band', () => {
     expect(body).toMatch(/font-size:\s*\d\dpx/);
   });
 });
+
+/**
+ * The motion document specifies five movements and says what each one is tied
+ * to. Two of them were not doing what it says.
+ *
+ * "Rows settle" is specified as each row starting 60 milliseconds after the one
+ * above, and the rule carried the animation with no delay at all, so every row
+ * on the feed settled at the same instant. A whole list arriving as one block
+ * is a different movement from a list arriving in order, and the second is the
+ * one that reads as the agenda landing.
+ *
+ * The same fact is true of the midterm schedule, which is also a list that has
+ * just arrived, and it settled not at all.
+ */
+describe('the movements the motion document specifies', () => {
+  const APP_CSS = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+
+  it('starts each row after the one above it rather than all at once', () => {
+    const delays = [...APP_CSS.matchAll(/\.ev:nth-of-type\((\d+)\)\{animation-delay:([\d.]+)s\}/g)]
+      .map(match => [Number(match[1]), Number(match[2])]);
+    expect(delays.length).toBeGreaterThanOrEqual(4);
+    // Sixty milliseconds a row, which is what the document says.
+    for (const [position, delay] of delays) {
+      expect(delay).toBeCloseTo((position - 1) * 0.06, 3);
+    }
+  });
+
+  it('stops staggering before a long list makes its last row wait', () => {
+    const delays = [...APP_CSS.matchAll(/\.ev:nth-of-type\(\d+\)\{animation-delay:([\d.]+)s\}/g)]
+      .map(match => Number(match[1]));
+    expect(Math.max(...delays)).toBeLessThanOrEqual(0.5);
+  });
+
+  it('settles the midterm rows too, which are also a list that has just arrived', () => {
+    expect(APP_CSS).toMatch(/\.exam\{[^}]*animation:settle/);
+  });
+
+  it('still stops every one of them for anybody who asks for stillness', () => {
+    expect(APP_CSS.replace(/\s+/g, '')).toContain(
+      '@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important',
+    );
+  });
+});

@@ -290,7 +290,7 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .ribbon .wkc.hot b{color:var(--signal-text)}
 .ribcap{display:flex;justify-content:space-between;margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
 .exams{margin-top:26px}
-.exam{display:grid;grid-template-columns:150px 1fr 190px 130px 110px;gap:20px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}
+.exam{display:grid;grid-template-columns:150px 1fr 190px 130px 110px;gap:20px;align-items:center;padding:14px 0;border-top:1px solid var(--line);animation:settle .6s ease-out both}
 .exam .code{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:30px;line-height:1;letter-spacing:-.01em}
 .exam .code small{display:block;font-family:var(--sans);font-size:12.5px;color:var(--muted);font-weight:400;font-stretch:100%;margin-top:3px;letter-spacing:0}
 .exam .ttl{font-family:var(--display);font-stretch:90%;font-weight:700;font-size:16px}
@@ -332,6 +332,27 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .motion .demo{width:120px;height:44px;position:relative}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--h,var(--signal)) 24%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--h,var(--signal)) 0%,transparent)}}
 @keyframes settle{from{transform:translateY(8px)}to{transform:translateY(0)}}
+/* Sixty milliseconds a row, which is what the motion document specifies. A
+   list arriving as one block is a different movement from a list arriving in
+   order, and the second is the one that reads as the agenda landing. It stops
+   after eight rows, because past that the stagger stops reading as order and
+   starts reading as a page that is slow to finish. */
+.ev:nth-of-type(1){animation-delay:0s}
+.ev:nth-of-type(2){animation-delay:0.06s}
+.ev:nth-of-type(3){animation-delay:0.12s}
+.ev:nth-of-type(4){animation-delay:0.18s}
+.ev:nth-of-type(5){animation-delay:0.24s}
+.ev:nth-of-type(6){animation-delay:0.3s}
+.ev:nth-of-type(7){animation-delay:0.36s}
+.ev:nth-of-type(8){animation-delay:0.42s}
+.exam:nth-of-type(1){animation-delay:0s}
+.exam:nth-of-type(2){animation-delay:0.06s}
+.exam:nth-of-type(3){animation-delay:0.12s}
+.exam:nth-of-type(4){animation-delay:0.18s}
+.exam:nth-of-type(5){animation-delay:0.24s}
+.exam:nth-of-type(6){animation-delay:0.3s}
+.exam:nth-of-type(7){animation-delay:0.36s}
+.exam:nth-of-type(8){animation-delay:0.42s}
 @keyframes drift{0%{background-position:0 0}100%{background-position:0 100%}}
 .drift{background:var(--sky-evening);background-size:100% 300%;animation:drift 8s ease-in-out infinite alternate}
 .build{display:grid;grid-template-columns:1fr 1fr;gap:40px;font-size:14.5px;color:var(--ink-2)}

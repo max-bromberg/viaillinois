@@ -290,7 +290,7 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke
 .ribbon .wkc.hot b{color:var(--signal-text)}
 .ribcap{display:flex;justify-content:space-between;margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
 .exams{margin-top:26px}
-.exam{display:grid;grid-template-columns:150px 1fr 190px 130px 110px;gap:20px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}
+.exam{display:grid;grid-template-columns:150px 1fr 190px 130px 110px;gap:20px;align-items:center;padding:14px 0;border-top:1px solid var(--line);animation:settle .6s ease-out both}
 .exam .code{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:30px;line-height:1;letter-spacing:-.01em}
 .exam .code small{display:block;font-family:var(--sans);font-size:12.5px;color:var(--muted);font-weight:400;font-stretch:100%;margin-top:3px;letter-spacing:0}
 .exam .ttl{font-family:var(--display);font-stretch:90%;font-weight:700;font-size:16px}
@@ -325,6 +325,22 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke
 .kiosk .side .item span{color:var(--muted);font-size:15px}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--h,var(--signal)) 24%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--h,var(--signal)) 0%,transparent)}}
 @keyframes settle{from{transform:translateY(8px)}to{transform:translateY(0)}}
+.ev:nth-of-type(1){animation-delay:0s}
+.ev:nth-of-type(2){animation-delay:0.06s}
+.ev:nth-of-type(3){animation-delay:0.12s}
+.ev:nth-of-type(4){animation-delay:0.18s}
+.ev:nth-of-type(5){animation-delay:0.24s}
+.ev:nth-of-type(6){animation-delay:0.3s}
+.ev:nth-of-type(7){animation-delay:0.36s}
+.ev:nth-of-type(8){animation-delay:0.42s}
+.exam:nth-of-type(1){animation-delay:0s}
+.exam:nth-of-type(2){animation-delay:0.06s}
+.exam:nth-of-type(3){animation-delay:0.12s}
+.exam:nth-of-type(4){animation-delay:0.18s}
+.exam:nth-of-type(5){animation-delay:0.24s}
+.exam:nth-of-type(6){animation-delay:0.3s}
+.exam:nth-of-type(7){animation-delay:0.36s}
+.exam:nth-of-type(8){animation-delay:0.42s}
 @keyframes drift{0%{background-position:0 0}100%{background-position:0 100%}}
 @media (max-width:900px){.poster .body2{grid-template-columns:1fr}.page{grid-template-columns:1fr}.kiosk{grid-template-columns:1fr}.kiosk .side{display:none}.ribbon{grid-template-columns:repeat(3,1fr)}.exam{grid-template-columns:1fr 1fr}.greet{grid-template-columns:1fr}}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
