@@ -75,11 +75,18 @@ wait_for_health() {
   done
 }
 
-# Put this checkout back on the tag it was found on. Used by the failures that
-# happen after the release tag is checked out and before anything is built, so
-# a refusal leaves the host exactly as it was.
+# Put both checkouts back on the tags they were found on. Used by the failures
+# that happen after the release tag is checked out and before any container is
+# touched, so a refusal leaves the host exactly as it was.
+#
+# Both are named because the last of those failures is the image build, which
+# happens after the bot checkout has moved too. The callers that run before it
+# find the bot still on BOT_PREVIOUS_TAG, where checking it out again does
+# nothing, so one function serves every one of them.
 undo_checkout() {
   [ "$PREVIOUS_TAG" = "none" ] || git checkout "$PREVIOUS_TAG" --quiet || true
+  [ "$BOT_PREVIOUS_TAG" = "none" ] \
+    || git -C "$BOT_CHECKOUT" checkout "$BOT_PREVIOUS_TAG" --quiet || true
 }
 
 rollback() {
@@ -149,7 +156,7 @@ fi
 log "checked out bot ${BOT_TAG}, previous was ${BOT_PREVIOUS_TAG}"
 
 # Step 2: build before touching anything. A build failure costs no downtime.
-docker compose build via via-bot || fail "image build failed"
+docker compose build via via-bot || { undo_checkout; fail "image build failed"; }
 log "images built"
 
 # Step 3: back up and prove the backups restore. Still no downtime so far.

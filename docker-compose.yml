@@ -73,7 +73,10 @@ services:
       # stood between it and the world.
       - "127.0.0.1:${VIA_PORT:-3000}:3001"
     networks:
-      - default
+      # This block is a mapping rather than a sequence, because via_internal
+      # below carries an alias and one block may not hold both shapes at once.
+      # The shared network takes no settings of its own, so its value is empty.
+      default: {}
       # On the stack's own network the website also answers to a name that
       # belongs to this stack alone. The bot reaches it there. The service
       # name is resolved on the shared network too, where another stack could

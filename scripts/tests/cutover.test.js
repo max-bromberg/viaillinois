@@ -221,6 +221,27 @@ describe('cutover.sh with the bot', () => {
     expect(build).toContain('via-bot');
   }, 30_000);
 
+  /**
+   * A build failure is the last refusal before any container is touched, and
+   * it is the one that left both checkouts moved. v0.6.0 shipped a compose
+   * file that did not parse, so the build failed on the server with the
+   * website checkout sitting on the tag that could not be deployed. That
+   * matters beyond tidiness: PREVIOUS_TAG is read from the checkout at the
+   * start of the run, so the next attempt would have recorded the broken tag
+   * as the thing to roll back to.
+   */
+  it('puts both checkouts back when the build fails', () => {
+    const result = runCutover(dir, { DOCKER_FAIL_MATCH: 'build via via-bot' });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toMatch(/image build failed/);
+    expect(describedTag(join(dir, 'platform'))).toBe('v0.9.0');
+    expect(describedTag(join(dir, 'bot'))).toBe('v0.0.9');
+    // Nothing was stopped, so there is nothing to restart and no backup to
+    // restore. The host is exactly as it was found.
+    expect(result.calls.filter((line) => line.includes('stop'))).toEqual([]);
+    expect(result.calls.filter((line) => line.includes('restoreCli.js'))).toEqual([]);
+  }, 30_000);
+
   it('backs up and verifies both databases before stopping either container', () => {
     const { calls } = runCutover(dir);
     const platformBackup = at(calls, 'backupCli.js --dir');
