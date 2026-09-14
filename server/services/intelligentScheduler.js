@@ -91,8 +91,12 @@ export async function recommend(params) {
   ]);
 
   const excludedSet = new Set(excludedRooms.map(r => r.location_id ?? r));
+  const locationMap = indexLocations(allLocations);
+  const eventsByDay = indexByDay(allEvents);
+  const reservationsByDay = indexByDay(allReservations);
   const scoringData = {
     allEvents, targetMidterms, allReservations, allSections,
+    eventsByDay, reservationsByDay,
     timeConstraint, scalar, windowHours,
   };
   const roomFilter = { excludedSet, venueConstraints };
@@ -100,7 +104,7 @@ export async function recommend(params) {
   if (recurrence) {
     const results = recurringOptions({
       recurrence, dateRange, searchEnd, durationMinutes, timeConstraint, dayConstraints,
-      allLocations, roomFilter, data: scoringData,
+      allLocations, locationMap, roomFilter, data: scoringData,
     });
     results.sort((a, b) => b.score - a.score);
     return {
@@ -115,7 +119,18 @@ export async function recommend(params) {
   const results = [];
 
   for (const slot of slots) {
-    const occupiedIds = buildOccupiedSet(slot, allEvents, allReservations, allLocations);
+    const occupiedIds = buildOccupiedSet(slot, eventsByDay, reservationsByDay, locationMap);
+
+    /*
+     * What else is on at this hour, which sections meet then and how near a
+     * midterm it is are questions about the slot, and the answer is the same
+     * whichever room is being considered. Asked once per room, each answer
+     * scans the whole events list again, so a term long search over forty
+     * rooms did forty times the work it needed to and held the only thread
+     * the server has for the whole of it. The recurring path below already
+     * works it out once per slot, and this is the same arrangement.
+     */
+    const base = scoreSlotBase(slot, scoringData);
 
     for (const loc of allLocations) {
       if (!ECE_BUILDINGS.has(loc.building)) continue;
@@ -125,10 +140,9 @@ export async function recommend(params) {
       const venueResult = applyVenueConstraints(loc, venueConstraints);
       if (venueResult.disqualified) continue;
 
-      const { score, insights } = scoreSlot(slot, loc, {
-        allEvents, targetMidterms, allReservations, allSections,
-        timeConstraint, scalar, windowHours,
-      });
+      const room = scoreRoomAt(slot, loc, scoringData);
+      const score = base.score + room.score;
+      const insights = [...base.insights, ...room.insights];
 
       const finalScore = Math.max(0, Math.min(100, score + venueResult.scoreDelta));
       if (finalScore <= 0) continue;
@@ -189,7 +203,7 @@ function startTimesOfDay(durationMins, timeConstraint) {
  */
 function recurringOptions({
   recurrence, dateRange, searchEnd, durationMinutes, timeConstraint, dayConstraints,
-  allLocations, roomFilter, data,
+  allLocations, locationMap, roomFilter, data,
 }) {
   const requiredDays = new Set(dayConstraints.filter(d => d.tier === 'required').map(d => d.day));
   const excludedDays = new Set(dayConstraints.filter(d => d.tier === 'excluded').map(d => d.day));
@@ -232,7 +246,7 @@ function recurringOptions({
       return {
         date,
         slot,
-        occupied: buildOccupiedSet(slot, data.allEvents, data.allReservations, allLocations),
+        occupied: buildOccupiedSet(slot, data.eventsByDay, data.reservationsByDay, locationMap),
         base: scoreSlotBase(slot, data),
       };
     });
@@ -335,17 +349,69 @@ function generateSlots(startStr, endStr, durationMins, timeConstraint, dayConstr
   return slots;
 }
 
-function buildOccupiedSet(slot, allEvents, allReservations, allLocations) {
-  const ids = new Set();
-  const locationMap = new Map(allLocations.map(l => [`${l.building}:${l.room_number}`, l.location_id]));
+/**
+ * Where each room is, indexed by the building and room number an event names.
+ *
+ * The index is the same for the whole of a search, so it is built once by the
+ * caller. Built inside buildOccupiedSet it was rebuilt for every slot, which
+ * over a term is several thousand walks of every location on campus.
+ */
+function indexLocations(allLocations) {
+  return new Map(allLocations.map(l => [`${l.building}:${l.room_number}`, l.location_id]));
+}
 
-  for (const e of allEvents) {
+/**
+ * Rows grouped by the calendar day they touch.
+ *
+ * A row can only clash with a slot on a day it covers, so a slot reads its own
+ * day rather than the whole term. Without this, every half hour of every day
+ * until the end of instruction was compared against every event in the term,
+ * and each comparison built four Date objects out of strings.
+ *
+ * A row that runs past midnight is filed under every day it touches, so the
+ * evening of one day and the small hours of the next both find it.
+ */
+function indexByDay(rows) {
+  const byDay = new Map();
+  for (const row of rows) {
+    const from = String(row.start_time).slice(0, 10);
+    const to = String(row.end_time ?? row.start_time).slice(0, 10);
+    if (from === to) {
+      const bucket = byDay.get(from);
+      if (bucket) bucket.push(row); else byDay.set(from, [row]);
+      continue;
+    }
+    const [y, m, d] = from.split('-').map(Number);
+    const marker = new Date(y, m - 1, d);
+    const pad = n => String(n).padStart(2, '0');
+    for (let guard = 0; guard < 400; guard += 1) {
+      const day = `${marker.getFullYear()}-${pad(marker.getMonth() + 1)}-${pad(marker.getDate())}`;
+      const bucket = byDay.get(day);
+      if (bucket) bucket.push(row); else byDay.set(day, [row]);
+      if (day >= to) break;
+      marker.setDate(marker.getDate() + 1);
+    }
+  }
+  return byDay;
+}
+
+/** The rows filed under the day a slot begins on. */
+function onDay(byDay, slot) {
+  return byDay.get(slot.start.slice(0, 10)) ?? EMPTY;
+}
+
+const EMPTY = [];
+
+function buildOccupiedSet(slot, eventsByDay, reservationsByDay, locationMap) {
+  const ids = new Set();
+
+  for (const e of onDay(eventsByDay, slot)) {
     if (overlaps(e.start_time, e.end_time, slot.start, slot.end)) {
       const locId = locationMap.get(`${e.building}:${e.room_number}`);
       if (locId) ids.add(locId);
     }
   }
-  for (const r of allReservations) {
+  for (const r of onDay(reservationsByDay, slot)) {
     if (overlaps(r.start_time, r.end_time, slot.start, slot.end)) ids.add(r.location_id);
   }
   return ids;
@@ -477,7 +543,7 @@ function scoreSlotBase(slot, data) {
     insights.push({ type: 'positive', text: `No target midterms within ${windowHours}h of this slot` });
   }
 
-  const competing = allEvents.filter(e => overlaps(e.start_time, e.end_time, slot.start, slot.end));
+  const competing = onDay(data.eventsByDay, slot).filter(e => overlaps(e.start_time, e.end_time, slot.start, slot.end));
   if (competing.length > 0) {
     score -= Math.min(45, competing.length * 15);
     insights.push({ type: 'warning', text: `${competing.length} other RSO event${competing.length > 1 ? 's' : ''} at this time, so attendance may split` });
@@ -490,7 +556,7 @@ function scoreSlotBase(slot, data) {
 
 /** What the room itself changes about a slot's score. */
 function scoreRoomAt(slot, loc, data) {
-  const buildingReservations = data.allReservations.filter(r =>
+  const buildingReservations = onDay(data.reservationsByDay, slot).filter(r =>
     r.building === loc.building && overlaps(r.start_time, r.end_time, slot.start, slot.end)
   );
   if (buildingReservations.length === 0) return { score: 0, insights: [] };
@@ -502,12 +568,6 @@ function scoreRoomAt(slot, loc, data) {
       text: `${buildingReservations.length} external event${buildingReservations.length > 1 ? 's' : ''} in ${loc.building} at this time`,
     }],
   };
-}
-
-function scoreSlot(slot, loc, data) {
-  const base = scoreSlotBase(slot, data);
-  const room = scoreRoomAt(slot, loc, data);
-  return { score: base.score + room.score, insights: [...base.insights, ...room.insights] };
 }
 
 function pickCurated(sortedResults, keyOf = rec => rec.start.slice(0, 10)) {
