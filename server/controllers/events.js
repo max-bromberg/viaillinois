@@ -11,6 +11,7 @@ import { recordDenial } from '../services/denialRecorder.js';
 import * as outbox from '../db/queries/outbox.ts';
 
 import { checkRsoAdmin, checkRsoEditor } from '../middleware/auth.js';
+import { recordView } from '../services/viewRecorder.js';
 
 /**
  * More RSOs than VIA will ever have, which is what makes this a guard against
@@ -122,6 +123,22 @@ export async function getEvent(req, res, next) {
         if (!canSee) return res.status(404).json({ error: 'Event not found' });
       }
     }
+    /*
+     * Counted here rather than in the browser, because the page is read by
+     * plenty of things that run no scripts, and a number the browser sends is
+     * a number anybody can send. It is counted after the refusals above, so an
+     * internal event refused to somebody outside the organization is not
+     * counted as a reading of it.
+     *
+     * Counting a reading is the least important thing this request does, so it
+     * never decides whether the page is served.
+     */
+    try {
+      recordView(event.event_id);
+    } catch (err) {
+      console.error('counting a reading failed:', err.message);
+    }
+
     res.json({ event });
   } catch (err) { next(err); }
 }

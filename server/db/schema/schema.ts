@@ -48,6 +48,23 @@ export const accessDenials = mysqlTable("Access_Denials", {
  * recorded: the platform does not store those, and a bug report is no reason to
  * start.
  */
+/**
+ * How many times an event's page was read, by event and by day. Written by
+ * server/services/viewRecorder.js once a minute rather than once a reading,
+ * for the same reason Access_Denials is: the hot path should not carry a
+ * write. Nothing about the reader is stored in any column, so the number
+ * counts readings rather than readers.
+ */
+export const eventViews = mysqlTable("Event_Views", {
+	eventId: int("event_id").notNull().references(() => events.eventId, { onDelete: "cascade" } ),
+	day: date({ mode: 'string' }).notNull(),
+	viewCount: int("view_count").default(0).notNull(),
+},
+(table) => [
+	index("idx_event_views_day").on(table.day),
+	primaryKey({ columns: [table.eventId, table.day], name: "Event_Views_pk"}),
+]);
+
 export const bugReports = mysqlTable("Bug_Reports", {
 	reportId: int("report_id").autoincrement().notNull(),
 	reportedBy: varchar("reported_by", { length: 20 }).references(() => users.netId, { onDelete: "set null" } ),

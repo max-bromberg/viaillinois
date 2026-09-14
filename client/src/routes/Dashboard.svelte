@@ -586,6 +586,42 @@
             {/if}
           </section>
 
+          <!--
+            The one number the platform collects by itself. Interest and
+            feedback both arrive through the Discord bot, so a board whose
+            members are not on Discord read a column of zeros and learned
+            nothing about whether anybody had seen the event at all.
+
+            These are readings rather than readers: nothing about who read a
+            page is recorded anywhere, so one person opening it five times is
+            five. It is the crude measure deliberately, because the precise one
+            is bought with a record of who read what.
+          -->
+          <section class="whole">
+            <h3>How often events were read about</h3>
+            {#if !insights.views || insights.views.length === 0}
+              <p class="quiet">
+                No event page has been read in the last ninety days. A reading is counted when
+                somebody opens an event's own page, so this fills in as your events are shared.
+              </p>
+            {:else}
+              <p class="quiet">
+                <Numeral value={insights.view_total ?? 0} unit=" readings in the last ninety days" size={22} />
+              </p>
+              <ul class="lines">
+                {#each insights.views as row (row.event_id)}
+                  <li>
+                    <span class="what">
+                      <span class="name">{row.title}</span>
+                      <small>{fmtDate(row.start_time)}</small>
+                    </span>
+                    <Numeral value={row.view_count} unit={row.view_count === 1 ? ' reading' : ' readings'} size={22} />
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
+
           <!-- The count that replaced RSVPs, from Discord's own controls and the companion's buttons. -->
           <section class="whole">
             <h3>Interest in upcoming events</h3>
