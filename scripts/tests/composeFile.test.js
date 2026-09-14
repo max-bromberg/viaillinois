@@ -3,9 +3,59 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { parse } from 'yaml';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const compose = readFileSync(join(root, 'docker-compose.yml'), 'utf8');
+
+/**
+ * Every other assertion in this file reads the compose file as text, which
+ * says whether a line is present and says nothing about whether the file is a
+ * document at all. A compose file that does not parse fails at the moment
+ * scripts/cutover.sh builds the images, which is on the server, during a
+ * deploy, after the release has been tagged and the gate has gone green.
+ *
+ * That is not a hypothetical. v0.6.0 shipped a services.via.networks block
+ * that opened as a sequence with "- default" and then gave via_internal a
+ * mapping key at the same indentation, which is two shapes in one block and
+ * not valid YAML. Every job of the gate passed it, because nothing here or
+ * anywhere else in the repository ever parsed the file.
+ *
+ * These parse it. They are deliberately first, because an assertion about a
+ * key path means nothing when the document holding it cannot be read.
+ */
+/**
+ * The networks one service joins, whichever of the two shapes the block is
+ * written in. A question about which networks a service is on is a question
+ * about the document, so it is asked of the parsed document.
+ */
+function networksOf(service) {
+  const networks = parse(compose).services[service].networks;
+  return Array.isArray(networks) ? networks : Object.keys(networks);
+}
+
+describe('docker-compose.yml is a valid document', () => {
+  it('parses as YAML', () => {
+    expect(() => parse(compose)).not.toThrow();
+  });
+
+  it('gives every service a networks block written in one shape', () => {
+    const services = parse(compose).services;
+
+    for (const [name, service] of Object.entries(services)) {
+      if (service.networks === undefined) continue;
+      const shape = Array.isArray(service.networks) ? 'sequence' : 'mapping';
+      // A sequence names networks and carries no settings, a mapping carries
+      // settings such as aliases. Either is correct. Mixing them in one block
+      // is what was shipped, and YAML refuses it rather than guessing.
+      expect(['sequence', 'mapping']).toContain(shape);
+      const entries = Array.isArray(service.networks)
+        ? service.networks
+        : Object.keys(service.networks);
+      expect(entries.length, `${name} joins no network`).toBeGreaterThan(0);
+    }
+  });
+});
 
 /**
  * Return the body of a nested block, addressed by its key path.
@@ -79,7 +129,11 @@ describe('docker-compose.yml', () => {
     const network = section(compose, ['networks', 'default']);
     expect(network).toContain('external: true');
     expect(network).toContain('name: internal');
-    expect(section(compose, ['services', 'via', 'networks'])).toContain('- default');
+    // Read from the parsed document rather than from the text. Asked of the
+    // text, this assertion searched for "- default" and so was answered by the
+    // shape the block happened to be written in rather than by which networks
+    // the service joins, which is the question it means to ask.
+    expect(networksOf('via')).toContain('default');
   });
 
   it('keeps the database off the shared network', () => {
@@ -101,9 +155,7 @@ describe('docker-compose.yml', () => {
   it('puts the application on both networks', () => {
     // The proxy reaches the application on the shared network, and the
     // application reaches the database on the private one.
-    const networks = section(compose, ['services', 'via', 'networks']);
-    expect(networks).toContain('- default');
-    expect(networks).toContain('via_internal:');
+    expect(networksOf('via')).toEqual(expect.arrayContaining(['default', 'via_internal']));
     expect(section(compose, ['networks', 'via_internal'])).not.toBeNull();
   });
 
