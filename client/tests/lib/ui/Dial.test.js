@@ -29,22 +29,26 @@ describe('Dial', () => {
     expect(getByRole('radio', { name: /system/i })).toBeTruthy();
   });
 
-  it.each([
-    ['light', 'Light'],
-    ['auto', 'Auto'],
-    ['dark', 'Dark'],
-  ])('shows the name of the mode it is in when it is %s', (mode, name) => {
+  /*
+   * The middle stop used to carry the name of the current mode, so the dial
+   * read "Light" in the light theme and clicking that word selected auto. It
+   * carries its own name now, whatever is chosen, and which mode is on is said
+   * by where the thumb is.
+   */
+  it.each(['light', 'auto', 'dark'])('says Auto in the middle when it is %s', mode => {
     const { container } = render(Dial, { mode });
-    expect(container.querySelector('.dial b').textContent).toBe(name);
+    expect(container.querySelector('.dial b').textContent).toBe('Auto');
   });
 
-  it.each(['light', 'auto', 'dark'])('puts the pad beside the active mode when it is %s', mode => {
-    const { container } = render(Dial, { mode });
-    const stops = [...container.querySelectorAll('[role="radio"]')];
-    const withPad = stops.filter(stop => stop.querySelector('.pad'));
-    expect(withPad.length).toBe(1);
-    expect(withPad[0].getAttribute('aria-checked')).toBe('true');
-  });
+  it.each([['light', '0'], ['auto', '1'], ['dark', '2']])(
+    'stands the thumb on the active stop when it is %s',
+    (mode, at) => {
+      const { container } = render(Dial, { mode });
+      expect(container.querySelector('.thumb').style.getPropertyValue('--at').trim()).toBe(at);
+      const chosen = [...container.querySelectorAll('[aria-checked="true"]')];
+      expect(chosen).toHaveLength(1);
+    },
+  );
 
   it('marks exactly one stop as chosen', () => {
     const { container } = render(Dial, { mode: 'dark' });
@@ -123,16 +127,23 @@ describe('the dial turning', () => {
     window.matchMedia = realMatchMedia;
   });
 
-  it('slides the pad from where it was over four hundred milliseconds', async () => {
-    const calls = dialWithPositions();
-    const { rerender } = render(Dial, { mode: 'auto' });
-    // The first draw has nowhere to come from, so nothing moves.
-    expect(calls).toHaveLength(0);
+  /*
+   * The marker used to be rebuilt inside whichever stop was active, which
+   * destroys it in one place and creates it in another, so it arrived with no
+   * journey and had to be animated back to where it came from. There is one
+   * thumb for the whole dial now and it travels by index, so the movement is a
+   * transition the browser makes and there is nothing to put back.
+   */
+  it('moves one thumb rather than rebuilding a marker in each stop', async () => {
+    const { container, rerender } = render(Dial, { mode: 'auto' });
+    const before = container.querySelector('.thumb');
+    expect(before.style.getPropertyValue('--at').trim()).toBe('1');
+
     await rerender({ mode: 'dark' });
-    expect(calls).toHaveLength(1);
-    expect(calls[0].options.duration).toBe(400);
-    expect(calls[0].frames[0].transform).toBe('translateX(-40px)');
-    expect(calls[0].frames[1].transform).toBe('none');
+
+    const after = container.querySelector('.thumb');
+    expect(container.querySelectorAll('.thumb')).toHaveLength(1);
+    expect(after.style.getPropertyValue('--at').trim()).toBe('2');
   });
 
   it('holds still for anybody who asks for stillness', async () => {
@@ -150,5 +161,73 @@ describe('the dial turning', () => {
     const { rerender } = render(Dial, { mode: 'auto' });
     await rerender({ mode: 'dark' });
     expect(calls).toHaveLength(0);
+  });
+});
+
+/**
+ * The dial was hard to follow, and the reason was not decoration.
+ *
+ * The middle stop showed the name of the current mode rather than its own
+ * name, so in the light theme it read "Light", and clicking it selected auto.
+ * A control that says one thing and does another is worse than an unlabelled
+ * one. The pad that marked the active stop also sat before that stop's icon,
+ * so it read as a fourth thing in the row rather than as a marker on one of
+ * the three.
+ *
+ * Each stop says what it is now, permanently, and what is selected is shown by
+ * a thumb that sits behind it and travels when the dial is turned.
+ */
+describe('what each position of the dial says it does', () => {
+  const stopsOf = container => [...container.querySelectorAll('[role="radio"]')];
+
+  it('never labels a stop with a mode other than its own', () => {
+    for (const mode of ['light', 'auto', 'dark']) {
+      const { container } = render(Dial, { mode });
+      const [light, auto, dark] = stopsOf(container);
+      expect(auto.textContent.trim()).toBe('Auto');
+      expect(light.textContent.trim()).not.toMatch(/Auto|Dark/);
+      expect(dark.textContent.trim()).not.toMatch(/Auto|Light/);
+    }
+  });
+
+  it('gives every stop a name of its own, not just the middle one', () => {
+    const { container } = render(Dial, { mode: 'auto' });
+    for (const stop of stopsOf(container)) {
+      const said = stop.getAttribute('aria-label') ?? stop.textContent;
+      expect(said.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('selects the mode of the stop that was clicked, which the middle did not', async () => {
+    const turned = [];
+    const { container } = render(Dial, { mode: 'light', onchange: value => turned.push(value) });
+    const [, auto, dark] = stopsOf(container);
+    await fireEvent.click(auto);
+    await fireEvent.click(dark);
+    expect(turned).toEqual(['auto', 'dark']);
+  });
+
+  it('marks what is selected with a thumb that sits behind the stop', () => {
+    const { container } = render(Dial, { mode: 'dark' });
+    const thumb = container.querySelector('.thumb');
+    expect(thumb).toBeTruthy();
+    // The thumb travels by index rather than being rebuilt inside each stop,
+    // so there is one of it and it can move.
+    expect(container.querySelectorAll('.thumb').length).toBe(1);
+    expect(thumb.style.getPropertyValue('--at').trim()).toBe('2');
+  });
+
+  it('moves the thumb rather than making a new one when the dial is turned', () => {
+    for (const [mode, at] of [['light', '0'], ['auto', '1'], ['dark', '2']]) {
+      const { container } = render(Dial, { mode });
+      expect(container.querySelector('.thumb').style.getPropertyValue('--at').trim()).toBe(at);
+    }
+  });
+
+  it('says which stop is chosen to anybody who cannot see the thumb', () => {
+    const { container } = render(Dial, { mode: 'auto' });
+    const checked = [...container.querySelectorAll('[aria-checked="true"]')];
+    expect(checked).toHaveLength(1);
+    expect(checked[0].getAttribute('aria-label')).toMatch(/system/i);
   });
 });

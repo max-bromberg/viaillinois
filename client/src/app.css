@@ -169,9 +169,9 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke
 .tswitch .pad{position:absolute;left:0;top:5px;width:12px;height:12px;--h:var(--faint);transition:left 200ms ease,background 200ms ease}
 .tswitch.on::before{background:var(--g-current)}
 .tswitch.on .pad{left:40px;--h:var(--primary)}
-.dial{display:inline-flex;align-items:center;gap:10px;padding:6px 10px;border:1.5px solid var(--line-strong);border-radius:999px;font-size:13px;color:var(--muted)}
-.dial .pad{--h:var(--primary)}
-.dial b{color:var(--ink);font-family:var(--display);font-stretch:80%;font-weight:700}
+.dial{display:inline-flex;align-items:center;gap:0;padding:4px;border:1.5px solid var(--line-strong);border-radius:999px;font-size:13px;color:var(--muted);--stop-width:46px;--stop-step:46px}
+.dial .stop{width:var(--stop-width)}
+.dial b{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:12.5px}
 .fld{display:grid;gap:6px;max-width:320px}
 .fld label{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:14px}
 .fld .in{display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--line-strong);padding:6px 0}

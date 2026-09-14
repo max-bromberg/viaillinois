@@ -1,13 +1,18 @@
 <script>
-  import { Pad } from '../Pad/index.js';
   import { Icon } from '../Icon/index.js';
 
   /**
    * The dial.
    *
-   * The theme control: a pill with a 1.5 pixel outline holding a sun, a pad, the
-   * current mode's name in the display face, and a moon. The pad sits beside the
-   * active mode and slides when the mode changes.
+   * The theme control: three stops on a track, a sun, the word Auto and a moon,
+   * with a thumb that sits behind whichever is chosen and travels when the dial
+   * is turned.
+   *
+   * It used to show the name of the current mode in the middle stop, so in the
+   * light theme the middle of the dial read "Light" and clicking it selected
+   * auto. A control that says one thing and does another is worse than one with
+   * no label at all, so each stop says what it is, permanently, and what is
+   * chosen is shown by where the thumb is rather than by what the words say.
    *
    * An icon never appears without a label. The dial is the one place the site
    * takes the exception in docs/design/09-accessibility.md, so the sun and the
@@ -24,59 +29,25 @@
     ...rest
   } = $props();
 
+  /**
+   * The three stops, each saying what choosing it does rather than what is
+   * currently true. "Follow the system" is the whole of what auto means, and it
+   * is the one stop whose meaning a person cannot guess from a picture.
+   */
   const STOPS = [
     { value: 'light', name: 'Light' },
     { value: 'auto', name: 'Follow the system' },
     { value: 'dark', name: 'Dark' },
   ];
 
-  /** What the pill says, which is the name of the mode rather than of the stop. */
-  const NAMES = { light: 'Light', auto: 'Auto', dark: 'Dark' };
-
   const at = $derived(Math.max(0, STOPS.findIndex(stop => stop.value === mode)));
 
-  /**
-   * The fifth movement: the dial turns and the pad slides along it over 400
-   * milliseconds rather than snapping.
-   *
-   * The pad is drawn inside whichever stop is active, so a change destroys it in
-   * one stop and builds it in the next and it lands there with no journey. What
-   * happens instead is that the new pad is put back where the old one was and
-   * then moved to where it belongs, which reads as one pad travelling and costs
-   * the layout nothing, because the pad still sits in its stop the whole time.
-   *
-   * Stillness is honoured here rather than in the stylesheet, because this is
-   * drawn by the browser's animation interface and no stylesheet reaches it.
-   */
-  let pad = $state(null);
-  let cameFrom = null;
-
-  const wantsStillness = () => typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  $effect(() => {
-    // Named so that the effect runs again when the dial is turned.
-    void at;
-    const element = pad;
-    if (!element || typeof element.animate !== 'function') return;
-    const { left } = element.getBoundingClientRect();
-    const from = cameFrom;
-    cameFrom = left;
-    if (from === null || from === left || wantsStillness()) return;
-    element.animate(
-      [{ transform: `translateX(${from - left}px)` }, { transform: 'none' }],
-      { duration: 400, easing: 'ease-in-out' },
-    );
-  });
-
   function turn(value) {
-    if (value === mode) return;
-    onchange?.(value);
+    if (value !== mode) onchange?.(value);
   }
 
   function onkeydown(event) {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[event.key];
     if (step === undefined) {
       if (event.key !== ' ' && event.key !== 'Enter') return;
       event.preventDefault();
@@ -93,37 +64,90 @@
 </script>
 
 <span class={['dial', className].filter(Boolean).join(' ')} role="radiogroup" aria-label="Color theme" {...rest}>
+  <!--
+    One thumb for the whole dial rather than a marker rebuilt inside whichever
+    stop is active. Built in place it is destroyed in one stop and created in
+    the next, so it arrives with no journey; travelling by index it is the same
+    element throughout and the movement is the browser's to make.
+  -->
+  <span class="thumb" style="--at: {at}" aria-hidden="true"></span>
+
   {#each STOPS as stop, index (stop.value)}
     <span
       class="stop"
+      class:on={index === at}
       role="radio"
       aria-checked={String(stop.value === mode)}
-      aria-label={stop.value === 'auto' ? stop.name : undefined}
+      aria-label={stop.name}
       tabindex={index === at ? 0 : -1}
       onclick={() => turn(stop.value)}
       {onkeydown}
     >
-      {#if index === at}<Pad bind:element={pad} />{/if}
-      {#if stop.value === 'light'}<Icon name="sun" label="Light" />{/if}
-      {#if stop.value === 'auto'}<b>{NAMES[mode] ?? NAMES.auto}</b>{/if}
-      {#if stop.value === 'dark'}<Icon name="moon" label="Dark" />{/if}
+      {#if stop.value === 'light'}<Icon name="sun" />{/if}
+      {#if stop.value === 'auto'}<b>Auto</b>{/if}
+      {#if stop.value === 'dark'}<Icon name="moon" />{/if}
     </span>
   {/each}
 </span>
 
 <style>
+  /*
+   * The track is three stops wide and the thumb is one of them, so the thumb's
+   * travel is a fraction of the dial rather than a pixel measurement that has
+   * to be kept in step with the padding.
+   */
+  .dial {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .thumb {
+    position: absolute;
+    z-index: -1;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: var(--stop-width, 34px);
+    background: var(--g-current);
+    border-radius: 999px;
+    transform: translateX(calc(var(--at) * var(--stop-step, 44px)));
+    transition: transform 380ms cubic-bezier(.22, .61, .36, 1);
+  }
+
   .stop {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     cursor: pointer;
     /* A 32 px target, like every other control on the site. */
     min-height: 32px;
+    min-width: var(--stop-width, 34px);
+    color: var(--muted);
+    transition: color 200ms ease;
+  }
+
+  .stop:hover {
+    color: var(--ink);
+  }
+
+  /* What is chosen sits on the thumb, so it takes the thumb's own ink. */
+  .stop.on,
+  .stop.on :global(b) {
+    color: var(--primary-fg);
   }
 
   .stop:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 4px;
     border-radius: 2px;
+  }
+
+  /*
+   * Stillness for anybody who asks for it. The thumb still moves, because where
+   * it is carries the meaning, and it arrives without the journey.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .thumb { transition: none; }
   }
 </style>
