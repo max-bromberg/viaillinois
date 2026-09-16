@@ -38,6 +38,51 @@ import {
 const MAX_ENTRIES = 1000;
 
 /**
+ * The widths the schema gives the three columns a calendar file writes into.
+ * Events and Midterms give each of them the same width.
+ */
+const TITLE_LIMIT = 200;
+const LOCATION_TEXT_LIMIT = 200;
+const EXTERNAL_UID_LIMIT = 255;
+
+const bounded = (value, limit) =>
+  (typeof value === 'string' && value.length > limit ? value.slice(0, limit) : value);
+
+/**
+ * An identifier too long for its column is replaced rather than cut.
+ *
+ * Cutting it would map two entries that differ only past the two hundred and
+ * fifty fifth character onto one key, and the unique index would then refuse
+ * the second of them. A digest of the whole identifier keeps them apart, and it
+ * is the same digest every time, which is what a re-import matches on. This is
+ * what occurrenceUid below already does for the same reason.
+ */
+function boundedUid(uid) {
+  if (typeof uid !== 'string' || uid.length <= EXTERNAL_UID_LIMIT) return uid;
+  return `via-hashed-${createHash('sha256').update(uid).digest('hex')}`;
+}
+
+/**
+ * An entry with every value inside the column it is going to be written to.
+ *
+ * A calendar file is written by somebody else's software and nothing about it
+ * is bounded: Exchange writes identifiers well past two hundred characters, and
+ * a summary can be a paragraph. MySQL runs in strict mode, so a value over its
+ * column's width is an error rather than a truncation, and that error lands in
+ * the middle of a loop that has already written the rows before it. Bounding
+ * here rather than at the insert means the preview an admin reads shows what
+ * will actually be stored.
+ */
+function withinColumns(entry) {
+  return {
+    ...entry,
+    uid: boundedUid(entry.uid),
+    title: bounded(entry.title, TITLE_LIMIT),
+    location: bounded(entry.location, LOCATION_TEXT_LIMIT),
+  };
+}
+
+/**
  * Keep the first entry for each identifier.
  *
  * A file can name the same entry twice. A recurring event with an override
@@ -154,7 +199,7 @@ export async function planEventImport({ ics, rsoId }) {
   if (!String(ics ?? '').includes('BEGIN:VEVENT')) {
     throw new Error('That file has no calendar entries in it. Expected an .ics calendar file.');
   }
-  const all = parseCalendar(ics);
+  const all = parseCalendar(ics).map(withinColumns);
   refuseIfOversized(all.length);
 
   // An entry standing in for one week of a series is identified by the week it
@@ -421,7 +466,7 @@ export async function planMidtermImport({ ics }) {
   if (!String(ics ?? '').includes('BEGIN:VEVENT')) {
     throw new Error('That file has no calendar entries in it. Expected an .ics calendar file.');
   }
-  const all = parseCalendar(ics);
+  const all = parseCalendar(ics).map(withinColumns);
   refuseIfOversized(all.length);
   const { unique: parsed, duplicates } = dropDuplicateUids(all);
 
