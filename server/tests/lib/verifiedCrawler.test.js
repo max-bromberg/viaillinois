@@ -50,10 +50,24 @@ describe('isVerifiedCrawler', () => {
     expect(await isVerifiedCrawler('40.77.1.1', 'Mozilla/5.0 (compatible; bingbot/2.0)', dns)).toBe(true);
   });
 
-  it('trusts Cloudflare when it has already verified the bot', async () => {
+  /**
+   * The edge's word for something is only the edge's word when the edge writes
+   * it. cf-verified-bot arrives as a request header, and the managed transform
+   * that makes it authoritative is not one this repository asks for or can check
+   * from here. Trusted on its own it was an opt out from the whole anti scrape
+   * budget that anybody could send: a user agent naming a crawler is a free
+   * claim, and those two together were the entire check.
+   */
+  it('does not take a request header as evidence on its own', async () => {
     const dns = dnsThatSays(null, []);
-    expect(await isVerifiedCrawler('66.249.66.1', GOOGLE_UA, { ...dns, cloudflareVerified: true })).toBe(true);
-    expect(dns.reverse).not.toHaveBeenCalled();
+    expect(await isVerifiedCrawler('203.0.113.9', GOOGLE_UA, { ...dns, cloudflareVerified: true }))
+      .toBe(false);
+  });
+
+  it('still accepts a crawler that the evidence confirms, header or no header', async () => {
+    const withHeader = dnsThatSays('crawl-66-249-66-1.googlebot.com', ['66.249.66.1']);
+    expect(await isVerifiedCrawler('66.249.66.1', GOOGLE_UA, { ...withHeader, cloudflareVerified: true }))
+      .toBe(true);
   });
 
   it('asks DNS once and remembers the answer', async () => {

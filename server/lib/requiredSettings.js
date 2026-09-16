@@ -21,10 +21,53 @@ const ALWAYS = ['JWT_SECRET', 'SESSION_SECRET', 'DB_PASSWORD', 'DB_USER'];
 const WITH_THE_BOT = ['DISCORD_INTEREST_SALT'];
 
 /**
+ * The settings that are secrets rather than names.
+ *
+ * A database user is a name and its password is set on the database itself, so
+ * this file is not the place to police either. The rest are keys this process
+ * signs or hashes with, and a key is only a key if nobody else has it.
+ */
+const SECRETS = new Set(['JWT_SECRET', 'SESSION_SECRET', 'DISCORD_INTEREST_SALT']);
+
+/**
+ * What people write instead of a secret.
+ *
+ * The first two are the words .env.example puts there, so copying that file and
+ * filling in the database password is the ordinary way a host ends up signing
+ * with a value published in this repository. The rest are what somebody reaches
+ * for when they mean to come back to it later and do not.
+ */
+const PLACEHOLDERS = new Set([
+  'change_me_in_production', 'changeme', 'change_me', 'changeit',
+  'secret', 'password', 'todo', 'xxx', 'test',
+  'dev_secret', 'dev_session_secret', 'your_secret_here', 'replace_me',
+]);
+
+/**
+ * Short enough to be worked out offline.
+ *
+ * Every token the platform issues is a free sample of what this key produces,
+ * so a short one is guessed at somebody else's leisure rather than against a
+ * login limiter.
+ */
+const SECRET_MIN_LENGTH = 24;
+
+/** Whether a value is a real secret rather than a stand in for one. */
+function isRealSecret(value) {
+  const written = String(value).trim();
+  if (written.length < SECRET_MIN_LENGTH) return false;
+  return !PLACEHOLDERS.has(written.toLowerCase());
+}
+
+/**
  * @param {Record<string, string|undefined>} env
- * @returns {string[]} the names that are missing, in the order they are asked for
+ * @returns {string[]} the names that are missing or are not really set, in the
+ *   order they are asked for
  */
 export function missingProductionSettings(env) {
   const required = env.BOT_SERVICE_TOKEN ? [...ALWAYS, ...WITH_THE_BOT] : [...ALWAYS];
-  return required.filter(name => !env[name]);
+  return required.filter(name => {
+    if (!env[name]) return true;
+    return SECRETS.has(name) && !isRealSecret(env[name]);
+  });
 }

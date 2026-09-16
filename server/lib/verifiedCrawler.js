@@ -49,9 +49,16 @@ export async function isVerifiedCrawler(ip, userAgent, deps = {}) {
   // reason to spend a DNS round trip on an ordinary reader.
   if (!claimed) return false;
 
-  // Cloudflare has already done this work, against a list of verified bots
-  // that is wider and better maintained than the one above.
-  if (cloudflareVerified) return true;
+  // cloudflareVerified is read and deliberately not acted on. It carries the
+  // cf-verified-bot request header, and a request header is the edge's word for
+  // something only when the edge is configured to write it, which is a managed
+  // transform this repository does not ask for and cannot check from here.
+  // Taken at its word it was an opt out from the whole anti scrape budget that
+  // anybody could send: a user agent naming a crawler is a free claim, and
+  // those two together were the entire check. The evidence is below, it is
+  // cached per address, and a crawler that fails it is throttled rather than
+  // blocked, so paying for it is cheap and getting it wrong is not expensive.
+  void cloudflareVerified;
 
   const cached = cache.get(ip);
   if (cached && now() - cached.at < CACHE_TTL_MS) return cached.verified;

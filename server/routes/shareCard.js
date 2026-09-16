@@ -30,11 +30,20 @@ async function serve(res, event) {
  * is never drawn, whoever asks. A picture of one pasted into a public channel
  * would be exactly the leak the platform refuses everywhere else, and the
  * shared card in its place says nothing it should not.
+ *
+ * One event has one address. parseInt read the digits at the front and ignored
+ * whatever followed, so 42abc, 42.png and 0042 all named event 42 while being
+ * different addresses as far as a shared cache is concerned. That turned the
+ * edge cache, which is the whole defence for the most expensive route here,
+ * into an unlimited supply of misses: one address per junk suffix, every one of
+ * them arriving at a browser. Anything but a plain number is not an address.
  */
+const ONE_EVENT = /^[1-9][0-9]*$/;
+
 router.get('/event/:id.png', async (req, res, next) => {
   try {
-    const id = Number.parseInt(req.params.id, 10);
-    const event = Number.isInteger(id) ? await getEventById(id) : null;
+    if (!ONE_EVENT.test(req.params.id)) return res.status(404).end();
+    const event = await getEventById(Number(req.params.id));
     await serve(res, event && !event.is_private ? event : null);
   } catch (err) { next(err); }
 });

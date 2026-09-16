@@ -60,25 +60,53 @@ function locationOf(event) {
  * that does not fit is broken and then stopped rather than allowed to run off
  * the edge or shrunk until nobody can read it from a link preview.
  */
+/**
+ * A word longer than the whole measure, cut into pieces the measure can hold.
+ *
+ * Breaking on spaces alone never breaks such a word, because the line it would
+ * push is the empty one, so it was taken whole and drawn off the right edge of
+ * the card. Course titles reach this on their own: Electroencephalographically
+ * is twenty seven characters against a measure of twenty six.
+ */
+function inPieces(word, perLine) {
+  if (word.length <= perLine) return [word];
+  const pieces = [];
+  for (let at = 0; at < word.length; at += perLine) pieces.push(word.slice(at, at + perLine));
+  return pieces;
+}
+
 function titleLines(title, { perLine = 26, maxLines = 3 } = {}) {
-  const words = String(title ?? '').trim().split(/\s+/).filter(Boolean);
+  const words = String(title ?? '').trim().split(/\s+/).filter(Boolean)
+    .flatMap(word => inPieces(word, perLine));
   if (words.length === 0) return [];
 
   const lines = [];
   let line = '';
+  // How many words are in the lines already closed, and how many are in the
+  // one being built. Counted rather than measured, because a word cut into
+  // pieces is rejoined with a space that was not in the title, and comparing
+  // lengths would then report that the title ran out when it did not.
+  let placed = 0;
+  let pending = 0;
   for (const word of words) {
     const candidate = line ? `${line} ${word}` : word;
     if (candidate.length > perLine && line) {
       lines.push(line);
+      placed += pending;
       line = word;
-      if (lines.length === maxLines) break;
+      pending = 1;
+      if (lines.length === maxLines) { line = ''; pending = 0; break; }
     } else {
       line = candidate;
+      pending += 1;
     }
   }
-  if (lines.length < maxLines && line) lines.push(line);
+  if (lines.length < maxLines && line) {
+    lines.push(line);
+    placed += pending;
+  }
 
-  const ranOut = words.join(' ').length > lines.join(' ').length;
+  const ranOut = placed < words.length;
   if (ranOut && lines.length > 0) {
     lines[lines.length - 1] = `${lines[lines.length - 1].replace(/[.,;:]$/, '')}…`;
   }

@@ -19,11 +19,27 @@ import { events, eventViews } from '../schema/schema.ts';
 
 export type ViewRow = { eventId: number; day: string; viewCount: number };
 
-/** Add these readings to whatever each event and day already has. */
+/**
+ * Add these readings to whatever each event and day already has.
+ *
+ * A minute of readings is one statement, and one of the events it names can
+ * have been deleted in the meantime, by its own board, in the ordinary way. The
+ * foreign key would then reject the whole statement, and the recorder drops
+ * what it was holding on a failure, so one editor deleting one of their own
+ * events threw away every organization's readings for that minute. Ignoring
+ * skips the row whose event is gone and writes the rest, which is what was
+ * meant: a reading of a page that no longer exists is not worth keeping, and
+ * everybody else's readings are.
+ *
+ * Ignoring does not weaken the upsert below. A duplicate key is handled by the
+ * clause that follows rather than by being skipped, so two writes on the same
+ * day still add rather than collide.
+ */
 export async function addViews(rows: ViewRow[]) {
   if (rows.length === 0) return;
   await db
     .insert(eventViews)
+    .ignore()
     .values(rows.map(row => ({
       eventId: row.eventId,
       day: row.day,

@@ -2,6 +2,7 @@ import { callGetRSOStats } from '../db/queries/advanced.js';
 import { getInterestByRso } from '../db/queries/eventInterest.ts';
 import { getFeedbackByRso } from '../db/queries/eventFeedback.ts';
 import { getViewsByRso, getViewTotalByRso } from '../db/queries/eventViews.ts';
+import { campusStartOfToday } from '../lib/timezone.js';
 
 /**
  * What a board reads about its own RSO: members by role, the tags it uses
@@ -25,8 +26,15 @@ export async function getRsoStats(req, res, next) {
     const rsoId = parseInt(req.params.id);
     if (isNaN(rsoId)) return res.status(400).json({ error: 'id must be an integer' });
     // The last ninety days, which is the window the refusal counts are kept
-    // for and long enough to cover a term's worth of announcements.
-    const since = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
+    // for and long enough to cover a term's worth of announcements. Counted
+    // back from the campus day, because Event_Views.day is written from the
+    // campus day: between the evening and midnight the UTC date is already
+    // tomorrow, and the window would quietly start a day late and drop its
+    // oldest day. Every other window in the platform is counted this way.
+    const [y, m, d] = campusStartOfToday().slice(0, 10).split('-').map(Number);
+    const ninetyDaysBack = new Date(y, m - 1, d - 90);
+    const pad = n => String(n).padStart(2, '0');
+    const since = `${ninetyDaysBack.getFullYear()}-${pad(ninetyDaysBack.getMonth() + 1)}-${pad(ninetyDaysBack.getDate())}`;
 
     const [stats, interest, feedback, views, viewTotal] = await Promise.all([
       callGetRSOStats(rsoId),

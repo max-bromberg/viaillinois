@@ -56,6 +56,39 @@ let drawing = Promise.resolve();
 const cache = new Map();
 const CACHE_MAX = 200;
 
+/**
+ * The renders happening right now, by the key each one is for.
+ *
+ * Serialising renders keeps two browsers from opening at once, and it is not
+ * the same as sharing one. The cache is written when a render finishes, so
+ * every caller that arrived while the first was still drawing missed it and
+ * queued an identical render of its own. A pasted link is fetched
+ * independently by every unfurler that sees it and by the reader, and none of
+ * them share a cold entry at the edge, so the first post of a link was a queue
+ * of identical renders with a request held open for each.
+ */
+const inFlight = new Map();
+
+/**
+ * How long one card may take before it is given up on.
+ *
+ * The page settle had no bound, so a page that never finished settling held the
+ * queue for the life of the process and every card on the site stopped being
+ * drawn. A card is worth a few seconds and no more: a reader whose unfurler
+ * gets nothing sees a link without a picture, which is the same thing they saw
+ * before any of this existed.
+ */
+const RENDER_TIMEOUT_MS = () => parseInt(process.env.CARD_RENDER_TIMEOUT_MS || '10000', 10);
+
+/** Whichever comes first, the work or the clock. */
+function withTimeout(work, ms, what) {
+  let timer;
+  const clock = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} took too long and was given up on`)), ms);
+  });
+  return Promise.race([work, clock]).finally(() => clearTimeout(timer));
+}
+
 async function sharedBrowser() {
   if (browser?.isConnected()) return browser;
   browser = await chromium.launch({ args: ['--no-sandbox'] });
@@ -105,19 +138,31 @@ export async function renderCard(event = null) {
   const held = cache.get(key);
   if (held) return held;
 
-  const mine = drawing.then(() => draw(event), () => draw(event));
-  drawing = mine.catch(() => {});
-  const png = await mine;
+  // A render already going for this exact card is the answer to this call too.
+  const already = inFlight.get(key);
+  if (already) return already;
 
-  // Oldest out first, which for cards is near enough to least wanted.
-  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-  cache.set(key, png);
-  return png;
+  const mine = drawing
+    .then(() => withTimeout(draw(event), RENDER_TIMEOUT_MS(), 'drawing a card'),
+          () => withTimeout(draw(event), RENDER_TIMEOUT_MS(), 'drawing a card'))
+    .then(png => {
+      // Oldest out first, which for cards is near enough to least wanted.
+      if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+      cache.set(key, png);
+      return png;
+    })
+    .finally(() => { inFlight.delete(key); });
+
+  inFlight.set(key, mine);
+  // The chain advances on either settlement, so one failure cannot wedge it.
+  drawing = mine.catch(() => {});
+  return mine;
 }
 
 /** Drop everything held, and the browser with it. For tests and for shutdown. */
 export async function resetCardCache() {
   cache.clear();
+  inFlight.clear();
   fontCss = null;
   if (browser) {
     await browser.close().catch(() => {});

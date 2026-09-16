@@ -50,6 +50,9 @@ export function resetWeatherCache() {
   cached = null;
   cachedAt = 0;
   forecastAddress = null;
+  // A read already in the air would otherwise be handed to the next caller as
+  // though it were fresh, which is the one thing a reset is for undoing.
+  inFlight = null;
 }
 
 async function getJson(url, headers = {}) {
@@ -181,6 +184,50 @@ async function fromOpenMeteo() {
 }
 
 /**
+ * Whether a source actually answered.
+ *
+ * A source can return a well formed body with nothing in it: the National
+ * Weather Service publishes an observation with a null temperature often
+ * enough to be expected, and its gridpoint forecast can carry no periods at
+ * all. Neither throws, so without this the first source was accepted, the
+ * second was never asked, and the screen drew a degree sign with no number in
+ * front of it while a working source sat unused.
+ */
+function hasReading(weather) {
+  return Number.isFinite(weather?.now?.temperature);
+}
+
+/**
+ * The read that is happening right now, if one is.
+ *
+ * Every screen on campus asks this platform rather than asking a weather
+ * service, so that a hundred screens are one request. The hold was written
+ * after the round trip, which made that true only for callers arriving after
+ * the first had finished: everybody inside the window started a round trip of
+ * their own, and the multiplier was their concurrency rather than one. The
+ * endpoint is unauthenticated and outside the public budget, so this is the one
+ * place a stranger could turn a burst into a burst against somebody else.
+ */
+let inFlight = null;
+
+/** Ask each source in turn, and take the first that answers with a reading. */
+async function readFromSources() {
+  for (const [name, read] of [
+    ['the National Weather Service', fromNationalWeatherService],
+    ['Open-Meteo', fromOpenMeteo],
+  ]) {
+    try {
+      const weather = await read();
+      if (hasReading(weather)) return weather;
+      console.warn(`weather: ${name} answered with no reading in it`);
+    } catch (err) {
+      console.warn(`weather: ${name} could not be read (${err.message})`);
+    }
+  }
+  return null;
+}
+
+/**
  * The forecast, or nothing.
  *
  * Nothing is a legitimate answer and the only one a caller has to handle: the
@@ -190,22 +237,15 @@ export async function readWeather() {
   const age = Date.now() - cachedAt;
   if (cached !== null && age < CACHE_MS) return cached;
   if (cached === null && cachedAt !== 0 && age < FAILURE_CACHE_MS) return null;
+  if (inFlight) return inFlight;
 
-  for (const [name, read] of [
-    ['the National Weather Service', fromNationalWeatherService],
-    ['Open-Meteo', fromOpenMeteo],
-  ]) {
-    try {
-      const weather = await read();
+  inFlight = readFromSources()
+    .then(weather => {
       cached = weather;
       cachedAt = Date.now();
       return weather;
-    } catch (err) {
-      console.warn(`weather: ${name} could not be read (${err.message})`);
-    }
-  }
+    })
+    .finally(() => { inFlight = null; });
 
-  cached = null;
-  cachedAt = Date.now();
-  return null;
+  return inFlight;
 }
