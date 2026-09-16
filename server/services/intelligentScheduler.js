@@ -396,8 +396,28 @@ function indexByDay(rows) {
 }
 
 /** The rows filed under the day a slot begins on. */
+/**
+ * The rows a slot could possibly clash with.
+ *
+ * Indexing by day is what made the search fast, and it is only sound if a slot
+ * asks about every day it touches. A slot may run past midnight, because the
+ * duration list offers three hours and the last hour may be set as late as 23,
+ * so the day it ends on is a second day to ask about. Asking only about the day
+ * it starts on made everything after midnight invisible, and the scheduler then
+ * offered a room that was already booked while reporting no competing events.
+ *
+ * A row that itself crosses midnight is filed under both days, so the two
+ * buckets can hold the same row, and the second is filtered against the first
+ * rather than handed to the caller twice.
+ */
 function onDay(byDay, slot) {
-  return byDay.get(slot.start.slice(0, 10)) ?? EMPTY;
+  const first = byDay.get(slot.start.slice(0, 10)) ?? EMPTY;
+  const lastDay = slot.end.slice(0, 10);
+  if (lastDay === slot.start.slice(0, 10)) return first;
+  const second = byDay.get(lastDay) ?? EMPTY;
+  if (second.length === 0) return first;
+  if (first.length === 0) return second;
+  return [...first, ...second.filter(row => !first.includes(row))];
 }
 
 const EMPTY = [];
