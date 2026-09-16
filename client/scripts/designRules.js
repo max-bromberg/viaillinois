@@ -131,7 +131,7 @@ export function collect(css, selectors) {
  */
 export const COMPOSED_ROOTS = [
   'btn', 'check', 'tswitch', 'dial', 'fld', 'toast', 'empty', 'st', 'nowtag',
-  'skyband', 'nav', 'greet', 'feedhead', 'day', 'ev', 'poster', 'qr', 'board',
+  'skyband', 'nav', 'greet', 'feedhead', 'day', 'ev', 'poster', 'qr', 'board', 'cal',
   'mt', 'ribbon', 'ribcap', 'exams', 'exam', 'kiosk',
 ];
 

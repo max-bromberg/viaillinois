@@ -27,6 +27,7 @@ export { Button } from './Button/index.js';
 export { Field } from './Field/index.js';
 export { Switch } from './Switch/index.js';
 export { Dial } from './Dial/index.js';
+export { MonthCalendar } from './MonthCalendar/index.js';
 export { Toast } from './Toast/index.js';
 export { EmptyState } from './EmptyState/index.js';
 

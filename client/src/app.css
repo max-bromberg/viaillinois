@@ -183,6 +183,24 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke
 .fld.err .in .pad{--h:var(--danger)}
 .fld .help{font-size:12.5px;color:var(--muted)}
 .fld.err .help{color:var(--danger)}
+.cal{display:grid;gap:10px;width:268px;max-width:100%;user-select:none}
+.cal .mhead{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.cal .mhead b{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:15px}
+.cal .mstep{font:inherit;font-size:16px;background:none;border:0;color:var(--muted);cursor:pointer;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center}
+.cal .mstep:hover{color:var(--ink)}
+.cal .mstep:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:2px}
+.cal .wkrow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .dcap{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
+.cal .dbtn{font:inherit;background:none;border:0;cursor:pointer;width:100%;min-height:40px;display:grid;justify-items:center;align-content:center;gap:4px;padding:4px 0;color:var(--ink)}
+.cal .dbtn b{font-family:var(--display);font-stretch:75%;font-weight:700;font-size:16px;line-height:1}
+.cal .dbtn .pad{visibility:hidden;--h:var(--primary)}
+.cal .dbtn[aria-pressed="true"] .pad{visibility:visible}
+.cal .dbtn[aria-pressed="true"] b{color:var(--primary)}
+.cal .dbtn.now b{color:var(--signal-text)}
+.cal .dbtn:hover:not(:disabled) b,.cal .dbtn:focus-visible b{color:var(--primary)}
+.cal .dbtn:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:2px}
+.cal .dbtn:disabled{cursor:default;color:var(--muted);opacity:.5}
+.cal .tally{font-size:12.5px;color:var(--muted)}
 .toast{display:inline-flex;gap:12px;align-items:center;padding:12px 18px 12px 14px;background:var(--ink);color:var(--paper);font-size:14px;--cut:10px;box-shadow:var(--shadow-float)}
 .toast .pad{--h:var(--signal);animation:pulse 1.6s ease-in-out infinite}
 .toast b{font-family:var(--display);font-stretch:80%;font-weight:700}

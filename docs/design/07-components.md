@@ -6,8 +6,11 @@ themes, and carries no raw hex value. The selectors named below are the ones in
 `reference/foundation.css`, which is normative: when this document and that file disagree,
 the file wins and this document is corrected.
 
-Bits UI remains as the headless layer for menus, dialogs, popovers and the date picker, for
-keyboard and screen reader behavior only. It contributes no styling.
+Bits UI was going to be the headless layer for menus, dialogs, popovers and the date
+picker, for keyboard and screen reader behavior only. It is not a dependency of the client
+and nothing imports it, so the keyboard and screen reader behavior of each of those is
+written here and covered by that component's own tests. The calendar below is the first of
+them.
 
 The rules are not retyped into the client. `client/scripts/designRules.js` reads them out of
 `reference/foundation.css` in the order that file writes them, because that order is the
@@ -133,6 +136,57 @@ and a 2 px bottom border in strong line color; then help text at 12.5 px muted.
 | error (`.err`) | danger | danger | danger |
 
 There is no box around a field.
+
+## Calendar (`.cal`)
+
+One month of days, and the part every date control on the site is built from. The date
+field's floating sheet and the picker that takes a set of dates are both arrangements of
+this one component, so a change to how a month is drawn is one change rather than two.
+
+| Part | Appearance |
+| --- | --- |
+| month header (`.mhead`) | the previous chevron, the month and year in the display face at width 80 weight 700 15 px, the next chevron |
+| stepper (`.mstep`) | a chevron in muted ink inside a 32 px target, ink on hover, a 2 px primary outline on focus |
+| weekday cap (`.dcap`) | the two letter day in mono at 12 px muted, spelled out in full for a screen reader |
+| week (`.wkrow`) | seven equal columns, 4 px gap |
+| day (`.dbtn`) | the date in the display face at width 75 weight 700 16 px, with the pad under it, inside a 40 px target |
+
+| State | Appearance |
+| --- | --- |
+| rest | ink, the pad hidden |
+| chosen (`aria-pressed`) | the number in primary, the pad shown in primary |
+| today (`.now`) | the number in the signal color, as it is on the term calendar |
+| hover or focus | the number in primary |
+| out of range (`disabled`) | muted ink held back to 50 percent |
+
+The pad occupies its space whether or not the day is chosen, so a month does not change
+height as it is clicked through. The chosen state is the pad because the pad is what says
+chosen everywhere else on the site, and a filled rectangle behind a date is a shape the
+design does not use.
+
+A month is a grid and is walked with the arrow keys. One day of the month is in the tab
+order, the day already chosen or today or the first day the calendar will accept, and the
+arrows move from there: left and right by a day, up and down by a week, home and end to the
+ends of the week, page up and page down by a month and with shift by a year. Walking off
+the end of a month moves to the next one. A move that would land outside the range the
+calendar was given stays where it is, so the focus is never left on a day that is going to
+be refused. Forty two day buttons in the tab order is not keyboard support.
+
+The calendar reports and decides nothing. Which month is on view and which days are marked
+are given to it, and a click or a walk off the end says so and waits, which is what lets one
+calendar serve a control that takes one date and a control that takes a set of them.
+
+Whatever the control puts under the month, the count of dates chosen (`.tally`) or the
+words that clear a field, sits inside the calendar so that it takes the calendar's own width.
+
+## Date picker
+
+The date field is the field above with a button on its line in place of an input, because a
+date here is chosen on a calendar and never typed: a pad, the date in words, and the
+calendar icon. Opening it lights the line exactly as focus does. The calendar drops out of
+it on a floating sheet, cut 14 px at the top right, on the card color. Choosing a day closes
+the sheet and hands the focus back to the field, and so does the escape key and a click
+anywhere else. Paging the month leaves it open, because paging is not choosing.
 
 ## Switch (`.tswitch`)
 

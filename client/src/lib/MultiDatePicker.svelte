@@ -1,7 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { campusToday } from './campusTime.js';
-  import { Icon, Pad } from './components/ui/index.js';
+  import { MonthCalendar } from './components/ui/index.js';
 
   /**
    * Picking a set of dates that follow no rule.
@@ -14,6 +14,9 @@
    * The dates are held as YYYY-MM-DD, in order, whatever order they were
    * clicked in, because the series that comes out of them runs from the first
    * to the last.
+   *
+   * The calendar itself is the design system's, which the date field uses as
+   * well. What belongs here is what a click means and the count underneath.
    */
 
   /** The dates chosen, as YYYY-MM-DD. */
@@ -22,204 +25,34 @@
   export let month = campusToday().slice(0, 7);
   /** The earliest date that may be chosen, as YYYY-MM-DD. */
   export let min = '';
+  /** What the calendar is called, for somebody who cannot see it. */
+  export let label = 'Pick the dates';
 
   const dispatch = createEventDispatcher();
-
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-                  'July', 'August', 'September', 'October', 'November', 'December'];
-  const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   let viewYear = Number(month.slice(0, 4));
   let viewMonth = Number(month.slice(5, 7)) - 1;
 
-  const pad = n => String(n).padStart(2, '0');
-  const dateOf = day => `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`;
-
-  $: chosen = new Set(value);
-  $: cells = (() => {
-    const startDow = new Date(viewYear, viewMonth, 1).getDay();
-    const days = new Date(viewYear, viewMonth + 1, 0).getDate();
-    return [
-      ...Array.from({ length: startDow }, () => null),
-      ...Array.from({ length: days }, (_, i) => i + 1),
-    ];
-  })();
-
-  const disabled = day => Boolean(min) && dateOf(day) < min;
-
-  function toggle(day) {
-    if (disabled(day)) return;
-    const date = dateOf(day);
-    const next = chosen.has(date)
+  /** A day already chosen is taken away, and a day that is not is added. */
+  function toggle(date) {
+    const next = value.includes(date)
       ? value.filter(one => one !== date)
       : [...value, date].sort();
     value = next;
     dispatch('change', next);
   }
-
-  function step(by) {
-    const shifted = viewMonth + by;
-    viewYear += Math.floor(shifted / 12);
-    viewMonth = ((shifted % 12) + 12) % 12;
-  }
 </script>
 
-<div class="picker">
-  <div class="months">
-    <button type="button" class="step" aria-label="Previous month" on:click={() => step(-1)}>
-      <Icon name="back" />
-    </button>
-    <span class="month">{MONTHS[viewMonth]} {viewYear}</span>
-    <button type="button" class="step" aria-label="Next month" on:click={() => step(1)}>
-      <Icon name="arrow" />
-    </button>
-  </div>
-
-  <div class="grid">
-    {#each DOW as day}
-      <span class="dow">{day}</span>
-    {/each}
-    {#each cells as day}
-      {#if day === null}
-        <span></span>
-      {:else}
-        <button
-          type="button"
-          class="date"
-          aria-pressed={chosen.has(dateOf(day))}
-          aria-label="{MONTHS[viewMonth]} {day}, {viewYear}"
-          disabled={disabled(day)}
-          on:click={() => toggle(day)}
-        >
-          <span class="n">{day}</span>
-          <span class="mark">{#if chosen.has(dateOf(day))}<Pad />{/if}</span>
-        </button>
-      {/if}
-    {/each}
-  </div>
-
-  <p class="count">
+<MonthCalendar
+  year={viewYear}
+  month={viewMonth}
+  selected={value}
+  {min}
+  {label}
+  on:choose={event => toggle(event.detail)}
+  on:view={event => { viewYear = event.detail.year; viewMonth = event.detail.month; }}
+>
+  <p class="tally">
     {value.length === 1 ? '1 date chosen' : `${value.length} dates chosen`}
   </p>
-</div>
-
-<style>
-  .picker {
-    display: grid;
-    gap: 10px;
-    width: 268px;
-  }
-
-  .months {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .month {
-    font-family: var(--display);
-    font-stretch: 80%;
-    font-weight: 700;
-    font-size: 15px;
-  }
-
-  .step {
-    font: inherit;
-    background: none;
-    border: 0;
-    color: var(--muted);
-    cursor: pointer;
-    min-width: 32px;
-    min-height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-  }
-
-  .step:hover,
-  .step:focus-visible {
-    color: var(--ink);
-  }
-
-  .step:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
-    text-align: center;
-  }
-
-  .dow {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--muted);
-    padding-bottom: 2px;
-  }
-
-  /*
-   * A day is the number and, under it, the pad that says it was chosen. The
-   * chosen day used to be a filled rectangle, which is the one shape the
-   * design does not use for a state.
-   */
-  .date {
-    font: inherit;
-    background: none;
-    border: 0;
-    cursor: pointer;
-    min-height: 32px;
-    display: grid;
-    justify-items: center;
-    align-content: center;
-    gap: 2px;
-    padding: 2px 0;
-    color: var(--ink);
-  }
-
-  .date .n {
-    font-family: var(--display);
-    font-stretch: 75%;
-    font-weight: 700;
-    font-size: 16px;
-    line-height: 1;
-  }
-
-  .date .mark {
-    height: 8px;
-    display: block;
-  }
-
-  .date[aria-pressed="true"] .n {
-    color: var(--primary);
-  }
-
-  .date:hover:not(:disabled) .n,
-  .date:focus-visible .n {
-    color: var(--primary);
-  }
-
-  .date:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
-
-  /*
-   * A day that cannot be chosen is still a word, and the design keeps words out
-   * of the faint gray, so it is the muted ink held back rather than the faint
-   * token.
-   */
-  .date:disabled {
-    cursor: default;
-    color: var(--muted);
-    opacity: .5;
-  }
-
-  .count {
-    font-size: 12.5px;
-    color: var(--muted);
-  }
-</style>
+</MonthCalendar>

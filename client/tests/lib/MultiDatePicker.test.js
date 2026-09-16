@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent, waitFor } from '@testing-library/svelte';
 
+import { borrowedIn } from '../support/designClasses.js';
+
 const MultiDatePicker = (await import('../../src/lib/MultiDatePicker.svelte')).default;
 
 /**
@@ -80,12 +82,12 @@ describe('MultiDatePicker', () => {
 });
 
 /**
- * The design system's own class names are global, and they are short: .nav,
- * .day, .ev, .mt. Svelte scopes the rules a component writes, which raises
- * their specificity, and it does nothing at all to stop a global rule matching
- * the same class on the same element. So a component that names an element
- * .day is handed every declaration the feed's day header carries and the
- * component never mentions.
+ * The design system's class names are global, and they are short: .nav, .day,
+ * .ev, .mt. Svelte scopes the rules a component writes, which raises their
+ * specificity, and it does nothing at all to stop a global rule matching the
+ * same class on the same element. So a component that names an element .day is
+ * handed every declaration the feed's day header carries and the component
+ * never mentions.
  *
  * That is what broke the calendar on the create event form. Global .day is a
  * two column grid of 118px and a fraction with 18px of padding, applied to
@@ -93,37 +95,16 @@ describe('MultiDatePicker', () => {
  * calendar, and global .nav is 64px tall with 28px of side padding, applied to
  * the month stepper. The view did not merely look wrong, it had no usable
  * calendar in it.
+ *
+ * The answer was not to keep inventing private names for a calendar the design
+ * system had no opinion about. The calendar is the design system's own now,
+ * under .cal, so the names it carries are names somebody approved rather than
+ * names it borrowed, and this check says which ones those are.
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
-/** Every class the design system claims as a global root in the client's stylesheet. */
-function globalRoots() {
-  const css = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
-  const opens = css.indexOf('/* >>> design system');
-  const closes = css.indexOf('/* <<< design system */');
-  const block = css.slice(opens, closes);
-  const roots = new Set();
-  for (const match of block.matchAll(/(^|[}\s])\.([a-z][a-z0-9-]*)(?=[{\s.,:])/gm)) {
-    roots.add(match[2]);
-  }
-  return roots;
-}
-
 describe('the calendar does not borrow the design system class names', () => {
-  it('names no element with a class the stylesheet already claims globally', () => {
-    const roots = globalRoots();
+  it('names no element with a class the stylesheet claims for something else', () => {
     const { container } = render(MultiDatePicker, { props: { month: '2026-09', value: [] } });
-
-    const borrowed = new Set();
-    for (const element of container.querySelectorAll('[class]')) {
-      for (const name of element.classList) {
-        // Svelte's own scoping hashes are not class names anybody wrote.
-        if (name.startsWith('s-') || name.startsWith('svelte-')) continue;
-        if (roots.has(name)) borrowed.add(name);
-      }
-    }
-
-    expect([...borrowed].sort()).toEqual([]);
+    const ours = new Set(['cal', 'mhead', 'mstep', 'wkrow', 'dcap', 'dbtn', 'pad', 'tally']);
+    expect(borrowedIn(container).filter(name => !ours.has(name))).toEqual([]);
   });
 });
