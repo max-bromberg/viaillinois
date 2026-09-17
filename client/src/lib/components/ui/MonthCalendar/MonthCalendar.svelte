@@ -121,6 +121,33 @@
     }
   }
 
+  /**
+   * Page the month from the keyboard, carrying the resting day with it.
+   *
+   * Paging moved the month and left the resting day on the month it came from,
+   * so the reactive fallback put the tab stop on the first day of the new one
+   * while the browser kept the focus ring where it was: the day cells are not
+   * keyed, so the ring stays on the same cell of the grid. A reader paged
+   * forward, saw the ring on the sixteenth, pressed the right arrow expecting
+   * the seventeenth, and went back a fortnight. The same day of the month is
+   * what a reader expects to land on, shortened to the last day when the month
+   * is shorter, and given up to the fallback when the range refuses it.
+   */
+  function pageBy(months) {
+    const shifted = month + months;
+    const toYear = year + Math.floor(shifted / 12);
+    const toMonth = ((shifted % 12) + 12) % 12;
+    const lastOfMonth = new Date(toYear, toMonth + 1, 0).getDate();
+    const wanted = `${toYear}-${pad(toMonth + 1)}-${pad(Math.min(dayOf(resting), lastOfMonth))}`;
+
+    byKey = true;
+    // Set before the month is asked for, so that the day and the month it is
+    // in reach the reactive recompute together, which is what the arrow keys
+    // already rely on when they walk off the end of a month.
+    resting = outOfRange(wanted) ? '' : wanted;
+    dispatch('view', { year: toYear, month: toMonth });
+  }
+
   function onKey(event) {
     const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
     if (event.key in moves) {
@@ -137,7 +164,7 @@
     if (event.key === 'PageUp' || event.key === 'PageDown') {
       event.preventDefault();
       const by = event.key === 'PageUp' ? -1 : 1;
-      step(event.shiftKey ? by * 12 : by);
+      pageBy(event.shiftKey ? by * 12 : by);
     }
   }
 

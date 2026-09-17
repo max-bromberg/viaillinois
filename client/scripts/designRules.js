@@ -63,6 +63,14 @@ export const PRIMITIVE_SELECTORS = [
    * phone steps down to.
    */
   '@media (max-width:640px)',
+  /*
+   * The shorter lobby screen. Written last in the reference and copied whole,
+   * because everything inside it belongs to the kiosk, which the client owns.
+   * A 1280 by 720 or 1366 by 768 display is what plenty of the buildings have,
+   * and at those heights the lifted sizes ran the hours and the room off the
+   * bottom of a stage that clips.
+   */
+  '@media (max-height:820px)',
 ];
 
 /**

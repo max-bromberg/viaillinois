@@ -189,3 +189,33 @@ describe('an event block in the week view', () => {
     expect(fillOf('src/lib/WeekTimeGrid.svelte', '.entry')).toContain('var(--h)');
   });
 });
+
+/**
+ * A midterm block in the week view is not an exam row on the midterm schedule.
+ *
+ * It was named .exam to tell it apart from an event block, and .exam is the
+ * design system's own exam row: a five column grid with a hairline above it and
+ * the settle movement on it. The block is absolutely positioned inside a day
+ * column, so what a reader saw was every midterm block sitting eight pixels low
+ * and sliding up on each render while the event blocks beside it held still.
+ * The motion document gives rows settle to the agenda and the midterm schedule,
+ * which are the two lists somebody watches arrive, and not to a calendar cell.
+ */
+import { borrowedIn } from '../support/designClasses.js';
+
+describe('the week view and the design system class names', () => {
+  it('names no element with a class the stylesheet claims for something else', () => {
+    const { container } = grid({
+      events: [lateEvent],
+      midterms: [{
+        midterm_id: 1, course_code: 'ECE 210', title: 'Midterm 1',
+        start_time: '2026-07-15T19:00:00-05:00', end_time: '2026-07-15T21:00:00-05:00',
+      }],
+    });
+    // .mono and .head are the design system's own: the first is a type role
+    // this view uses deliberately, and the second is only ever written as a
+    // descendant of .mt, so it cannot reach anything here.
+    const ours = new Set(['pad', 'hl', 'mono', 'head']);
+    expect(borrowedIn(container).filter(name => !ours.has(name))).toEqual([]);
+  });
+});

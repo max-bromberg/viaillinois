@@ -148,7 +148,7 @@
           {#each dayItems.midterms as midterm (midterm.midterm_id)}
             {@const { top, height } = placeItem(midterm.start_time, midterm.end_time)}
             <div
-              class="entry exam"
+              class="entry midterm"
               style="--h: var(--plum); top: {top}px; height: {height}px"
               title="Midterm: {midterm.title} ({midterm.course_code})"
             >
@@ -281,7 +281,15 @@
     outline-offset: 2px;
   }
 
-  .entry.exam {
+  /*
+   * Named midterm rather than exam. The design system claims .exam for the row
+   * on the midterm schedule, which is a five column grid with a hairline above
+   * it and the settle movement on it, and a block in the week view was being
+   * handed all of that: every midterm sat eight pixels low and slid up on each
+   * render while the events beside it held still. The motion document gives
+   * rows settle to the agenda and the midterm schedule, not to a calendar cell.
+   */
+  .entry.midterm {
     cursor: default;
   }
 

@@ -271,7 +271,9 @@
 
   .brandsaid .rot {
     font-size: 13px;
-    color: var(--faint);
+    /* The colour document keeps the faint grey for hairlines and hollow pads,
+       never for words, and on the board it measured 3.42 to 1. */
+    color: var(--muted);
   }
 
   .clockstack {
