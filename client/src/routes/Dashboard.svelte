@@ -978,21 +978,41 @@
 
   /* ── The listing ───────────────────────────────────────────────────────── */
 
+  /*
+   * The listing owns the columns and every row takes them as a subgrid.
+   *
+   * Each row used to write the widths itself, and the last column is sized to
+   * its own content: the header's last cell is the words "What you can do" and
+   * a row's is four buttons. The two resolved differently, and because the
+   * columns before them are fractions, every heading drifted with it. At
+   * 1280px the headings stood 125 to 292 pixels right of the cells they name,
+   * so "When" sat over who could see the event. One set of widths for the whole
+   * listing is the only arrangement in which that cannot happen again.
+   */
   .listing {
     display: grid;
+    column-gap: 18px;
+    grid-template-columns: minmax(0, 1.5fr) 110px 150px minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .members {
+    grid-template-columns: minmax(0, 1.2fr) 140px 110px 120px auto;
   }
 
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) 110px 150px minmax(0, 1fr) minmax(0, 1fr) auto;
-    gap: 18px;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
     padding: 14px 0;
     border-top: 1px solid var(--line);
   }
 
-  .members .row {
-    grid-template-columns: minmax(0, 1.2fr) 140px 110px 120px auto;
+  /* A sentence standing in for the rows, such as an organization with no
+     members yet, is not a row and takes the whole width rather than the first
+     column. */
+  .listing > .none {
+    grid-column: 1 / -1;
   }
 
   .row.head {
