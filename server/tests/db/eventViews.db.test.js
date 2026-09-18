@@ -41,12 +41,16 @@ describe('Event_Views', () => {
     await query('DELETE FROM Event_Views');
     await query('DELETE FROM Events');
     await query('DELETE FROM RSOs');
+    await query('DELETE FROM Users');
+    // Events.created_by is not null and names a user, so one has to exist
+    // before any event can.
+    await query("INSERT INTO Users (net_id, full_name, email) VALUES ('board1', 'Board', 'b@illinois.edu')");
     await query("INSERT INTO RSOs (rso_id, name) VALUES (3, 'Design Club'), (4, 'Robotics')");
     await query(
-      `INSERT INTO Events (event_id, rso_id, title, start_time, end_time, is_private)
-       VALUES (7, 3, 'Design Review', '2026-09-20 18:00:00', '2026-09-20 19:00:00', 0),
-              (8, 3, 'Socials',       '2026-09-22 18:00:00', '2026-09-22 19:00:00', 0),
-              (9, 4, 'Build Night',   '2026-09-23 18:00:00', '2026-09-23 19:00:00', 0)`
+      `INSERT INTO Events (event_id, rso_id, created_by, title, start_time, end_time, is_private)
+       VALUES (7, 3, 'board1', 'Design Review', '2026-09-20 18:00:00', '2026-09-20 19:00:00', 0),
+              (8, 3, 'board1', 'Socials',       '2026-09-22 18:00:00', '2026-09-22 19:00:00', 0),
+              (9, 4, 'board1', 'Build Night',   '2026-09-23 18:00:00', '2026-09-23 19:00:00', 0)`
     );
   });
 

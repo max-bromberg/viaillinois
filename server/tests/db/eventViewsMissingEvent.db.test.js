@@ -43,9 +43,9 @@ describe('Event_Views when an event was deleted mid minute', () => {
     await query('DELETE FROM Events');
     await query('DELETE FROM RSOs');
     await query('DELETE FROM Users');
-    await query("INSERT INTO Users (net_id, name, email) VALUES ('boss', 'Boss', 'boss@illinois.edu')");
+    await query("INSERT INTO Users (net_id, full_name, email) VALUES ('boss', 'Boss', 'boss@illinois.edu')");
     const rso = await query(
-      "INSERT INTO RSOs (name, description, created_by) VALUES ('IEEE', 'Electrical engineers', 'boss')"
+      "INSERT INTO RSOs (name, description) VALUES ('IEEE', 'Electrical engineers')"
     );
     rsoId = rso.insertId;
     const live = await query(
