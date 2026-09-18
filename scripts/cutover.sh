@@ -13,6 +13,39 @@
 # Usage: scripts/cutover.sh <release-tag>
 set -euo pipefail
 
+# Deploy a release the way that release says to, from a copy of its own script.
+#
+# Two things are wrong with running this file as it sits on the host. The first
+# is that step 1 checks out the release tag, and that checkout rewrites this
+# file while the shell is still reading it: a shell reads a script lazily, by
+# byte offset, so it carries on inside whatever file is at this path now.
+# Deploying the release that first added the bot, the steps that build and start
+# the bot were in the new file and the shell was reading the old one, so the
+# website moved forward, the bot was never created, and nothing in the log said
+# so. The second is that the steps a release needs belong to that release, in
+# the same way the bot tag it runs does.
+#
+# So the tag's own script is taken out of git and run from a path no checkout
+# touches. The variable is what tells that copy it is the copy, and the copy
+# deletes itself when the run ends, however it ends.
+#
+# This protects every deploy made from a host that already carries it. It cannot
+# protect the deploy that introduces it, because that run is made by whatever
+# script the host is already sitting on. docs/deployment.md says so.
+if [ -z "${CUTOVER_RUNNING_COPY:-}" ]; then
+  wanted="${1:?usage: cutover.sh <release-tag>}"
+  git fetch --tags --quiet
+  copy="$(mktemp "${TMPDIR:-/tmp}/cutover.XXXXXXXX.sh")"
+  if ! git show "${wanted}:scripts/cutover.sh" > "$copy" 2>/dev/null; then
+    rm -f "$copy"
+    echo "[cutover] FAILED: no such tag: ${wanted}" >&2
+    exit 1
+  fi
+  chmod +x "$copy"
+  CUTOVER_RUNNING_COPY="$copy" exec bash "$copy" "$@"
+fi
+trap 'rm -f "$CUTOVER_RUNNING_COPY"' EXIT
+
 RELEASE_TAG="${1:?usage: cutover.sh <release-tag>}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 BACKUP_RETENTION_COUNT="${BACKUP_RETENTION_COUNT:-10}"
@@ -120,6 +153,56 @@ rollback() {
     || log "WARNING: could not restart the previous bot image"
   log "rollback complete"
 }
+
+# What every deployment needs, and what a deployment that runs the bot needs on
+# top of it. Every one of the bot's settings defaults to empty in the compose
+# file, so without this a host whose .env predates the bot starts a bot that
+# never logs in, and the first anybody hears of it is the health check failing
+# at the last step of the run, inside the maintenance window, taking the website
+# back with it. Asking costs nothing and it happens while the site is still up.
+REQUIRED_ALWAYS="DB_USER DB_PASSWORD JWT_SECRET SESSION_SECRET CLIENT_URL"
+REQUIRED_WITH_THE_BOT="BOT_SERVICE_TOKEN DISCORD_TOKEN DISCORD_APPLICATION_ID BOT_DB_PASSWORD DISCORD_INTEREST_SALT"
+
+# The words people write instead of a secret. The first is what .env.example
+# puts there, so copying that file and filling in the database password is the
+# ordinary way a host ends up with one.
+is_a_placeholder() {
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    change_me_in_production|changeme|change_me|changeit|secret|password|todo|xxx|test|dev_secret|dev_session_secret|your_secret_here|replace_me) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Step 0: ask for the settings both containers read, before anything is touched.
+check_settings() {
+  local file="${ENV_FILE:-.env}"
+  [ -f "$file" ] || fail "no ${file} beside docker-compose.yml, so the containers have nothing to read"
+
+  local wanted="$REQUIRED_ALWAYS"
+  # A deployment that runs the bot is one that has a service token for it, which
+  # is the same test the web platform applies to itself at start up.
+  if grep -qE '^[[:space:]]*BOT_SERVICE_TOKEN=..' "$file"; then
+    wanted="$wanted $REQUIRED_WITH_THE_BOT"
+  fi
+
+  local missing=""
+  for name in $wanted; do
+    local line
+    line="$(grep -E "^[[:space:]]*${name}=" "$file" | tail -n 1 || true)"
+    local value="${line#*=}"
+    value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//')"
+    if [ -z "$value" ] || is_a_placeholder "$value"; then
+      missing="${missing} ${name}"
+    fi
+  done
+
+  if [ -n "$missing" ]; then
+    fail "these settings are missing or are still a placeholder in ${file}:${missing}"
+  fi
+  log "settings present"
+}
+
+check_settings
 
 # Step 1: refuse to deploy from a dirty or unexpected tree. Both trees are
 # checked before either is moved, because deploying from a dirty one would

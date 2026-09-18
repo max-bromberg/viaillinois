@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
-import { readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -51,7 +51,7 @@ function git(cwd, ...args) {
 }
 
 /** A git repository with two tags, sitting on the older one as a server does. */
-async function scratchRepo(dir, files, tags) {
+async function scratchRepo(dir, files, tags, laterFiles = {}) {
   await mkdir(dir, { recursive: true });
   git(dir, 'init', '-b', 'main');
   git(dir, 'config', 'user.email', 'test@example.com');
@@ -64,6 +64,10 @@ async function scratchRepo(dir, files, tags) {
   git(dir, 'commit', '-m', 'first');
   git(dir, 'tag', '-a', tags[0], '-m', tags[0]);
   await writeFile(join(dir, 'later.txt'), 'later');
+  for (const [path, contents] of Object.entries(laterFiles)) {
+    await mkdir(join(dir, path, '..'), { recursive: true });
+    await writeFile(join(dir, path), contents, { mode: path.endsWith('.sh') ? 0o755 : 0o644 });
+  }
   git(dir, 'add', '.');
   git(dir, 'commit', '-m', 'second');
   git(dir, 'tag', '-a', tags[1], '-m', tags[1]);
@@ -74,16 +78,45 @@ async function scratchRepo(dir, files, tags) {
   return dir;
 }
 
-async function scratchStack({ pin = 'v0.1.0\n' } = {}) {
+const REAL_SCRIPT = readFileSync(join(REPO, 'scripts', 'cutover.sh'), 'utf8');
+
+/**
+ * What the deployment checkout is sitting on before the run.
+ *
+ * On a real host it is the previous release, whose cutover.sh is whatever that
+ * release shipped, and the release being deployed carries a different one. A
+ * fixture that puts the same script on both tags cannot see what happens when
+ * the checkout replaces the file the shell is reading, so the newer tag can be
+ * given a script of its own here.
+ */
+async function scratchStack({ pin = 'v0.1.0\n', laterScript = REAL_SCRIPT } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'via-cutover-'));
   const files = {
-    'scripts/cutover.sh': readFileSync(join(REPO, 'scripts', 'cutover.sh'), 'utf8'),
+    'scripts/cutover.sh': REAL_SCRIPT,
     'docker-compose.yml': 'services: {}\n',
+    // A real host keeps its settings beside the compose file and out of git,
+    // and the script now asks for them before it touches anything.
+    '.gitignore': '.env\n',
   };
   // A pin of null is a release that carries no pin file at all.
   if (pin !== null) files['deploy/bot-release'] = pin;
-  await scratchRepo(join(dir, 'platform'), files, ['v0.9.0', 'v1.0.0']);
+  await scratchRepo(join(dir, 'platform'), files, ['v0.9.0', 'v1.0.0'],
+    { 'scripts/cutover.sh': laterScript });
   await scratchRepo(join(dir, 'bot'), { 'README.md': 'bot\n' }, ['v0.0.9', 'v0.1.0']);
+  // The settings a real host has. A test that is about something else should
+  // not have to say so, and the ones that are about the settings write their
+  // own over the top of this.
+  await writeFile(join(dir, 'platform', '.env'), [
+    'DB_USER=via', 'DB_PASSWORD=not-a-password-not-a-password-no',
+    'JWT_SECRET=not-a-secret-not-a-secret-not-a-secret',
+    'SESSION_SECRET=not-a-secret-not-a-secret-not-a-secret-two',
+    'CLIENT_URL=https://viaillinois.com',
+    'BOT_SERVICE_TOKEN=not-a-token-not-a-token-not-a-token',
+    'DISCORD_TOKEN=not-a-token-not-a-token-not-a-token-two',
+    'DISCORD_APPLICATION_ID=123456789012345678',
+    'BOT_DB_PASSWORD=not-a-password-not-a-password-two',
+    'DISCORD_INTEREST_SALT=not-a-salt-not-a-salt-not-a-salt-not',
+  ].join('\n') + '\n');
   await mkdir(join(dir, 'bin'), { recursive: true });
   await writeFile(join(dir, 'bin', 'docker'), DOCKER_STUB, { mode: 0o755 });
   await writeFile(join(dir, 'bin', 'curl'), CURL_STUB, { mode: 0o755 });
@@ -329,4 +362,139 @@ describe('cutover.sh with the bot', () => {
     expect(log).toMatch(/bot=v0\.1\.0/);
     expect(log).toMatch(/"gateway":true/);
   }, 30_000);
+});
+
+/**
+ * The release being deployed carries a different cutover script than the one
+ * the host is sitting on, which is the ordinary case and was never tested.
+ *
+ * The script checks out the release tag, and that checkout rewrites
+ * scripts/cutover.sh while the shell is still reading it. A shell reads a
+ * script lazily, by byte offset, so it carries on inside whatever file is at
+ * that path now. Deploying the release that first added the bot, the steps that
+ * build and start the bot were in the new file and the shell was reading the
+ * old one, so the website moved forward and the bot was never created, with
+ * nothing in the log to say so.
+ *
+ * The script runs from a copy of itself now, so the file the checkout replaces
+ * is not the file being read. Note what this can and cannot do: it protects
+ * every deploy made from a host that already carries it, and it cannot protect
+ * the one deploy that introduces it, because that run is made by whatever
+ * script the host is already sitting on. docs/deployment.md says so.
+ *
+ * The fixture used to put the same script on both tags, so the checkout wrote
+ * the file back byte for byte and the offsets always lined up. That is why
+ * nothing here caught it.
+ */
+describe('a release whose cutover script differs from the one on the host', () => {
+  /** The release being deployed ships a script with a step of its own. */
+  const WITH_AN_EXTRA_STEP = REAL_SCRIPT.replace(
+    'log "backups: ${BACKUP_PATH} and ${BOT_BACKUP_PATH}"',
+    'log "backups: ${BACKUP_PATH} and ${BOT_BACKUP_PATH}"\nlog "a step only the new release knows about"',
+  );
+
+  it('runs the script the release ships rather than the one the host was on', async () => {
+    const dir = await scratchStack({ laterScript: WITH_AN_EXTRA_STEP });
+    const run = runCutover(dir);
+
+    expect(run.status, run.stderr).toBe(0);
+    expect(run.stdout).toContain('a step only the new release knows about');
+  });
+
+  it('still carries out every step of it, the bot included', async () => {
+    const dir = await scratchStack({ laterScript: WITH_AN_EXTRA_STEP });
+    const run = runCutover(dir);
+
+    expect(run.calls.some(line => line.includes('build via via-bot'))).toBe(true);
+    expect(run.calls.some(line => line.includes('up -d via-bot'))).toBe(true);
+    expect(run.stdout).toContain('cutover complete');
+  });
+
+  it('reads itself from a copy, which is what makes that possible', () => {
+    // The mechanism rather than the effect, so that taking it out is a failure
+    // here rather than a surprise on a server in a year.
+    expect(REAL_SCRIPT).toMatch(/CUTOVER_RUNNING_COPY/);
+    expect(REAL_SCRIPT).toMatch(/exec bash "\$copy"/);
+    // The guard has to come before anything that checks out a tag.
+    expect(REAL_SCRIPT.indexOf('CUTOVER_RUNNING_COPY'))
+      .toBeLessThan(REAL_SCRIPT.indexOf('git checkout "$RELEASE_TAG"'));
+  });
+
+  it('leaves no copy of itself behind', async () => {
+    const dir = await scratchStack({ laterScript: WITH_AN_EXTRA_STEP });
+    runCutover(dir);
+    const strays = readdirSync(tmpdir()).filter(name => /^cutover\..*\.sh$/.test(name));
+    expect(strays).toEqual([]);
+  });
+});
+
+/**
+ * A setting that is missing should stop the deploy while the site is still up.
+ *
+ * Every Discord variable in the compose file defaults to empty, so a host whose
+ * .env predates the bot starts a bot that never logs in. That was discovered at
+ * the last step of the run, inside the maintenance window, and the failing
+ * health check then rolled the website back with it. It costs nothing to ask
+ * before anything has been touched, which is the ordering the rest of this
+ * script is built around.
+ */
+describe('the settings a deploy needs', () => {
+  const ENOUGH = [
+    'DB_USER=via', 'DB_PASSWORD=not-a-password-not-a-password-no',
+    'JWT_SECRET=not-a-secret-not-a-secret-not-a-secret',
+    'SESSION_SECRET=not-a-secret-not-a-secret-not-a-secret-two',
+    'CLIENT_URL=https://viaillinois.com',
+  ].join('\n') + '\n';
+
+  const BOT = [
+    'BOT_SERVICE_TOKEN=not-a-token-not-a-token-not-a-token',
+    'DISCORD_TOKEN=not-a-token-not-a-token-not-a-token-two',
+    'DISCORD_APPLICATION_ID=123456789012345678',
+    'BOT_DB_PASSWORD=not-a-password-not-a-password-two',
+    'DISCORD_INTEREST_SALT=not-a-salt-not-a-salt-not-a-salt-not',
+  ].join('\n') + '\n';
+
+  it('refuses before anything is touched when a setting is missing', async () => {
+    const dir = await scratchStack();
+    // A deployment that runs the bot is one that has a service token for it,
+    // and this one has the token and none of what the bot needs beside it.
+    await writeFile(join(dir, 'platform', '.env'),
+      ENOUGH + 'BOT_SERVICE_TOKEN=not-a-token-not-a-token-not-a-token\n');
+    const run = runCutover(dir);
+
+    expect(run.status).not.toBe(0);
+    expect(run.stdout + run.stderr).toMatch(/DISCORD_TOKEN/);
+    // Nothing built, nothing stopped, nothing migrated.
+    expect(run.calls.some(line => line.includes('build'))).toBe(false);
+    expect(run.calls.some(line => line.includes('stop'))).toBe(false);
+  });
+
+  it('names a setting that is only a placeholder as missing', async () => {
+    const dir = await scratchStack();
+    await writeFile(join(dir, 'platform', '.env'),
+      ENOUGH.replace('JWT_SECRET=not-a-secret-not-a-secret-not-a-secret', 'JWT_SECRET=change_me_in_production') + BOT);
+    const run = runCutover(dir);
+
+    expect(run.status).not.toBe(0);
+    expect(run.stdout + run.stderr).toMatch(/JWT_SECRET/);
+  });
+
+  it('goes ahead when everything it needs is really set', async () => {
+    const dir = await scratchStack();
+    await writeFile(join(dir, 'platform', '.env'), ENOUGH + BOT);
+    const run = runCutover(dir);
+
+    expect(run.status, run.stderr).toBe(0);
+    expect(run.stdout).toContain('cutover complete');
+  });
+
+  it('says what is missing rather than stopping at the first one', async () => {
+    const dir = await scratchStack();
+    await writeFile(join(dir, 'platform', '.env'),
+      ENOUGH + 'BOT_SERVICE_TOKEN=not-a-token-not-a-token-not-a-token\n');
+    const run = runCutover(dir);
+    const said = run.stdout + run.stderr;
+    expect(said).toMatch(/DISCORD_TOKEN/);
+    expect(said).toMatch(/BOT_DB_PASSWORD/);
+  });
 });
