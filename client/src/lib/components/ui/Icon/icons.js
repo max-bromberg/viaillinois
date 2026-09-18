@@ -23,4 +23,9 @@ export const ICONS = {
   // band, so a direction reads as part of the same geometry as everything else.
   next: '<path d="M9 5l7 7-7 7"/>',
   prev: '<path d="M15 5l-7 7 7 7"/>',
+  // The sign off in the footer. Drawn rather than typed, because the emoji it
+  // replaces renders as a flat glyph on one platform and a colour picture on
+  // another, so the page had one face on a phone and another on the lobby
+  // screen, which is the whole reason this set exists.
+  heart: '<path d="M12 20s-7-4.6-7-9.4A4.1 4.1 0 0 1 12 8a4.1 4.1 0 0 1 7 2.6C19 15.4 12 20 12 20z"/>',
 };

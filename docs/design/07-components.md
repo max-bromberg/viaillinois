@@ -88,8 +88,9 @@ baseline.
 
 ### Icon (`svg.i`)
 
-The ten shapes the reference render draws: pin, calendar, arrow, back, bolt, share, sun,
-moon, and the two direction chevrons, previous and next. Arrow and back are a shaft with a
+The eleven shapes the reference render draws: pin, calendar, arrow, back, bolt, share,
+sun, moon, the two direction chevrons, previous and next, and the heart in the footer's
+sign off. Arrow and back are a shaft with a
 head and mean go to somewhere. The chevrons are a step one along, which is what a calendar
 paging a week at a time is doing, and they are drawn on the chamfer's own 45 degrees so
 that a direction belongs to the same geometry as every cut on the page. They take the stroke weight of the traces in the mark and the color of whatever
@@ -277,14 +278,46 @@ padding, a hairline above. The course code at 32 px condensed 800 over the cours
 ### Kiosk stage
 
 The night sky as the whole screen, the circuit board drawn on a canvas at low opacity with
-a few traces in signal, a signal glow at the lower left. Top row: the now tag and a clock
-at 54 px condensed 200. Then the organization, the title at 98 px condensed 800 with a 13
-character measure, and the end time at 52 px condensed 800 beside the room in mono at
-24 px. The mark, the domain and the position in the rotation sit at the bottom.
+a few traces in signal, a signal glow at the lower left.
+
+The mark leads the screen rather than signing it off. A lobby display is read from across a
+room and from the top down, so what says whose screen this is belongs where the eye lands
+rather than where it finishes, and the domain and the position in the rotation sit with it.
+The clock, the date and the forecast stack in the opposite corner. The foot the mark used to
+sit in is gone.
+
+Everything is a step or two larger than the reading pages, because the distance is the
+room rather than a desk: the clock at 76 px condensed 200, the date under it at 26 px in
+the display face, the organization at 26 px, the title at 96 px condensed 800 with an 11
+character measure, the hours at 66 px condensed 800, and the room in mono at 32 px. The
+day of the event keeps its word and gains the date beside it, set smaller and quieter, so
+the figures settle what "Tomorrow" means to somebody reading at an unknown hour.
+
+The forecast is three days from the platform's own weather service, and it is left off the
+slide entirely when no source answered: a screen with an empty weather panel looks broken
+and one with no panel looks finished.
+
+Every slide carries a code to its own event page, in the corner the composition leaves
+empty. It is drawn from the module matrix rather than dropped in as an image, so it takes
+the chamfer the rest of the page takes, and the chamfer comes out of the tile's corner
+rather than out of the code so that nothing a reader needs is clipped. Its two colors are
+fixed rather than drawn from tokens, which is the one place on the site that is true: a
+camera in whatever light a lobby has needs dark modules on a light field, and tokens would
+invert it with the theme.
+
+Every word on this surface is read once, by somebody walking past, so the screen lifts its
+own two greys past the values the reading pages use. The faint gray stays what the color
+document says it is, a hairline and a hollow pad, and no word on the screen is set in it.
+
+At 820 px of height and below, which is what a 1280 by 720 or a 1366 by 768 display gives,
+the sizes and the paddings step down one rung and the rail narrows to 340 px. The stage is
+the whole viewport and its main column clips, so without that step the hours and the room
+run off the bottom edge. Nothing new is introduced and nothing changes shape.
 
 ### Kiosk rail
 
-A 360 px column on a darker translucent ground: a heading at 20 px condensed 800, then
-items with the time at 20 px condensed 700 in teal 200 over a small mono qualifier, and
-the title at width 90 weight 700 over the organization and room. A second heading and list
+A 440 px column on a darker translucent ground, 340 px on a screen 820 px high or less: a
+heading at 20 px condensed 800, then items with the time at 26 px condensed 700 in teal 200
+over a mono qualifier at 13 px, and the title at width 90 weight 700 over the organization
+and room. A second heading and list
 for this month's midterms sit at the bottom.

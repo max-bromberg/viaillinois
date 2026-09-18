@@ -1,6 +1,6 @@
 <script>
   import { navigate } from './router.js';
-  import { Mark } from './components/ui/index.js';
+  import { Icon, Mark } from './components/ui/index.js';
 
   /**
    * The foot of every page.
@@ -56,7 +56,7 @@
         {#each BOTTOM as place (place.href)}
           <a href={place.href} onclick={event => follow(event, place.href)}>{place.label}</a>
         {/each}
-        <span class="signoff">Made with <span class="heart" aria-hidden="true">❤</span><span class="only">love</span> for Illinois ECE</span>
+        <span class="signoff">Made with <Icon name="heart" class="heart" /><span class="only">love</span> for Illinois ECE</span>
         <span class="mono">v{__APP_VERSION__}</span>
       </p>
     </div>
@@ -163,13 +163,15 @@
   .bottom .signoff {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
   }
 
-  .bottom .heart {
+  /* Drawn rather than typed, so it is the same shape on a phone and on the
+     lobby screen. It takes the stroke weight of the mark's traces and the size
+     of the words beside it. */
+  .bottom :global(.heart) {
     color: var(--signal);
     font-size: 13px;
-    line-height: 1;
   }
 
   /* The word behind the character, for anybody reading the page rather than looking at it. */

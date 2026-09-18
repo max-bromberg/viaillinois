@@ -64,19 +64,17 @@ describe('the review checklist', () => {
     expect(found(/#[0-9a-fA-F]{3,8}\b/g, hit => !ALLOWED.has(hit.toLowerCase()))).toEqual([]);
   });
 
-  /**
-   * One exception, and it is deliberate rather than an oversight: the heart in
-   * the footer's sign off, which was asked for by name. It is hidden from
-   * assistive technology with the word beside it, so it decorates the sentence
-   * without being read out as one. Everywhere else a shape is an Icon, because
-   * emoji draw differently on every platform and the lobby screen and a phone
-   * would not be showing the same site.
-   */
-  const DECORATIVE = new Set(['lib/Footer.svelte: \u2764']);
 
+  /**
+   * No exceptions. The footer's sign off carried a heart character for a while
+   * and this check was given an allowance to let it through, which is the wrong
+   * way round: the shape is drawn in the icon set now, so the rule holds with
+   * nothing carved out of it. An emoji draws as a flat glyph on one platform
+   * and a colour picture on another, so the page had one face on a phone and
+   * another on the lobby screen.
+   */
   it('has no emoji standing in for an icon', () => {
-    const hits = found(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu);
-    expect(hits.filter(hit => !DECORATIVE.has(hit))).toEqual([]);
+    expect(found(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu)).toEqual([]);
   });
 
   it('has no rounded rectangle with a one pixel border used as a container', () => {

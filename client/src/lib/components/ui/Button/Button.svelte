@@ -87,7 +87,7 @@
       onclick={press}
       {...rest}
     >
-      {#if variant === 'quiet' && !icon && !trailingIcon}<Pad />{/if}
+      {#if variant === 'quiet'}<Pad />{/if}
       {#if icon}<Icon name={icon} />{/if}
       {@render children?.()}
       {#if trailingIcon}<Icon name={trailingIcon} />{/if}
@@ -101,7 +101,7 @@
       onclick={press}
       {...rest}
     >
-      {#if variant === 'quiet' && !icon && !trailingIcon}<Pad />{/if}
+      {#if variant === 'quiet'}<Pad />{/if}
       {#if icon}<Icon name={icon} />{/if}
       {@render children?.()}
       {#if trailingIcon}<Icon name={trailingIcon} />{/if}
