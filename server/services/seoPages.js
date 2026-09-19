@@ -98,12 +98,31 @@ async function homePage(site) {
  */
 const sharedCard = site => `${site}/og/card.png`;
 
+/**
+ * What a page says when VIA could not ask the database at all.
+ *
+ * Not knowing is not the same as knowing there is nothing. Every builder here
+ * used to treat a failed query as an empty answer, so a minute of the database
+ * being away served noindex for every event on the site, and noindex is the
+ * one instruction Google acts on immediately and takes weeks to undo. A page
+ * that could not be described says so, and the shell turns that into a 503,
+ * which is a crawler being asked to come back rather than told to forget.
+ */
+function couldNotAsk(site, path) {
+  return {
+    title: 'VIA',
+    description: SITE_DESCRIPTION,
+    canonical: `${site}${path}`,
+    unavailable: true,
+  };
+}
+
 async function eventPage(id, site) {
   let event = null;
   try {
     event = await getEventById(id);
   } catch {
-    event = null;
+    return couldNotAsk(site, `/events/${id}`);
   }
 
   if (!event || event.is_private) {
@@ -211,9 +230,19 @@ async function organizationPage(id, site) {
   let events = { upcoming: [], past: [] };
   try {
     rso = await getPublicOrganization(id);
-    if (rso) events = await getPublicEventsForRso(id);
   } catch {
-    rso = null;
+    return couldNotAsk(site, `/organizations/${id}`);
+  }
+
+  if (rso) {
+    try {
+      events = await getPublicEventsForRso(id);
+    } catch {
+      // The organization is real and its description is worth serving, so a
+      // listing that could not be read is an empty listing rather than a page
+      // nobody is shown.
+      events = { upcoming: [], past: [] };
+    }
   }
 
   // An organization with nothing public has an empty page, and an empty page

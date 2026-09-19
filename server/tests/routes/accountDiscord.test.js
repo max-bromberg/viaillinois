@@ -159,3 +159,40 @@ describe('DELETE /api/v1/users/me/discord', () => {
     expect(linksDb.deleteLinkByNetId).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Asking who is looking, when nobody is.
+ *
+ * Every visitor's first request is this one, because the page cannot read the
+ * cookie that holds the session: it is httpOnly, which is the point of it. The
+ * endpoint answered 401 to anybody not signed in, and a browser writes a
+ * failed request into the console whatever the page does about it, so every
+ * anonymous reader, and every crawler that renders the page, met a red error
+ * on the way in.
+ *
+ * Nobody signed in is an answer rather than a failure, so it is one now. What
+ * the endpoint refuses has not changed: it still reads nothing and says
+ * nothing about anybody who did not present a token VIA signed.
+ */
+describe('GET /api/v1/users/me, with nobody signed in', () => {
+  it('answers that nobody is, rather than refusing', async () => {
+    const res = await request(app).get('/api/v1/users/me');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ user: null });
+  });
+
+  it('says nothing about anybody, and asks the database nothing', async () => {
+    usersDb.getUserByNetId.mockClear();
+    const res = await request(app).get('/api/v1/users/me');
+    expect(JSON.stringify(res.body)).not.toMatch(/net_id|email/);
+    expect(usersDb.getUserByNetId).not.toHaveBeenCalled();
+  });
+
+  it('still answers nobody to a token that was signed for something else', async () => {
+    const res = await request(app)
+      .get('/api/v1/users/me')
+      .set('Cookie', 'via_token=not.a.token');
+    expect(res.status).toBe(200);
+    expect(res.body.user).toBe(null);
+  });
+});

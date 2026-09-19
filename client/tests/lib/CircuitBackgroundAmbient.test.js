@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { ambientSchedule } from '../../src/lib/circuitAmbient.js';
 
 /**
@@ -40,5 +41,34 @@ describe('the pacing of the board on a kiosk', () => {
     expect(ambientSchedule.shouldRun({ ambient: true, reduced: false })).toBe(true);
     expect(ambientSchedule.shouldRun({ ambient: false, reduced: false })).toBe(false);
     expect(ambientSchedule.shouldRun({ ambient: true, reduced: true })).toBe(false);
+  });
+});
+
+/**
+ * The board behind the page is decoration, and it was built and drawn the
+ * moment it mounted, which is the same moment the browser is trying to paint
+ * the page a reader actually came for. Laying out a circuit and filling a
+ * canvas is work worth doing once there is something on the screen, not
+ * before, so it waits for a frame to have been painted first.
+ */
+describe('when the board starts drawing', () => {
+  it('waits for a painted frame before it lays anything out', () => {
+    const source = readFileSync('src/lib/CircuitBackground.svelte', 'utf8');
+    const mounted = source.slice(source.indexOf('onMount(('), source.indexOf('onDestroy(('));
+
+    // The first drawing is reached through a frame rather than run where the
+    // component mounts, so it cannot be in the way of the first paint.
+    expect(mounted).toMatch(/requestAnimationFrame/);
+    const deferred = /const start = \(\) => \{[\s\S]*?\n    \};/.exec(mounted)?.[0] ?? '';
+    expect(deferred, 'expected a deferred start').not.toBe('');
+    expect(deferred).toContain('init()');
+    expect(mounted).toContain('requestAnimationFrame(start)');
+  });
+
+  /** A reader who leaves before the frame lands takes the frame with them. */
+  it('gives up the frame it is waiting on when the page is left', () => {
+    const source = readFileSync('src/lib/CircuitBackground.svelte', 'utf8');
+    const leaving = source.slice(source.indexOf('onDestroy(('));
+    expect(leaving).toContain('cancelAnimationFrame(startFrame)');
   });
 });

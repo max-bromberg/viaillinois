@@ -55,7 +55,7 @@ describe('DayGroup', () => {
    */
   it('makes the day name a heading, and dates it in machine readable form', () => {
     const { container } = render(DayGroup, { day: TODAY, now: TODAY });
-    const heading = container.querySelector('h3');
+    const heading = container.querySelector('h2');
     expect(heading).toBeTruthy();
     expect(heading.textContent).toContain('Today');
     expect(container.querySelector('time').getAttribute('datetime')).toBe('2026-09-10');
@@ -63,7 +63,7 @@ describe('DayGroup', () => {
 
   it('says the date in the heading as well as the name, so Today is not the whole answer', () => {
     const { container } = render(DayGroup, { day: TODAY, now: TODAY });
-    expect(container.querySelector('h3').textContent).toContain('Thu Sep 10');
+    expect(container.querySelector('h2').textContent).toContain('Thu Sep 10');
   });
 
   it('carries the weekday in the date when the name is a relative one', () => {
@@ -75,5 +75,22 @@ describe('DayGroup', () => {
   it('holds the rows that belong to it', () => {
     const { container } = render(DayGroup, { day: TODAY, now: TODAY });
     expect(container.querySelectorAll('.day > *').length).toBe(2);
+  });
+});
+
+/**
+ * A heading level is structure, not size.
+ *
+ * The day heading was an h3 sitting directly under the page's h1, so the
+ * agenda skipped a level. A screen reader moving by heading reads that as a
+ * missing section, and the outline is also what an assistant reads to work out
+ * what a page is made of. The size it is set at is the stylesheet's business
+ * and has not changed.
+ */
+describe('where a day sits in the outline', () => {
+  it('is a second level heading, directly under the heading of the page', () => {
+    const { container } = render(DayGroup, { day: '2026-09-24T18:00:00-05:00' });
+    expect(container.querySelector('.dh h2')).toBeTruthy();
+    expect(container.querySelector('.dh h3')).toBe(null);
   });
 });

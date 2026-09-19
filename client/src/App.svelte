@@ -119,11 +119,18 @@
     try {
       const { user } = await getMe();
       currentUser.set(user);
-      // Somebody who followed a link address while signed out was sent to sign
-      // in, and signing in with a NetID ends up back at the front page, so
-      // they are put back on the address they were headed for.
-      const headedFor = takeAfterSignIn();
-      if (headedFor) navigate(headedFor);
+      /*
+       * Somebody who followed a link address while signed out was sent to sign
+       * in, and signing in with a NetID ends up back at the front page, so
+       * they are put back on the address they were headed for. Only somebody
+       * who actually arrived signed in: the endpoint answers nobody rather
+       * than refusing now, so reaching this with no user is the ordinary case
+       * rather than an error that was thrown past it.
+       */
+      if (user) {
+        const headedFor = takeAfterSignIn();
+        if (headedFor) navigate(headedFor);
+      }
     } catch {
       // Not logged in, which is fine for public routes
     } finally {
@@ -248,11 +255,23 @@
     left: 0;
   }
 
+  /*
+   * A height to start at.
+   *
+   * Every page begins empty and fills once the feed, the event or the
+   * organization arrives. With no height of its own the body is nothing tall
+   * at first paint, so the footer sits under the band and then drops as the
+   * content lands, taking everything below the fold with it. That was the
+   * whole of the layout shift on the inner pages, and it measured well into
+   * what Core Web Vitals calls poor. Sixty of the viewport is roughly what is
+   * under the band on a phone, so the footer starts where it ends up.
+   */
   .page-body {
     max-width: var(--wrap);
     margin: 0 auto;
     width: 100%;
     padding: 28px 32px 34px;
+    min-height: 60vh;
   }
 
   @media (max-width: 640px) {

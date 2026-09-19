@@ -41,3 +41,23 @@ describe('Pagination', () => {
     expect(container.querySelector('.pager')).toBe(null);
   });
 });
+
+/**
+ * WCAG 2.5.3, Label in Name. The two step buttons read Back and Next and were
+ * named "The page before this one" and "The page after this one", so a voice
+ * control user saying "click Next" was reaching for a control whose name does
+ * not contain the word they can see.
+ */
+describe('what the step buttons are called', () => {
+  it('keeps the word on the button inside the name it is given', () => {
+    const { getByText } = render(Pagination, { currentPage: 2, totalPages: 5 });
+    expect(getByText('Back').getAttribute('aria-label')).toMatch(/^Back/);
+    expect(getByText('Next').getAttribute('aria-label')).toMatch(/^Next/);
+  });
+
+  it('still says which page each one goes to', () => {
+    const { getByText } = render(Pagination, { currentPage: 2, totalPages: 5 });
+    expect(getByText('Back').getAttribute('aria-label')).toMatch(/before/);
+    expect(getByText('Next').getAttribute('aria-label')).toMatch(/after/);
+  });
+});

@@ -36,6 +36,10 @@ async function discordState(netId) {
 
 export async function getMe(req, res, next) {
   try {
+    // Nobody is signed in, which is an answer. Nothing is read and nothing is
+    // said, so this costs a query neither here nor in the directory.
+    if (!req.user?.net_id) return res.json({ user: null });
+
     const user = await getUserByNetId(req.user.net_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     const memberships = await getUserMemberships(req.user.net_id);

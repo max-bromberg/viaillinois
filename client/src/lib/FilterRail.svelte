@@ -127,7 +127,7 @@
 
   <div id="agenda-filters" class="groups" class:open>
     <div>
-      <h4>When</h4>
+      <h3>When</h3>
       <div class="when">
         {#each TIMEFRAMES as option (option.value)}
           {#if timeframe === option.value}
@@ -146,7 +146,7 @@
     </div>
 
     <div>
-      <h4>Search</h4>
+      <h3>Search</h3>
       <Field
         label="Search the agenda"
         labelHidden
@@ -157,7 +157,7 @@
     </div>
 
     <div>
-      <h4>Tags</h4>
+      <h3>Tags</h3>
       <div class="hlrow">
         {#each $tagNames as tag (tag)}
           <Highlight
@@ -172,7 +172,7 @@
 
     {#if rsos.length > 0}
       <div>
-        <h4>Organizations</h4>
+        <h3>Organizations</h3>
         <div class="orgs">
           {#each rsos as rso (rso.rso_id)}
             <span
@@ -194,7 +194,7 @@
     {/if}
 
     <div>
-      <h4>Show</h4>
+      <h3>Show</h3>
       <span
         class="check"
         role="checkbox"

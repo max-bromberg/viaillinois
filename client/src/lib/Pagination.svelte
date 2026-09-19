@@ -39,7 +39,7 @@
       class="step"
       disabled={currentPage === 1}
       on:click={() => dispatch('change', currentPage - 1)}
-      aria-label="The page before this one"
+      aria-label="Back, to the page before this one"
     >Back</button>
 
     {#each pageWindow as item, at (at)}
@@ -60,7 +60,7 @@
       class="step"
       disabled={currentPage === totalPages}
       on:click={() => dispatch('change', currentPage + 1)}
-      aria-label="The page after this one"
+      aria-label="Next, to the page after this one"
     >Next</button>
   </nav>
 {/if}

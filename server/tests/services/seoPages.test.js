@@ -283,3 +283,59 @@ describe('the reading pages that were falling through', () => {
     expect(page.robots).toBe('noindex, nofollow');
   });
 });
+
+/**
+ * A page VIA could not describe, because it could not ask.
+ *
+ * Every builder here wrapped its query in a catch and carried on, and the
+ * event and organization builders treated "no row" and "could not ask" as the
+ * same answer: the page does not exist, so tell search engines not to keep it.
+ * A minute of the database being away therefore served noindex for every event
+ * on the site, and noindex is the one instruction Google acts on immediately
+ * and takes weeks to undo.
+ *
+ * Not knowing is not the same as knowing there is nothing. A page whose lookup
+ * failed says so, the shell answers 503, and a crawler comes back.
+ */
+describe('a page whose lookup failed', () => {
+  it('does not tell a search engine the event is gone', async () => {
+    getEventById.mockRejectedValue(new Error('the database is away'));
+    const page = await describePage('/events/12', SITE);
+    expect(page.robots).not.toBe('noindex, nofollow');
+    expect(page.unavailable).toBe(true);
+  });
+
+  it('does not tell a search engine the organization is gone', async () => {
+    getPublicOrganization.mockRejectedValue(new Error('the database is away'));
+    const page = await describePage('/organizations/7', SITE);
+    expect(page.robots).not.toBe('noindex, nofollow');
+    expect(page.unavailable).toBe(true);
+  });
+
+  /** An event that genuinely is not there is still told apart from one VIA could not ask about. */
+  it('still declines an event that is really not there', async () => {
+    getEventById.mockResolvedValue(null);
+    const page = await describePage('/events/12', SITE);
+    expect(page.robots).toBe('noindex, nofollow');
+    expect(page.unavailable).toBeUndefined();
+  });
+
+  it('still declines an organization that has nothing public', async () => {
+    getPublicOrganization.mockResolvedValue(null);
+    const page = await describePage('/organizations/7', SITE);
+    expect(page.robots).toBe('noindex, nofollow');
+    expect(page.unavailable).toBeUndefined();
+  });
+
+  /**
+   * The front page and the listings carry on with an empty list rather than
+   * refusing: a page with a heading and nothing under it is still a page, and
+   * it is the site's most linked to address.
+   */
+  it('still serves the front page with nothing on it', async () => {
+    getPublicEvents.mockRejectedValue(new Error('the database is away'));
+    const page = await describePage('/', SITE);
+    expect(page.robots).toBe('index, follow');
+    expect(page.unavailable).toBeUndefined();
+  });
+});
