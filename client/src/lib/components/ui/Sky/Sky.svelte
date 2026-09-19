@@ -61,8 +61,28 @@
   const coming = $derived(sky ? null : hour.next);
   const blend = $derived(sky ? 0 : hour.blend);
 
+  /**
+   * The colour each sky begins at, which is the colour at the top of the band,
+   * where the navigation and its controls sit.
+   *
+   * A cut secondary button is two layers: its own background is the border
+   * colour, and a chamfered layer inset by the border width covers everything
+   * but the ring. The band used to tell that inner layer to be transparent so
+   * that the sky showed through, which let the border colour fill the whole
+   * button, label and all, and "Sign out" disappeared into a solid block. The
+   * band hands the button the sky's own colour instead.
+   */
+  const FILLS = {
+    morning: '--sky-morning-top',
+    afternoon: '--sky-afternoon-top',
+    dusk: '--sky-evening-top',
+    evening: '--sky-evening-top',
+    night: '--sky-night-top',
+  };
+
   const token = $derived(TOKENS[showing] ?? TOKENS.afternoon);
   const nextToken = $derived(coming ? TOKENS[coming] ?? TOKENS.afternoon : null);
+  const fill = $derived(FILLS[showing] ?? FILLS.afternoon);
 
   /**
    * At night the band is dark in either theme, so its ink turns light. It turns
@@ -74,7 +94,7 @@
   const classes = $derived(['skyband', 'cutbl', night && 'night', drift && 'drift', className].filter(Boolean).join(' '));
 </script>
 
-<svelte:element this={as} class={classes} style="--cut: {cut}px; --sky: var({token})" {...rest}>
+<svelte:element this={as} class={classes} style="--cut: {cut}px; --sky: var({token}); --btn-fill: var({fill})" {...rest}>
   {#if nextToken && blend > 0}
     <!--
       The two skies are blended into each other at the edges of their hours. The

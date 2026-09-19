@@ -77,7 +77,6 @@
   $: alsoTrue = event ? [
     repeats,
     interestSentence,
-    event.max_capacity ? `There is room for ${event.max_capacity} people.` : null,
     event.is_private ? `This event is internal to ${event.rso_name} and is not listed publicly.` : null,
   ].filter(Boolean) : [];
 

@@ -50,3 +50,33 @@ describe('a reading page', () => {
     expect(source).toMatch(/font-size:\s*30px/);
   });
 });
+
+/**
+ * A reading page sets prose links in the primary colour and underlines them,
+ * which is right for a link inside a sentence and wrong for a button. The
+ * "Continue to Discord" button on the linking page is an anchor, so the prose
+ * rule outranked the button's own colour and painted the label in the primary
+ * colour on the primary gradient, which left it unreadable.
+ */
+describe('a button standing inside a reading page', () => {
+  const source = readFileSync('src/lib/ReadingPage.svelte', 'utf8');
+
+  /** The selector of the rule that colours prose links. */
+  const linkRule = /\.reading :global\((a.*?)\)\s*\{[^}]*color:\s*var\(--primary\)/.exec(source);
+
+  it('is left out of the rule that colours prose links', () => {
+    expect(linkRule, 'expected a rule colouring prose links').not.toBeNull();
+    expect(linkRule[1]).toContain(':not(.btn)');
+  });
+
+  it('keeps the colour its variant gives it', () => {
+    const { container } = render(ReadingPage, {
+      title: 'Link your Discord account',
+      children: createRawSnippet(() => ({
+        render: () => '<a class="btn primary cut" href="/auth/discord/start">Continue to Discord</a>',
+      })),
+    });
+    const button = container.querySelector('a.btn');
+    expect(button.matches('.reading :is(a:not(.btn))')).toBe(false);
+  });
+});

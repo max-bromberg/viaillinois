@@ -59,7 +59,6 @@
     <p class="where">
       <Icon name="pin" />
       <span>{recommendation.location.building} {recommendation.location.room_number}</span>
-      <span class="seats">seats {recommendation.location.max_capacity}</span>
     </p>
 
     {#if shown.length}
@@ -131,12 +130,6 @@
     font-size: 13px;
     color: var(--ink-2);
     margin: 0;
-  }
-
-  .seats {
-    font-family: var(--mono);
-    font-size: 12.5px;
-    color: var(--muted);
   }
 
   .why {

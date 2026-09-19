@@ -154,13 +154,20 @@
     font-weight: 600;
   }
 
-  .reading :global(a) {
+  /*
+   * A link inside a sentence is set in the primary colour and underlined. A
+   * button written as an anchor, which is what "Continue to Discord" on the
+   * linking page is, is left out: it carries the colour its own variant gives
+   * it, and this rule outranked that variant and painted the label in the
+   * primary colour on the primary gradient, where nobody could read it.
+   */
+  .reading :global(a:not(.btn)) {
     color: var(--primary);
     text-decoration: underline;
     text-underline-offset: 2px;
   }
 
-  .reading :global(a:focus-visible) {
+  .reading :global(a:not(.btn):focus-visible) {
     outline: 2px solid var(--primary);
     outline-offset: 4px;
   }

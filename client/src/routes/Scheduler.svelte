@@ -321,7 +321,7 @@
       <p class="chosen">
         <span class="when">{fmtDateTime(selectedRec.start)} to {fmtTime(selectedRec.end)}</span>
         <span class="where mono">
-          {selectedRec.location?.building} {selectedRec.location?.room_number}, seats {selectedRec.location?.max_capacity}
+          {selectedRec.location?.building} {selectedRec.location?.room_number}
         </span>
       </p>
 
@@ -572,7 +572,6 @@
                         <button type="button" class="room" on:click={() => addExcludedRoom(room)}>
                           <Pad hollow />
                           <span class="where">{room.building} {room.room_number}</span>
-                          <span class="seats mono">seats {room.max_capacity}</span>
                         </button>
                       </li>
                     {/each}
@@ -750,7 +749,6 @@
                           <button type="button" class="room" on:click={() => addExcludedRoom(room)}>
                             <Pad hollow />
                             <span class="where">{room.building} {room.room_number}</span>
-                            <span class="seats mono">seats {room.max_capacity}</span>
                           </button>
                         </li>
                       {/each}
@@ -1188,12 +1186,6 @@
 
   .room .where {
     flex: 1;
-  }
-
-  .room .seats {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--muted);
   }
 
   .left-out {
