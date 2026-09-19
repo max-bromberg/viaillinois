@@ -53,6 +53,12 @@
   let loading = $state(true);
   let generating = $state(false);
 
+  /**
+   * Whether the board has already been told this design is not being kept, so
+   * that they are told when it starts being true and not on every edit after.
+   */
+  let warnedNotKept = false;
+
   /** The accent a template draws in, which is the organization's own colour. */
   let accent = $state(DEFAULT_ACCENT);
 
@@ -197,10 +203,29 @@
     loadFaces(drawn);
   });
 
-  /** Keep the design in this browser, against this event, as it is edited. */
+  /**
+   * Keep the design in this browser, against this event, as it is edited.
+   *
+   * The browser refuses a design larger than the few megabytes it gives a site,
+   * and it refuses it quietly. Left at that, a board member goes on working on
+   * something that stopped being saved several edits ago and finds out by
+   * reloading the page, which is the one moment the work cannot be got back. So
+   * a refusal is said out loud, and said once: the effect runs on every
+   * keystroke, and a warning on each of them would be its own kind of unusable.
+   */
   $effect(() => {
     if (!poster || loading) return;
-    writeDesign(eventId, poster);
+    const kept = writeDesign(eventId, poster);
+    if (kept) {
+      warnedNotKept = false;
+    } else if (!warnedNotKept) {
+      warnedNotKept = true;
+      showToast(
+        'This design is too large to keep in this browser, so it will not be here when you '
+        + 'come back. Download the poster before you close this page.',
+        'error',
+      );
+    }
   });
 
   // ── Data ────────────────────────────────────────────────────────────────
@@ -231,10 +256,34 @@
 
   // ── A picture off the board member's own machine ────────────────────────
 
+  /**
+   * How large a picture may be before the designer turns it down.
+   *
+   * A picture is kept inside the design, written as text, which is about a
+   * third larger again than the file it came from, and the whole design has to
+   * sit in the few megabytes a browser gives a site. Two megabytes leaves room
+   * for a second picture and for everything else on the sheet. A photograph
+   * straight off a phone is larger than this, which is exactly the case worth
+   * catching: it is turned down here, with the reason and what to do about it,
+   * rather than silently ending the saving of the design.
+   */
+  const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
+
   function choosePicture(file) {
     if (!file || !selected) return;
+
+    if (file.size > MAX_PICTURE_BYTES) {
+      showToast(
+        `That picture is too large to keep in this browser. Please choose one under ${
+          Math.round(MAX_PICTURE_BYTES / (1024 * 1024))} MB, or scale it down first.`,
+        'error',
+      );
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => changeSelected({ src: String(reader.result) });
+    reader.onerror = () => showToast('That picture could not be read.', 'error');
     reader.readAsDataURL(file);
   }
 

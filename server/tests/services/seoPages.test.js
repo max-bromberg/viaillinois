@@ -266,9 +266,9 @@ describe('the organizations', () => {
  */
 describe('the reading pages that were falling through', () => {
   it('lets one platform update be indexed, under its own address', async () => {
-    const page = await describePage('/updates/the-poster-designer', SITE);
+    const page = await describePage('/updates/2026-04-23-welcome', SITE);
     expect(page.robots).toBe('index, follow');
-    expect(page.canonical).toBe(`${SITE}/updates/the-poster-designer`);
+    expect(page.canonical).toBe(`${SITE}/updates/2026-04-23-welcome`);
   });
 
   it('points a tab of About at About itself, because it is the same page', async () => {
@@ -335,6 +335,72 @@ describe('a page whose lookup failed', () => {
   it('still serves the front page with nothing on it', async () => {
     getPublicEvents.mockRejectedValue(new Error('the database is away'));
     const page = await describePage('/', SITE);
+    expect(page.robots).toBe('index, follow');
+    expect(page.unavailable).toBeUndefined();
+  });
+});
+
+/**
+ * An address under /updates that no update was ever written for.
+ *
+ * The builder above lets one platform update be indexed under its own address,
+ * and it was doing that for any address of that shape at all, with a canonical
+ * address pointing at itself. The client knows which updates exist, because it
+ * builds them out of the markdown, and the server did not, so anybody could
+ * hand a crawler /updates/anything-they-liked and VIA would answer that it was
+ * a real page worth keeping. That is the thin content this whole work package
+ * set out to stop serving, arriving by another door.
+ */
+describe('an update that was never written', () => {
+  it('is not offered to a search engine as a page of its own', async () => {
+    const page = await describePage('/updates/nothing-was-ever-written-here', SITE);
+    expect(page.robots).toBe('noindex, nofollow');
+  });
+
+  it('does not claim to be its own canonical address', async () => {
+    const page = await describePage('/updates/nothing-was-ever-written-here', SITE);
+    expect(page.canonical).toBeUndefined();
+  });
+
+  /** The updates that were written are still indexed, which is the point of the case. */
+  it('leaves a real update indexed under its own address', async () => {
+    const page = await describePage('/updates/2026-04-23-welcome', SITE);
+    expect(page.robots).toBe('index, follow');
+    expect(page.canonical).toBe(`${SITE}/updates/2026-04-23-welcome`);
+  });
+
+  /**
+   * An address arrives as it was requested, so a slug can carry anything that
+   * survives a URL. A stray percent sign is not a valid escape, and reading
+   * one has to be a page declining to be indexed rather than a thrown error.
+   */
+  it('declines an address that cannot be read rather than failing on it', async () => {
+    const page = await describePage('/updates/%', SITE);
+    expect(page.robots).toBe('noindex, nofollow');
+  });
+});
+
+/**
+ * The listing of organizations, when VIA could not ask for it.
+ *
+ * The event and organization builders tell "no row" apart from "could not
+ * ask", and this one did not: a failed query became an empty list, and an
+ * empty list was served as an indexable page headed "Every ECE student
+ * organization" with nothing under it. That is the same fault the rest of this
+ * work package fixed, on the one page whose whole purpose is to be a route
+ * into every other one.
+ */
+describe('the organizations listing whose lookup failed', () => {
+  it('does not serve an indexable page saying there are none', async () => {
+    getPublicOrganizations.mockRejectedValue(new Error('the database is away'));
+    const page = await describePage('/organizations', SITE);
+    expect(page.unavailable).toBe(true);
+  });
+
+  /** An organization list that really is empty is a different answer. */
+  it('still serves the listing when there genuinely are none', async () => {
+    getPublicOrganizations.mockResolvedValue([]);
+    const page = await describePage('/organizations', SITE);
     expect(page.robots).toBe('index, follow');
     expect(page.unavailable).toBeUndefined();
   });

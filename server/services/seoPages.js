@@ -8,6 +8,7 @@ import {
   studentOrganizationSchema, organizationListSchema, breadcrumbSchema,
 } from '../lib/seo/structuredData.js';
 import { escapeHtml } from '../lib/seo/render.js';
+import { isUpdateSlug } from '../lib/seo/updateSlugs.js';
 import { toIsoWithOffset, CAMPUS_TIME_ZONE } from '../lib/timezone.js';
 import { cardAlt } from './shareCard.js';
 
@@ -99,6 +100,23 @@ async function homePage(site) {
 const sharedCard = site => `${site}/og/card.png`;
 
 /**
+ * A single path segment as it was written, where it can be read at all.
+ *
+ * An address arrives here as it was requested, so a slug carrying anything
+ * escaped is escaped here too. A stray percent sign is not a valid escape and
+ * decoding one throws, which would turn a malformed address into a crash
+ * rather than a page politely declining to be indexed, so the segment is
+ * handed back untouched and simply matches no update.
+ */
+function safeDecode(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/**
  * What a page says when VIA could not ask the database at all.
  *
  * Not knowing is not the same as knowing there is nothing. Every builder here
@@ -180,7 +198,12 @@ async function organizationsPage(site) {
   try {
     organizations = await getPublicOrganizations();
   } catch {
-    organizations = [];
+    // Not knowing is not the same as knowing there is none, and this is the
+    // page whose whole purpose is to be a route into every other one. Served
+    // as an empty list it would be an indexable page headed "Every ECE student
+    // organization" with nothing under it, which is the thin content the rest
+    // of this work package exists to stop serving.
+    return couldNotAsk(site, '/organizations');
   }
 
   const description =
@@ -375,8 +398,14 @@ export async function describePage(path, site) {
    * case and serving the fallback, which is the site title, no canonical
    * address and noindex, so a page written to be read was telling search
    * engines to ignore it.
+   *
+   * Only an update that was actually written. Answering for any address of
+   * this shape meant anybody could hand a crawler an address nobody had ever
+   * written an update for and VIA would agree it was a real page, which is the
+   * thin content the rest of this work package set out to stop serving.
    */
-  if (/^\/updates\/[^/]+$/.test(clean)) {
+  const update = /^\/updates\/([^/]+)$/.exec(clean);
+  if (update && isUpdateSlug(safeDecode(update[1]))) {
     return withCard({
       title: 'Platform update: VIA',
       description: 'What has changed on VIA, and what is being worked on next.',

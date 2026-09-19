@@ -199,3 +199,74 @@ describe('a design between visits', () => {
     expect(again.getByLabelText('What it says').value).toContain('Soldering night');
   });
 });
+
+/**
+ * A design that is kept only where the browser will actually keep it.
+ *
+ * The designer promises a board member that their work is where they left it
+ * when they come back to it. Browser storage is a few megabytes, and a picture
+ * off a phone is several on its own once it is written as text, so the promise
+ * is one the designer has to hold up rather than assume. A picture too large
+ * to keep is refused at the door with the reason, and a design the browser
+ * turned away is said out loud, because the alternative is somebody closing
+ * the tab on work that was never saved.
+ */
+describe('a design the browser has to hold', () => {
+  /** A file of a given size, which is all the designer reads before it decides. */
+  const picture = bytes => new File(['x'.repeat(bytes)], 'poster.png', { type: 'image/png' });
+
+  /** Put a picture layer on the poster and hand back its file input. */
+  async function withPictureChosen(screen, file) {
+    await fireEvent.click(screen.getByRole('button', { name: 'Add a picture' }));
+    const input = screen.container.querySelector('.upload input[type="file"]');
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await fireEvent.change(input);
+    return input;
+  }
+
+  it('refuses a picture too large to keep, saying so and leaving the layer alone', async () => {
+    const screen = await opened();
+    await withPictureChosen(screen, picture(3 * 1024 * 1024));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalled());
+    const [message, tone] = showToast.mock.calls.at(-1);
+    expect(message).toContain('too large');
+    expect(tone).toBe('error');
+    expect(screen.container.querySelector('.shown')).toBe(null);
+  });
+
+  it('takes a picture that fits', async () => {
+    const screen = await opened();
+    await withPictureChosen(screen, picture(64 * 1024));
+
+    await waitFor(() => expect(screen.container.querySelector('.shown')).toBeTruthy());
+    expect(showToast).not.toHaveBeenCalledWith(
+      expect.stringContaining('too large'), 'error',
+    );
+  });
+
+  /**
+   * The storage layer already answers whether the browser took the design.
+   * What matters to a board member is being told when the answer is no, once,
+   * rather than on every key they press.
+   */
+  it('says so when the browser will not keep the design, and says it once', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('The quota has been exceeded.');
+    });
+
+    const screen = await opened();
+    await fireEvent.pointerDown(screen.onPoster('The title'));
+    const says = screen.getByLabelText('What it says');
+    await fireEvent.input(says, { target: { value: 'One' } });
+    await fireEvent.input(says, { target: { value: 'Two' } });
+    await fireEvent.input(says, { target: { value: 'Three' } });
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(
+      expect.stringContaining('too large to keep'), 'error',
+    ));
+    const warnings = showToast.mock.calls
+      .filter(([message]) => String(message).includes('too large to keep'));
+    expect(warnings).toHaveLength(1);
+  });
+});
