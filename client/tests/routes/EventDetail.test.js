@@ -335,3 +335,18 @@ describe('EventDetail, the description', () => {
     expect(said[0].closest('.poster')).toBeTruthy();
   });
 });
+
+/**
+ * An event page used to link nowhere except back to the feed, so a reader who
+ * wanted the rest of what an organization runs had to go and find it, and a
+ * crawler that read the page learned of no other page from it. One way into
+ * each page is thin linking for a site whose event pages Google has discovered
+ * and declined to crawl.
+ */
+describe('the way through to the organization', () => {
+  it('links to the page for the organization putting the event on', async () => {
+    const { findByRole } = render(EventDetail, { id: 1 });
+    const link = await findByRole('link', { name: /everything .* has on/i });
+    expect(link.getAttribute('href')).toBe('/organizations/2');
+  });
+});

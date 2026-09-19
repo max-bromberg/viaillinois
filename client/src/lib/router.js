@@ -3,6 +3,7 @@ import { writable } from 'svelte/store';
 const ROUTES = [
   { name: 'event-detail',  pattern: /^\/events\/(\d+)$/,    paramNames: ['id'] },
   { name: 'update-detail', pattern: /^\/updates\/([^/]+)$/, paramNames: ['slug'] },
+  { name: 'organization',  pattern: /^\/organizations\/(\d+)$/, paramNames: ['id'] },
   // A link session identifier is thirty two random bytes written URL safe,
   // which is forty three characters, and the shape is checked here so that a
   // stray address never becomes a request.

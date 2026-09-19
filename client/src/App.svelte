@@ -181,6 +181,13 @@
         <LazyRoute load={() => import('./routes/Admin.svelte')} />
       {:else if $currentPath === '/calendar'}
         <LazyRoute load={() => import('./routes/Calendar.svelte')} />
+      {:else if $currentPath === '/organizations'}
+        <LazyRoute load={() => import('./routes/Organizations.svelte')} />
+      {:else if dynamicRoute?.name === 'organization'}
+        <LazyRoute
+          load={() => import('./routes/Organization.svelte')}
+          props={{ id: parseInt(dynamicRoute.params.id) }}
+        />
       {:else if $currentPath === '/about' || dynamicRoute?.name === 'about-tab'}
         <LazyRoute load={() => import('./routes/About.svelte')} />
       {:else if $currentPath === '/scheduler'}

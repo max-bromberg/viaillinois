@@ -11,7 +11,13 @@ vi.mock('../../db/queries/events.js', () => ({
   deleteEvent: vi.fn(), findEventsByUid: vi.fn(), createEvent: vi.fn(),
 }));
 vi.mock('../../db/queries/advanced.js', () => ({ createEventTransactional: vi.fn(), callGetRSOStats: vi.fn() }));
-vi.mock('../../db/queries/rso.js', () => ({ getMembership: vi.fn(), getUserMemberships: vi.fn() }));
+const getPublicOrganizations = vi.fn();
+vi.mock('../../db/queries/rso.js', () => ({
+  getMembership: vi.fn(), getUserMemberships: vi.fn(),
+  getPublicOrganizations: (...a) => getPublicOrganizations(...a),
+  getPublicOrganization: vi.fn().mockResolvedValue(null),
+  getPublicEventsForRso: vi.fn().mockResolvedValue({ upcoming: [], past: [] }),
+}));
 vi.mock('../../db/queries/users.js', () => ({
   getUserByNetId: vi.fn(), upsertUser: vi.fn(), getLocalAccount: vi.fn(), inviteUser: vi.fn(),
 }));
@@ -31,6 +37,9 @@ const EVENT = {
 describe('GET /sitemap.xml', () => {
   beforeEach(() => {
     getPublicEventSitemapEntries.mockResolvedValue([EVENT, { ...EVENT, event_id: 13 }]);
+    getPublicOrganizations.mockResolvedValue([
+      { rso_id: 7, name: 'HKN', last_change: '2026-09-18 10:00:00' },
+    ]);
   });
 
   /**
@@ -104,5 +113,87 @@ describe('GET /llms.txt', () => {
     expect(res.text).toMatch(/^# VIA/m);
     expect(res.text).toMatch(/University of Illinois/);
     expect(res.text).toContain('/sitemap.xml');
+  });
+});
+
+/**
+ * What else belongs in a sitemap.
+ *
+ * A sitemap is the one place VIA gets to say, in full, which of its addresses
+ * are worth a search engine's time. It listed seven fixed pages and the
+ * events, so the organizations and the platform updates, each of which is a
+ * page written to be read, were never submitted at all.
+ */
+describe('everything the sitemap carries', () => {
+  beforeEach(() => {
+    getPublicEventSitemapEntries.mockResolvedValue([
+      { event_id: 12, updated_at: '2026-09-18 10:00:00' },
+    ]);
+    getPublicOrganizations.mockResolvedValue([
+      { rso_id: 7, name: 'HKN', last_change: '2026-09-18 10:00:00' },
+      { rso_id: 8, name: 'IEEE', last_change: null },
+    ]);
+  });
+
+  it('lists the page holding every organization, and one per organization', async () => {
+    const { text } = await request(app).get('/sitemap.xml');
+    expect(text).toContain('<loc>http://viaillinois.test/organizations</loc>');
+    expect(text).toContain('<loc>http://viaillinois.test/organizations/7</loc>');
+    expect(text).toContain('<loc>http://viaillinois.test/organizations/8</loc>');
+  });
+
+  /**
+   * lastmod was the hour the event starts at, so every event still to come
+   * claimed to have been modified in the future. Google uses lastmod only
+   * where it is consistently accurate, and one date it cannot believe is
+   * enough for it to stop believing any of them.
+   */
+  /** The one <url> block holding an address, rather than whatever follows it. */
+  const entryFor = (text, path) => [...text.matchAll(/<url>[\s\S]*?<\/url>/g)]
+    .map(match => match[0])
+    .find(block => block.includes(`${path}</loc>`));
+
+  it('says when a page last changed, never when its event is due to happen', async () => {
+    const { text } = await request(app).get('/sitemap.xml');
+    expect(entryFor(text, '/events/12')).toContain('<lastmod>2026-09-18T10:00:00-05:00</lastmod>');
+  });
+
+  it('leaves lastmod off a page it does not know the date of', async () => {
+    const { text } = await request(app).get('/sitemap.xml');
+    expect(entryFor(text, '/organizations/8')).not.toContain('<lastmod>');
+    expect(entryFor(text, '/organizations/7')).toContain('<lastmod>');
+  });
+
+  it('holds every address exactly once', async () => {
+    const { text } = await request(app).get('/sitemap.xml');
+    const found = [...text.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+    expect(found.length).toBe(new Set(found).size);
+  });
+
+  /** A sitemap that carries on without the organizations still lists the events. */
+  it('still answers where the organizations cannot be read', async () => {
+    getPublicOrganizations.mockRejectedValue(new Error('the database is away'));
+    const { status, text } = await request(app).get('/sitemap.xml');
+    expect(status).toBe(200);
+    expect(text).toContain('/events/12');
+  });
+});
+
+describe('what robots.txt and llms.txt tell a crawler', () => {
+  it('sends a crawler to the organizations as well as to the events', async () => {
+    const { text } = await request(app).get('/llms.txt');
+    expect(text).toContain('/organizations');
+  });
+
+  /**
+   * The poster designer and the scheduler are board tools behind a sign in,
+   * and the addresses that open them carry an event identifier, so a crawler
+   * following one asks the database for something it will never be shown.
+   */
+  it('keeps crawlers out of the signed in areas', async () => {
+    const { text } = await request(app).get('/robots.txt');
+    for (const path of ['/dashboard', '/admin', '/login', '/scheduler', '/poster', '/api/']) {
+      expect(text).toContain(`Disallow: ${path}`);
+    }
   });
 });

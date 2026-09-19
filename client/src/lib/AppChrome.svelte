@@ -55,6 +55,7 @@
   const LINKS = [
     { href: '/', label: 'Events' },
     { href: '/calendar', label: 'Calendar' },
+    { href: '/organizations', label: 'Organizations' },
     { href: '/midterms', label: 'Midterms' },
     { href: '/about', label: 'About' },
   ];

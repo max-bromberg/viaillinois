@@ -170,6 +170,18 @@
     save(`via-event-${event.event_id}.png`, qrDataUrl);
   }
 
+  /**
+   * Follow the link to the organization through the router rather than by
+   * reloading the document. It stays a real anchor so that a crawler reads it
+   * and the middle mouse button still opens a tab, which is what an onclick on
+   * a span would have cost.
+   */
+  function goToOrganization(clickEvent) {
+    if (clickEvent.metaKey || clickEvent.ctrlKey || clickEvent.shiftKey || clickEvent.button) return;
+    clickEvent.preventDefault();
+    navigate(`/organizations/${event.rso_id}`);
+  }
+
 </script>
 
 <svelte:head>
@@ -254,6 +266,17 @@
         {#if rso.description}<p class="txt">{rso.description}</p>{/if}
         <p class="count">
           {rso.event_count ?? 0} event{(rso.event_count ?? 0) !== 1 ? 's' : ''} on VIA
+        </p>
+        <!--
+          The way through to the organization's own page. Until this, an event
+          page linked nowhere except back to the feed, so a reader who wanted
+          the rest of what this organization runs had to go and find it, and a
+          crawler reading the page learned of no other page from it.
+        -->
+        <p class="onwards">
+          <a href="/organizations/{event.rso_id}" onclick={goToOrganization}>
+            Everything {rso.rso_name} has on
+          </a>
         </p>
       </section>
     {/if}

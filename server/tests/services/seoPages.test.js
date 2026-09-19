@@ -12,6 +12,16 @@ vi.mock('../../db/queries/midterms.js', () => ({
   getConfirmedMidterms: (...a) => getConfirmedMidterms(...a),
 }));
 
+const getPublicOrganizations = vi.fn();
+const getPublicOrganization = vi.fn();
+const getPublicEventsForRso = vi.fn();
+
+vi.mock('../../db/queries/rso.js', () => ({
+  getPublicOrganizations: (...a) => getPublicOrganizations(...a),
+  getPublicOrganization: (...a) => getPublicOrganization(...a),
+  getPublicEventsForRso: (...a) => getPublicEventsForRso(...a),
+}));
+
 const { describePage } = await import('../../services/seoPages.js');
 
 const SITE = 'https://viaillinois.com';
@@ -23,11 +33,20 @@ const EVENT = {
   location_text: null, is_private: 0,
 };
 
+const ORGANIZATION = {
+  rso_id: 7, name: 'HKN', description: 'The engineering honour society at Illinois.',
+  founded_year: 1904, logo_color: '#b5306f',
+  event_count: 12, upcoming_count: 3, last_change: '2026-09-18 10:00:00',
+};
+
 describe('describePage', () => {
   beforeEach(() => {
     getPublicEvents.mockResolvedValue([EVENT]);
     getEventById.mockResolvedValue(EVENT);
     getConfirmedMidterms.mockResolvedValue([]);
+    getPublicOrganizations.mockResolvedValue([ORGANIZATION]);
+    getPublicOrganization.mockResolvedValue(ORGANIZATION);
+    getPublicEventsForRso.mockResolvedValue({ upcoming: [EVENT], past: [] });
   });
 
   describe('the front page', () => {
@@ -155,5 +174,112 @@ describe('describePage', () => {
     const page = await describePage('/', SITE);
     expect(page.title).toBeTruthy();
     expect(page.content).toBeUndefined();
+  });
+});
+
+/**
+ * The pages for the organizations themselves.
+ *
+ * VIA had no page for an organization at all, which cost it three things at
+ * once. Google asks every event listing for a url on its organizer and there
+ * was nothing to point at. Twenty organizations, each with a description and a
+ * run of events, were twenty pages of real content the site was not
+ * publishing. And every event page was reachable from exactly one place, the
+ * front page, which is thin linking for a site whose event pages Google has
+ * discovered and declined to crawl.
+ */
+describe('the organizations', () => {
+  beforeEach(() => {
+    getPublicOrganizations.mockResolvedValue([ORGANIZATION]);
+    getPublicOrganization.mockResolvedValue(ORGANIZATION);
+    getPublicEventsForRso.mockResolvedValue({ upcoming: [EVENT], past: [] });
+  });
+
+  describe('the page listing all of them', () => {
+    it('is indexable and says what it lists', async () => {
+      const page = await describePage('/organizations', SITE);
+      expect(page.robots).toBe('index, follow');
+      expect(page.canonical).toBe(`${SITE}/organizations`);
+      expect(page.title).toMatch(/organization/i);
+      expect(page.description.length).toBeGreaterThan(60);
+    });
+
+    it('links to every organization, so a crawler can find them all from here', async () => {
+      const page = await describePage('/organizations', SITE);
+      expect(page.content).toContain('href="/organizations/7"');
+      expect(page.content).toContain('HKN');
+    });
+  });
+
+  describe('the page for one of them', () => {
+    it('names the organization in the title and the description', async () => {
+      const page = await describePage('/organizations/7', SITE);
+      expect(page.title).toMatch(/^HKN/);
+      expect(page.description).toContain('HKN');
+      expect(page.canonical).toBe(`${SITE}/organizations/7`);
+      expect(page.robots).toBe('index, follow');
+    });
+
+    it('links to each of its events, which is a second way into every event page', async () => {
+      const page = await describePage('/organizations/7', SITE);
+      expect(page.content).toContain('href="/events/12"');
+      expect(page.content).toContain('PCB Design Workshop');
+    });
+
+    /** What the organization is, in its own words, is the page's own content. */
+    it('carries what the organization says about itself', async () => {
+      const page = await describePage('/organizations/7', SITE);
+      expect(page.content).toContain('The engineering honour society at Illinois.');
+    });
+
+    it('describes itself to a machine as an organization with a list of events', async () => {
+      const page = await describePage('/organizations/7', SITE);
+      const kinds = page.jsonLd.map(item => item['@type']);
+      expect(kinds).toContain('Organization');
+      expect(kinds).toContain('ItemList');
+      const organization = page.jsonLd.find(item => item['@type'] === 'Organization');
+      expect(organization.name).toBe('HKN');
+      expect(organization.url).toBe(`${SITE}/organizations/7`);
+      expect(organization.foundingDate).toBe('1904');
+    });
+
+    /**
+     * An organization with nothing public is a page with nothing on it, which
+     * is the thin content a search engine discovers and then declines to keep.
+     */
+    it('is not offered to a search engine where there is no such organization', async () => {
+      getPublicOrganization.mockResolvedValue(null);
+      const page = await describePage('/organizations/99', SITE);
+      expect(page.robots).toBe('noindex, nofollow');
+      expect(page.content).toBeUndefined();
+    });
+  });
+});
+
+/**
+ * Two addresses were falling past every case and being told not to index
+ * themselves: the page for one platform update, and each tab of About. Both
+ * are ordinary reading pages with an address of their own, and both were
+ * serving the fallback, which carries the site title, no canonical address and
+ * noindex. That is at least part of what Search Console is reporting as pages
+ * with no canonical the site chose.
+ */
+describe('the reading pages that were falling through', () => {
+  it('lets one platform update be indexed, under its own address', async () => {
+    const page = await describePage('/updates/the-poster-designer', SITE);
+    expect(page.robots).toBe('index, follow');
+    expect(page.canonical).toBe(`${SITE}/updates/the-poster-designer`);
+  });
+
+  it('points a tab of About at About itself, because it is the same page', async () => {
+    const page = await describePage('/about/updates', SITE);
+    expect(page.canonical).toBe(`${SITE}/about`);
+    expect(page.robots).toBe('index, follow');
+  });
+
+  /** Everything else still says no, which is what an address nobody planned for is. */
+  it('still declines an address nobody planned for', async () => {
+    const page = await describePage('/nothing/like/this', SITE);
+    expect(page.robots).toBe('noindex, nofollow');
   });
 });

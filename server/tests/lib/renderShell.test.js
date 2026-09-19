@@ -108,3 +108,113 @@ describe('escapeHtml', () => {
     expect(escapeHtml(undefined)).toBe('');
   });
 });
+
+/**
+ * The shell the client builds carries a fallback sharing card, so that a page
+ * the server could not describe, and the development server, still share with
+ * a picture on them. The server then wrote its own card in beside it and left
+ * the fallback where it was, so a document went out with two og:image tags on
+ * it. Discord reads both and shows both, which is what a VIA link pasted into
+ * a channel looked like: the generic card and the event's own, stacked.
+ */
+describe('a page whose shell already carries a sharing card', () => {
+  const WITH_FALLBACK = `<!doctype html>
+<html lang="en">
+  <head>
+    <title>VIA</title>
+    <meta name="description" content="Original description." />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:site_name" content="VIA" />
+    <meta property="og:image" content="https://x.test/fallback.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The fallback card." />
+    <meta name="twitter:image" content="https://x.test/fallback.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body><div id="app"></div></body>
+</html>`;
+
+  const rendered = renderShell(WITH_FALLBACK, {
+    title: 'An event', description: 'What it is', canonical: 'https://x.test/events/1',
+    image: 'https://x.test/og/event/1.png', imageAlt: 'The card for this event.',
+  });
+
+  const countOf = tag => (rendered.match(new RegExp(tag, 'g')) ?? []).length;
+
+  it.each([
+    'property="og:image"',
+    'property="og:image:width"',
+    'property="og:image:height"',
+    'property="og:image:alt"',
+    'name="twitter:image"',
+  ])('carries exactly one %s', tag => {
+    expect(countOf(tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).toBe(1);
+  });
+
+  it('keeps the card the page named, not the one the shell fell back to', () => {
+    expect(rendered).toContain('content="https://x.test/og/event/1.png"');
+    expect(rendered).not.toContain('fallback.png');
+    expect(rendered).toContain('content="The card for this event."');
+  });
+
+  /** What the shell says about itself and is not per page stays where it is. */
+  it('leaves the tags that are the same on every page alone', () => {
+    expect(rendered).toContain('property="og:site_name" content="VIA"');
+  });
+
+  /**
+   * A page the server could not describe a card for keeps the shell's own, so
+   * that a link to it still shares with a picture.
+   */
+  it('leaves the fallback in place for a page that names no card of its own', () => {
+    const bare = renderShell(WITH_FALLBACK, { title: 'A page', description: 'Words' });
+    expect(bare).toContain('content="https://x.test/fallback.png"');
+    expect((bare.match(/property="og:image"/g) ?? []).length).toBe(1);
+  });
+});
+
+/**
+ * The summary written for crawlers, and the moment a person spends reading it.
+ *
+ * The server writes a plain summary of the page into the document so that a
+ * crawler which does not run scripts has something to read. The application
+ * took it out when it started, and a module script does not run until the
+ * document has been parsed, so everybody watched a column of unstyled headings
+ * and links for as long as the bundle took to arrive.
+ *
+ * It is taken out as the document is parsed instead, by a script sitting
+ * immediately after it, which runs before the browser has anything to paint.
+ * The summary is still in the bytes that were sent, which is the only place a
+ * crawler that does not render looks for it.
+ */
+describe('the summary written for crawlers', () => {
+  const rendered = renderShell(SHELL, {
+    title: 'A title', description: 'A description',
+    content: '<h1>What this page says</h1>',
+  });
+
+  it('is in the document that was sent', () => {
+    expect(rendered).toContain('<div id="seo-content">');
+    expect(rendered).toContain('<h1>What this page says</h1>');
+  });
+
+  it('is taken out by a script standing right after it, before anything is painted', () => {
+    const after = rendered.slice(rendered.indexOf('</div>', rendered.indexOf('id="seo-content"')));
+    const script = after.slice(0, after.indexOf('</script>') + '</script>'.length);
+    expect(script).toContain('seo-content');
+    expect(script).toContain('<script>');
+    // Nothing deferred and nothing from the network: a module or a source
+    // address would not run until the document had been parsed and painted.
+    expect(script).not.toContain('type="module"');
+    expect(script).not.toContain('src=');
+  });
+
+  it('comes before the application, so the application never renders under it', () => {
+    expect(rendered.indexOf('id="seo-content"')).toBeLessThan(rendered.indexOf('id="app"'));
+  });
+
+  it('is nothing at all on a page the server wrote no summary for', () => {
+    expect(renderShell(SHELL, { title: 'A title' })).not.toContain('seo-content');
+  });
+});

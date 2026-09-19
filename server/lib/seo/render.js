@@ -39,6 +39,44 @@ function replaceTag(html, pattern, replacement) {
 }
 
 /**
+ * Take a meta tag out of the shell, by the name or the property it carries.
+ *
+ * The built shell carries a fallback sharing card, so that a page the server
+ * could not describe, and the development server, still share with a picture
+ * on them. Writing this page's own card in beside it left two og:image tags in
+ * one document, and Discord reads both and shows both: a VIA link pasted into
+ * a channel arrived carrying the generic card and the event's own, stacked.
+ *
+ * So a tag this page is about to state is taken out first, and one it says
+ * nothing about is left exactly where it is, which is what keeps the fallback
+ * working for the pages that have no card of their own.
+ */
+function dropTags(html, names) {
+  let out = html;
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(
+      new RegExp(`\\s*<meta\\s+(?:name|property)="${escaped}"[^>]*>`, 'gi'),
+      '',
+    );
+  }
+  return out;
+}
+
+/** The tags each part of a page description states, and so has to clear first. */
+const STATED_BY = {
+  canonical: ['og:url'],
+  title: ['og:title', 'twitter:title'],
+  description: ['og:description', 'twitter:description'],
+  image: [
+    'og:image', 'og:image:secure_url', 'og:image:type',
+    'og:image:width', 'og:image:height', 'og:image:alt',
+    'twitter:image', 'twitter:image:alt',
+  ],
+  type: ['og:type'],
+};
+
+/**
  * @param {string} shell the built index.html
  * @param {{
  *   title?: string, description?: string, canonical?: string, robots?: string,
@@ -67,6 +105,13 @@ export function renderShell(shell, page) {
       `<meta name="robots" content="${escapeHtml(page.robots)}" />`
     );
   }
+
+  // Whatever this page is about to state is cleared out of the shell first, so
+  // that the fallback and the page's own answer never both go out.
+  for (const [part, tags] of Object.entries(STATED_BY)) {
+    if (page[part]) html = dropTags(html, tags);
+  }
+  if (page.canonical) html = html.replace(/\s*<link\s+rel="canonical"[^>]*>/gi, '');
 
   const head = [];
 
@@ -107,9 +152,26 @@ export function renderShell(shell, page) {
   }
 
   if (page.content) {
-    // Outside the application's mount point, and removed by the application on
-    // startup, so the two never both appear.
-    html = html.replace('<body>', `<body>\n    <div id="seo-content">${page.content}</div>`);
+    /*
+     * Outside the application's mount point, and taken out again by the script
+     * standing immediately after it.
+     *
+     * That script is inline and synchronous on purpose. The application used to
+     * remove the summary when it started, and a module script does not run
+     * until the whole document has been parsed, so everybody watched a column
+     * of unstyled headings and links for as long as the bundle took to arrive.
+     * A script the parser meets here runs while the stylesheet in the head is
+     * still holding the first paint, so there is nothing to see.
+     *
+     * The summary is still in the bytes that were sent, which is the only place
+     * a crawler that does not run scripts ever looks for it.
+     */
+    html = html.replace(
+      '<body>',
+      `<body>\n    <div id="seo-content">${page.content}</div>`
+      + '\n    <script>var summary=document.getElementById("seo-content");'
+      + 'if(summary)summary.remove();document.currentScript.remove();</script>',
+    );
   }
 
   return html;

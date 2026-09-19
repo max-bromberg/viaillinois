@@ -133,3 +133,83 @@ describe('organizationSchema', () => {
     expect(schema.logo).toMatch(/^https:\/\//);
   });
 });
+
+/**
+ * The four fields Search Console reported missing on all twenty event pages.
+ *
+ * Google marks image, offers, performer and a url on the organizer as
+ * recommended rather than required, so the listings were valid and were being
+ * shown plainly. A listing that carries them is eligible for the richer
+ * treatment, with the picture and the price beside it, and an assistant
+ * reading the page gets told what a person would have to ask about otherwise,
+ * which is whether it costs anything and who is running it.
+ */
+describe('the fields a rich event listing needs', () => {
+  const hosted = { ...inRoom, rso_id: 7, tags: 'workshop, hardware' };
+
+  it('carries a picture, which is the card drawn for that event', () => {
+    expect(eventSchema(hosted, SITE).image).toEqual([`${SITE}/og/event/12.png`]);
+  });
+
+  /**
+   * Every event on VIA is free to turn up to. Saying so is what stops a
+   * listing being shown without a price, which reads as though there may be
+   * one.
+   */
+  it('says that turning up costs nothing, in the shape an offer takes', () => {
+    const { offers } = eventSchema(hosted, SITE);
+    expect(offers['@type']).toBe('Offer');
+    expect(offers.price).toBe('0');
+    expect(offers.priceCurrency).toBe('USD');
+    expect(offers.availability).toBe('https://schema.org/InStock');
+    expect(offers.url).toBe(`${SITE}/events/12`);
+    expect(offers.validFrom).toBe('2026-10-01T18:00:00-05:00');
+  });
+
+  it('names the organization as the one putting the event on', () => {
+    const { performer } = eventSchema(hosted, SITE);
+    expect(performer['@type']).toBe('Organization');
+    expect(performer.name).toBe('HKN');
+    expect(performer.url).toBe(`${SITE}/organizations/7`);
+  });
+
+  it('points the organizer at the page for that organization', () => {
+    const { organizer } = eventSchema(hosted, SITE);
+    expect(organizer['@type']).toBe('Organization');
+    expect(organizer.name).toBe('HKN');
+    expect(organizer.url).toBe(`${SITE}/organizations/7`);
+  });
+
+  /** The tags a board put on an event are what it is about. */
+  it('carries what the event is about, from the tags it was given', () => {
+    expect(eventSchema(hosted, SITE).keywords).toBe('workshop, hardware');
+  });
+
+  it('says what language it is in, which an assistant reads before it answers', () => {
+    expect(eventSchema(hosted, SITE).inLanguage).toBe('en-US');
+  });
+
+  /**
+   * An event whose organization VIA has no identifier for still gets a name.
+   * A url pointing at a page that does not exist is worse than none.
+   */
+  it('leaves the addresses off where there is no organization to point at', () => {
+    const schema = eventSchema({ ...inRoom, rso_id: null }, SITE);
+    expect(schema.organizer.name).toBe('HKN');
+    expect(schema.organizer.url).toBeUndefined();
+    expect(schema.performer.url).toBeUndefined();
+  });
+
+  it('carries no keywords for an event that was given no tags', () => {
+    expect(eventSchema(inRoom, SITE).keywords).toBeUndefined();
+  });
+
+  /**
+   * An internal event's card is never drawn, because its address would be a
+   * way to read the title of something nobody outside the organization is
+   * shown.
+   */
+  it('carries no picture for an event that is not public', () => {
+    expect(eventSchema({ ...hosted, is_private: 1 }, SITE).image).toBeUndefined();
+  });
+});

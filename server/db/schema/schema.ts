@@ -185,6 +185,16 @@ export const events = mysqlTable("Events", {
 	cancelledAt: datetime("cancelled_at", { mode: 'string'}),
 	// The small thing a board changes at the door, shown beside the room.
 	locationNote: varchar("location_note", { length: 500 }),
+	// When the row last changed, which is what the sitemap publishes as lastmod.
+	// It used to publish the hour the event starts at, so a sitemap full of
+	// events that have not happened yet claimed to have been modified in the
+	// future, and Google ignores a lastmod it cannot believe.
+	//
+	// The column also carries ON UPDATE CURRENT_TIMESTAMP in the database.
+	// Drizzle's datetime cannot express that, only timestamp can, so the
+	// migration owns it, as it does for Facility_Reservations.scraped_at.
+	updatedAt: datetime("updated_at", { mode: 'string'})
+		.default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("rso_id").on(table.rsoId),
