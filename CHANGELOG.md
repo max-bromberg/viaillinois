@@ -4,6 +4,11 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+- The poster designer became an editor. It drew one fixed layout with a handful of switches over it, so a board could change the colour of a poster and which of four pieces it carried, and nothing else: not where the title sat, not how large it was, not whether the room went above the hours, not whether there was a second picture. A design now starts from one of four templates, with the event already laid out in it, and from there everything on the sheet is a layer. Pick it up and drag it, size it by its handles or place it exactly with the arrow keys, set it in any of thirty four faces at any size, recolour it, turn it, send it behind something else, copy it or take it off. Add as many blocks of words, pictures and shapes as the poster needs, and put the link square wherever it belongs. Undo and redo cover everything, a drag counting as one step rather than a hundred, and the design is kept in the browser that made it so a board can come back to it. The same drawing puts the poster on the screen and into the file that downloads, so the preview cannot show one thing and the download another.
+- The Continue button on the Discord linking page can be read again. It is written as a link, and a reading page sets the links in its prose in the primary colour, which outranked the button's own colour and painted the label in the primary colour on the primary gradient.
+- The Sign out button in the sky band can be seen again. A cut secondary button is two layers, its own background being the border colour and a chamfered layer inset by the border width covering all but the ring, and the band told that inner layer to be transparent so that the sky would show through, which let the border colour fill the whole button, label and all. Each sky now names the colour it begins at, the way the night sky already did, and the band hands that colour to the button standing on it.
+- The capacity of a room is gone from every screen. The number in the locations table is not one anybody measured: it reads the same for very nearly every room on campus, so a board comparing two rooms by it learned nothing.
+
 ## 0.7.0 (2026-09-18)
 
 - 
