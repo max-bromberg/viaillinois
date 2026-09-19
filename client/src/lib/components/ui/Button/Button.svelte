@@ -26,6 +26,12 @@
     href = null,
     /** An icon beside the label. The label speaks, so the icon is decoration. */
     icon = null,
+    /**
+     * An icon after the label rather than before it. A control that says which
+     * way it goes wants its chevron on the side it points: a chevron in front
+     * of "Next week" points back at the words.
+     */
+    trailingIcon = null,
     /** Waiting on something. The button says so and stops answering. */
     busy = false,
     disabled = false,
@@ -84,6 +90,7 @@
       {#if variant === 'quiet'}<Pad />{/if}
       {#if icon}<Icon name={icon} />{/if}
       {@render children?.()}
+      {#if trailingIcon}<Icon name={trailingIcon} />{/if}
     </a>
   {:else}
     <button
@@ -97,6 +104,7 @@
       {#if variant === 'quiet'}<Pad />{/if}
       {#if icon}<Icon name={icon} />{/if}
       {@render children?.()}
+      {#if trailingIcon}<Icon name={trailingIcon} />{/if}
     </button>
   {/if}
 </span>

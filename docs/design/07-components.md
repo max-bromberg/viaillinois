@@ -6,8 +6,11 @@ themes, and carries no raw hex value. The selectors named below are the ones in
 `reference/foundation.css`, which is normative: when this document and that file disagree,
 the file wins and this document is corrected.
 
-Bits UI remains as the headless layer for menus, dialogs, popovers and the date picker, for
-keyboard and screen reader behavior only. It contributes no styling.
+Bits UI was going to be the headless layer for menus, dialogs, popovers and the date
+picker, for keyboard and screen reader behavior only. It is not a dependency of the client
+and nothing imports it, so the keyboard and screen reader behavior of each of those is
+written here and covered by that component's own tests. The calendar below is the first of
+them.
 
 The rules are not retyped into the client. `client/scripts/designRules.js` reads them out of
 `reference/foundation.css` in the order that file writes them, because that order is the
@@ -85,8 +88,12 @@ baseline.
 
 ### Icon (`svg.i`)
 
-The eight shapes the reference render draws: pin, calendar, arrow, back, bolt, share, sun
-and moon. They take the stroke weight of the traces in the mark and the color of whatever
+The eleven shapes the reference render draws: pin, calendar, arrow, back, bolt, share,
+sun, moon, the two direction chevrons, previous and next, and the heart in the footer's
+sign off. Arrow and back are a shaft with a
+head and mean go to somewhere. The chevrons are a step one along, which is what a calendar
+paging a week at a time is doing, and they are drawn on the chamfer's own 45 degrees so
+that a direction belongs to the same geometry as every cut on the page. They take the stroke weight of the traces in the mark and the color of whatever
 text they sit in. The first version of the site used emoji, which draw differently on every
 platform, so the page had one face on a phone and another on the lobby screen. Adding a
 shape means adding it to the reference render first.
@@ -130,6 +137,57 @@ and a 2 px bottom border in strong line color; then help text at 12.5 px muted.
 | error (`.err`) | danger | danger | danger |
 
 There is no box around a field.
+
+## Calendar (`.cal`)
+
+One month of days, and the part every date control on the site is built from. The date
+field's floating sheet and the picker that takes a set of dates are both arrangements of
+this one component, so a change to how a month is drawn is one change rather than two.
+
+| Part | Appearance |
+| --- | --- |
+| month header (`.mhead`) | the previous chevron, the month and year in the display face at width 80 weight 700 15 px, the next chevron |
+| stepper (`.mstep`) | a chevron in muted ink inside a 32 px target, ink on hover, a 2 px primary outline on focus |
+| weekday cap (`.dcap`) | the two letter day in mono at 12 px muted, spelled out in full for a screen reader |
+| week (`.wkrow`) | seven equal columns, 4 px gap |
+| day (`.dbtn`) | the date in the display face at width 75 weight 700 16 px, with the pad under it, inside a 40 px target |
+
+| State | Appearance |
+| --- | --- |
+| rest | ink, the pad hidden |
+| chosen (`aria-pressed`) | the number in primary, the pad shown in primary |
+| today (`.now`) | the number in the signal color, as it is on the term calendar |
+| hover or focus | the number in primary |
+| out of range (`disabled`) | muted ink held back to 50 percent |
+
+The pad occupies its space whether or not the day is chosen, so a month does not change
+height as it is clicked through. The chosen state is the pad because the pad is what says
+chosen everywhere else on the site, and a filled rectangle behind a date is a shape the
+design does not use.
+
+A month is a grid and is walked with the arrow keys. One day of the month is in the tab
+order, the day already chosen or today or the first day the calendar will accept, and the
+arrows move from there: left and right by a day, up and down by a week, home and end to the
+ends of the week, page up and page down by a month and with shift by a year. Walking off
+the end of a month moves to the next one. A move that would land outside the range the
+calendar was given stays where it is, so the focus is never left on a day that is going to
+be refused. Forty two day buttons in the tab order is not keyboard support.
+
+The calendar reports and decides nothing. Which month is on view and which days are marked
+are given to it, and a click or a walk off the end says so and waits, which is what lets one
+calendar serve a control that takes one date and a control that takes a set of them.
+
+Whatever the control puts under the month, the count of dates chosen (`.tally`) or the
+words that clear a field, sits inside the calendar so that it takes the calendar's own width.
+
+## Date picker
+
+The date field is the field above with a button on its line in place of an input, because a
+date here is chosen on a calendar and never typed: a pad, the date in words, and the
+calendar icon. Opening it lights the line exactly as focus does. The calendar drops out of
+it on a floating sheet, cut 14 px at the top right, on the card color. Choosing a day closes
+the sheet and hands the focus back to the field, and so does the escape key and a click
+anywhere else. Paging the month leaves it open, because paging is not choosing.
 
 ## Switch (`.tswitch`)
 
@@ -220,14 +278,46 @@ padding, a hairline above. The course code at 32 px condensed 800 over the cours
 ### Kiosk stage
 
 The night sky as the whole screen, the circuit board drawn on a canvas at low opacity with
-a few traces in signal, a signal glow at the lower left. Top row: the now tag and a clock
-at 54 px condensed 200. Then the organization, the title at 98 px condensed 800 with a 13
-character measure, and the end time at 52 px condensed 800 beside the room in mono at
-24 px. The mark, the domain and the position in the rotation sit at the bottom.
+a few traces in signal, a signal glow at the lower left.
+
+The mark leads the screen rather than signing it off. A lobby display is read from across a
+room and from the top down, so what says whose screen this is belongs where the eye lands
+rather than where it finishes, and the domain and the position in the rotation sit with it.
+The clock, the date and the forecast stack in the opposite corner. The foot the mark used to
+sit in is gone.
+
+Everything is a step or two larger than the reading pages, because the distance is the
+room rather than a desk: the clock at 76 px condensed 200, the date under it at 26 px in
+the display face, the organization at 26 px, the title at 96 px condensed 800 with an 11
+character measure, the hours at 66 px condensed 800, and the room in mono at 32 px. The
+day of the event keeps its word and gains the date beside it, set smaller and quieter, so
+the figures settle what "Tomorrow" means to somebody reading at an unknown hour.
+
+The forecast is three days from the platform's own weather service, and it is left off the
+slide entirely when no source answered: a screen with an empty weather panel looks broken
+and one with no panel looks finished.
+
+Every slide carries a code to its own event page, in the corner the composition leaves
+empty. It is drawn from the module matrix rather than dropped in as an image, so it takes
+the chamfer the rest of the page takes, and the chamfer comes out of the tile's corner
+rather than out of the code so that nothing a reader needs is clipped. Its two colors are
+fixed rather than drawn from tokens, which is the one place on the site that is true: a
+camera in whatever light a lobby has needs dark modules on a light field, and tokens would
+invert it with the theme.
+
+Every word on this surface is read once, by somebody walking past, so the screen lifts its
+own two greys past the values the reading pages use. The faint gray stays what the color
+document says it is, a hairline and a hollow pad, and no word on the screen is set in it.
+
+At 820 px of height and below, which is what a 1280 by 720 or a 1366 by 768 display gives,
+the sizes and the paddings step down one rung and the rail narrows to 340 px. The stage is
+the whole viewport and its main column clips, so without that step the hours and the room
+run off the bottom edge. Nothing new is introduced and nothing changes shape.
 
 ### Kiosk rail
 
-A 360 px column on a darker translucent ground: a heading at 20 px condensed 800, then
-items with the time at 20 px condensed 700 in teal 200 over a small mono qualifier, and
-the title at width 90 weight 700 over the organization and room. A second heading and list
+A 440 px column on a darker translucent ground, 340 px on a screen 820 px high or less: a
+heading at 20 px condensed 800, then items with the time at 26 px condensed 700 in teal 200
+over a mono qualifier at 13 px, and the title at width 90 weight 700 over the organization
+and room. A second heading and list
 for this month's midterms sit at the bottom.

@@ -21,6 +21,34 @@ export async function getCourses(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * One exam, as anybody may read it.
+ *
+ * The schedule is public, and who submitted an entry is a NetID, which names a
+ * student. The platform withholds a NetID from an anonymous reader everywhere
+ * else, an organization's member list included, and the exam schedule is held
+ * to the same line. The submitter is still kept, and the admin listing still
+ * carries it, because an admin reviewing an entry is asking exactly that.
+ *
+ * Written as a list of what goes out rather than as a list of what is removed,
+ * so a column added to the query later is withheld until somebody says it may
+ * be published.
+ */
+function publicMidterm(row) {
+  return {
+    midterm_id: row.midterm_id,
+    course_code: row.course_code,
+    course_title: row.course_title,
+    title: row.title,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    status: row.status,
+    location_text: row.location_text,
+    building: row.building,
+    room_number: row.room_number,
+  };
+}
+
 export async function listMidterms(req, res, next) {
   try {
     const { courseCode } = req.query;
@@ -44,7 +72,7 @@ export async function listMidterms(req, res, next) {
       endingOnOrAfter: campusStartOfToday(),
       limit, offset,
     });
-    res.json({ midterms });
+    res.json({ midterms: midterms.map(publicMidterm) });
   } catch (err) { next(err); }
 }
 

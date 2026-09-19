@@ -33,7 +33,13 @@
   /** "6:41 PM" arrives as one string, and the meridiem is set apart from it. */
   const parts = $derived(shown ? shown.split(' ') : []);
   const date = $derived(instant ? campusShortDate(instant) : '');
-  const under = $derived(sky ? `${date} · ${sky} over ECEB` : `${date} · ${place}`);
+  /*
+   * The sky is over the campus rather than over one building. The lobby screen
+   * hangs in a building, and VIA is not that building: the organizations it
+   * serves belong to a department, most of them meet in several buildings, and
+   * a reader two doors down is under the same sky.
+   */
+  const under = $derived(sky ? `${date} · ${sky} over ${place}` : `${date} · ${place}`);
 </script>
 
 {#if instant}

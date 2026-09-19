@@ -127,7 +127,20 @@ five stop under `prefers-reduced-motion: reduce`.
 | the sky drifts | the page is alive at this hour | `background-position` from 0 0 to 0 100 percent over a background three times the band's height, 8 s, ease in out, alternate, infinite |
 | rows settle | the agenda has just arrived | `translateY(8px)` to 0, 0.6 s ease out, each row 60 ms after the one above, never from invisible |
 | the lamp brightens | you are reaching for this row | lamp strength from rest to hover over 200 ms |
-| the dial turns | the theme is changing | the pad slides along the dial and the sky crossfades over 400 ms |
+| the dial turns | the theme is changing | the thumb travels one stop along the dial and the sky crossfades, 380 ms, ease out |
+| the board carries current | this screen is live and nobody is at it | a pulse from a pad at random, spreading through the traces and fading, every 2.2 to 7 seconds |
 
 Nothing fades in from transparent. Nothing slides in from off screen. Nothing loops except
 the two above that loop.
+
+Rows settle in order, each 60 ms after the one above, and the stagger stops after eight
+rows. A whole list arriving at one instant is a different movement from a list arriving in
+order, and past eight rows the stagger stops reading as order and starts reading as a page
+that is slow to finish. It applies to the agenda and to the midterm schedule, which are the
+two lists a reader watches arrive.
+
+The board carries current only where nobody can touch it. On a reading page it stays still
+until the cursor comes near, because a page that animates while you are reading it competes
+with its own content. A lobby screen has no cursor, so the same rule left it a wall of
+static lines, and the pacing there is deliberately irregular: a machine ticking is more
+noticeable than a room moving.

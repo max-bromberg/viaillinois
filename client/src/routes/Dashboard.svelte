@@ -586,6 +586,42 @@
             {/if}
           </section>
 
+          <!--
+            The one number the platform collects by itself. Interest and
+            feedback both arrive through the Discord bot, so a board whose
+            members are not on Discord read a column of zeros and learned
+            nothing about whether anybody had seen the event at all.
+
+            These are readings rather than readers: nothing about who read a
+            page is recorded anywhere, so one person opening it five times is
+            five. It is the crude measure deliberately, because the precise one
+            is bought with a record of who read what.
+          -->
+          <section class="whole">
+            <h3>How often events were read about</h3>
+            {#if !insights.views || insights.views.length === 0}
+              <p class="quiet">
+                No event page has been read in the last ninety days. A reading is counted when
+                somebody opens an event's own page, so this fills in as your events are shared.
+              </p>
+            {:else}
+              <p class="quiet">
+                <Numeral value={insights.view_total ?? 0} unit=" readings in the last ninety days" size={22} />
+              </p>
+              <ul class="lines">
+                {#each insights.views as row (row.event_id)}
+                  <li>
+                    <span class="what">
+                      <span class="name">{row.title}</span>
+                      <small>{fmtDate(row.start_time)}</small>
+                    </span>
+                    <Numeral value={row.view_count} unit={row.view_count === 1 ? ' reading' : ' readings'} size={22} />
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
+
           <!-- The count that replaced RSVPs, from Discord's own controls and the companion's buttons. -->
           <section class="whole">
             <h3>Interest in upcoming events</h3>
@@ -942,21 +978,41 @@
 
   /* ── The listing ───────────────────────────────────────────────────────── */
 
+  /*
+   * The listing owns the columns and every row takes them as a subgrid.
+   *
+   * Each row used to write the widths itself, and the last column is sized to
+   * its own content: the header's last cell is the words "What you can do" and
+   * a row's is four buttons. The two resolved differently, and because the
+   * columns before them are fractions, every heading drifted with it. At
+   * 1280px the headings stood 125 to 292 pixels right of the cells they name,
+   * so "When" sat over who could see the event. One set of widths for the whole
+   * listing is the only arrangement in which that cannot happen again.
+   */
   .listing {
     display: grid;
+    column-gap: 18px;
+    grid-template-columns: minmax(0, 1.5fr) 110px 150px minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .members {
+    grid-template-columns: minmax(0, 1.2fr) 140px 110px 120px auto;
   }
 
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) 110px 150px minmax(0, 1fr) minmax(0, 1fr) auto;
-    gap: 18px;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
     padding: 14px 0;
     border-top: 1px solid var(--line);
   }
 
-  .members .row {
-    grid-template-columns: minmax(0, 1.2fr) 140px 110px 120px auto;
+  /* A sentence standing in for the rows, such as an organization with no
+     members yet, is not a row and takes the whole width rather than the first
+     column. */
+  .listing > .none {
+    grid-column: 1 / -1;
   }
 
   .row.head {

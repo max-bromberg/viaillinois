@@ -1,6 +1,8 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { getKioskEvents } from '../api/events.js';
+  import { getKioskWeather } from '../api/kiosk.js';
+  import { watchForNewVersion, readPlatformVersion } from '../lib/kioskRefresh.js';
   import { getConfirmedMidterms } from '../api/midterms.js';
   import { getRsos } from '../api/rsos.js';
   import KioskCard from '../lib/KioskCard.svelte';
@@ -47,8 +49,19 @@
    */
   let now = $state(new Date());
 
+  /** The forecast, or nothing. A screen that cannot reach it still shows events. */
+  let weather = $state(null);
+
   let rotating;
   let refreshing;
+  let versionWatch;
+
+  /**
+   * Set when the platform starts running a build this screen is not. The reload
+   * is taken at a slide boundary rather than the moment it is noticed, so
+   * nobody in the lobby sees anything but the next event.
+   */
+  let buildIsStale = $state(false);
 
   async function fetchEvents() {
     try {
@@ -58,6 +71,16 @@
     } catch {
       // A screen that has been running for a week keeps showing what it has
       // rather than emptying itself because one request did not come back.
+    }
+  }
+
+  async function fetchWeather() {
+    try {
+      const { weather: forecast } = await getKioskWeather();
+      weather = forecast ?? null;
+    } catch {
+      // The forecast is the corner of the screen, not the screen. A slide with
+      // no forecast on it is a slide; one that failed to draw is a blank wall.
     }
   }
 
@@ -115,23 +138,38 @@
 
   onMount(async () => {
     fetchColours();
-    await Promise.all([fetchEvents(), fetchMidterms()]);
+    await Promise.all([fetchEvents(), fetchMidterms(), fetchWeather()]);
     initialLoading = false;
 
     rotating = setInterval(() => {
       now = new Date();
-      at = (at + 1) % Math.max(events.length, 1);
+      const next = (at + 1) % Math.max(events.length, 1);
+      // A slide boundary is where a reload costs nothing: the screen is
+      // changing anyway, so the reader sees the next event either way.
+      if (buildIsStale && next === 0) {
+        window.location.reload();
+        return;
+      }
+      at = next;
     }, ROTATE_MS);
 
     refreshing = setInterval(() => {
       fetchEvents();
       fetchMidterms();
+      fetchWeather();
     }, REFRESH_MS);
+
+    versionWatch = watchForNewVersion({
+      current: __APP_VERSION__,
+      read: readPlatformVersion,
+      onStale: () => { buildIsStale = true; },
+    });
   });
 
   onDestroy(() => {
     clearInterval(rotating);
     clearInterval(refreshing);
+    versionWatch?.stop();
   });
 </script>
 
@@ -173,6 +211,8 @@
       {now}
       position={at + 1}
       count={events.length}
+      {weather}
+      eventUrl={showing ? `${window.location.origin}/events/${showing.event_id}` : null}
     />
   {/if}
 </div>

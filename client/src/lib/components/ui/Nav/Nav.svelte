@@ -4,11 +4,11 @@
   /**
    * The navigation.
    *
-   * It lives in the sky band. The mark sits at the left with the site's full
-   * name beside it, in the condensed display face, revealing itself on hover the
-   * way it always has. The links are set in the display face and the page you
-   * are on is set at 800 with a pad under it, which is the same shape as the day
-   * marker and the checkbox.
+   * It lives in the sky band. The mark sits at the left and the links follow it
+   * directly: the mark is the wordmark, so spelling the name out beside it put a
+   * second one in the band competing for the same row. The links are set in the
+   * display face and the page you are on is set at 800 with a pad under it,
+   * which is the same shape as the day marker and the checkbox.
    *
    * The page you are on is said in words as well as in weight, because meaning
    * never rides on colour or on weight alone.
@@ -40,7 +40,6 @@
   <a class="home" href="/" onclick={event => follow(event, '/')}>
     <Mark size={58} {onDark} />
   </a>
-  <span class="w">Virtually Integrated Agenda</span>
   <div class="links">
     {#each links as link (link.href)}
       {#if link.href === here}

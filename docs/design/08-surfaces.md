@@ -42,10 +42,20 @@ same parts.
 
 No sky band; the navigation sits on paper. The month grid keeps its structure and takes the
 tokens. Day numbers are condensed 700 at
-16 px. Today's number is signal. Entries are the organization's adapted mark color as a
-2 px trace on the left of the entry's text, which is the one place a vertical color line
-remains, because a calendar cell is too small for a lamp. Midterms use plum. The week view
-follows the same rules. There is no legend of colored squares; the filter rail's pads and
+16 px. Today's number is signal. Entries in the month grid are the organization's adapted
+mark color as a 2 px trace on the left of the entry's text, which is the one place a
+vertical color line remains, because a calendar cell is too small for a lamp. Midterms use
+plum.
+
+The week view is the one exception, and it was bought rather than assumed. There an entry
+is a block on a grid of hairlines drawn on the card, so a block filled with the card color
+is a block nobody can see: the only visible part of an event was the 2 px trace down its
+edge, and the area holding the title and the time read as empty grid in both themes. The
+block takes a tint of the organization's hue instead, at 10 percent of the card and 22 on
+hover, which is the same device the trace uses to say whose event something is and is the
+lamp's own way of brightening when a cursor comes near. The trace stays. This is a tint on
+a block rather than a lamp on a cell, and it is written down here because the rule above it
+is otherwise the whole answer. There is no legend of colored squares; the filter rail's pads and
 names are the legend.
 
 ## The kiosk

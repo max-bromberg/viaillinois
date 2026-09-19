@@ -92,3 +92,66 @@ describe('Button', () => {
     expect(buttonOf(container).parentElement.classList.contains('on-card')).toBe(true);
   });
 });
+
+/**
+ * An icon that says which way a control goes belongs on the side it points.
+ * "Next week" with a chevron in front of the words points back at the words,
+ * and reads as a decoration rather than as a direction.
+ */
+describe('a button with a trailing icon', () => {
+  it('puts it after the label rather than before', () => {
+    const { container } = render(Button, {
+      variant: 'quiet', trailingIcon: 'next', children: undefined,
+    });
+    const control = container.querySelector('.btn');
+    const icon = control.querySelector('svg.i');
+    expect(icon).toBeTruthy();
+    expect(control.lastElementChild).toBe(icon);
+  });
+
+  /**
+   * On a quiet button the pad comes first, because the pad is what says the
+   * button is quiet. The icon follows it and the label follows the icon.
+   */
+  it('puts a leading icon after the quiet variant\'s own pad', () => {
+    const { container } = render(Button, { variant: 'quiet', icon: 'prev', children: undefined });
+    const control = container.querySelector('.btn');
+    const icon = control.querySelector('svg.i');
+    expect(icon).toBeTruthy();
+    expect(control.firstElementChild.classList.contains('pad')).toBe(true);
+    expect(control.firstElementChild.nextElementSibling).toBe(icon);
+  });
+
+  it('puts a leading icon first on a variant that has no pad', () => {
+    const { container } = render(Button, { variant: 'secondary', icon: 'prev', children: undefined });
+    const control = container.querySelector('.btn');
+    expect(control.firstElementChild).toBe(control.querySelector('svg.i'));
+  });
+});
+
+/**
+ * The quiet variant's pad is the variant.
+ *
+ * 07-components gives the quiet button "no fill, primary text, a filled primary
+ * pad before the label, 10 px gap", and the Pad list names "the marker beside a
+ * quiet button's label" as one of the pad's uses. The pad was being suppressed
+ * whenever the button carried an icon, so the calendar's own control group read
+ * as two chevron buttons and one pad button standing together, which is three
+ * controls of the same variant wearing two different faces.
+ */
+describe('a quiet button carrying an icon', () => {
+  it('keeps the pad that says which variant it is', () => {
+    const { container } = render(Button, { variant: 'quiet', icon: 'prev' });
+    expect(container.querySelector('.pad')).toBeTruthy();
+  });
+
+  it('keeps it with a trailing icon too', () => {
+    const { container } = render(Button, { variant: 'quiet', trailingIcon: 'next' });
+    expect(container.querySelector('.pad')).toBeTruthy();
+  });
+
+  it('gives no pad to any other variant, whatever it carries', () => {
+    const { container } = render(Button, { variant: 'secondary', icon: 'prev' });
+    expect(container.querySelector('.pad')).toBe(null);
+  });
+});

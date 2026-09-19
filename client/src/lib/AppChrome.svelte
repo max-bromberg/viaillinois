@@ -33,7 +33,7 @@
     /** The counts for the greeting line. */
     counts = { tonight: null, week: null, midterm: null },
     /** Where tonight's events are. */
-    where = 'ECEB',
+    where = null,
     /** What happens when a link is followed. */
     onnavigate = undefined,
     /** What happens when somebody signs out. */
@@ -105,8 +105,14 @@
   -->
   {#if $authResolved}
     {#if $currentUser}
+      <!--
+        The person's own name, which is what the greeting under this already
+        uses. The net id is an identifier the platform needs and not anything
+        somebody calls themselves, so it stands in only where the directory has
+        given us no name at all.
+      -->
       <Button variant="quiet" size="sm" href="/account" onclick={() => onnavigate?.('/account')}>
-        {$currentUser.net_id}
+        {name ?? $currentUser.net_id}
       </Button>
       <Button variant="secondary" size="sm" onclick={() => onsignout?.()}>Sign out</Button>
     {:else if here !== '/login'}

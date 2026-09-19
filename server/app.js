@@ -25,6 +25,7 @@ import seoRouter      from './routes/seo.js';
 import { createHtmlShellHandler } from './middleware/htmlShell.js';
 import midtermsRouter from './routes/midterms.js';
 import kioskRouter    from './routes/kiosk.js';
+import shareCardRouter from './routes/shareCard.js';
 import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
 import { createInternalRouter } from './routes/internal/index.js';
@@ -159,6 +160,21 @@ app.use(seoRouter);
 app.use('/api/v1/midterms',   midtermsRouter);
 // The same answer for everybody, and a lobby screen asks for it over and over.
 app.use('/api/v1/kiosk',      publicFor({ edgeSeconds: 30 }), kioskRouter);
+
+// The picture a reader fetches when somebody pastes a VIA link. Outside the
+// API prefix on purpose: it answers crawlers rather than the client, and it is
+// an image rather than a document. Outside the public budget therefore, and so
+// in need of a ceiling of its own, for the same reason the personal calendar
+// has one below: this is the only public address that opens a browser, and the
+// edge cache in front of it protects nothing against a caller who wants to
+// miss it. A reader who follows a pasted link fetches one card, and an unfurler
+// fetches one per link it sees, so a hundred an hour from one address is
+// generous for every real caller and is nowhere near enough to be a way in.
+app.use('/og', rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.SHARE_CARD_REQUESTS_PER_HOUR || '120', 10),
+  message: 'That picture has been asked for too often. Please try again later.',
+}), shareCardRouter);
 app.use('/api/v1/admin',      adminRouter);
 app.use('/api/v1/scheduler',  schedulerRouter);
 // The Discord bot's door. Off the /api/v1 prefix on purpose, so the public

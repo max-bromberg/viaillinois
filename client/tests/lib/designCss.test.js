@@ -130,3 +130,102 @@ describe('the phone layout', () => {
     expect(PHONE).toMatch(/\.greet\{[^}]*padding:\d+px 16px/);
   });
 });
+
+/**
+ * A secondary button is an outline with the surface behind it showing through
+ * the middle, and the middle was filled with paper wherever it stood. On the
+ * night sky band that is wrong twice over: the band is dark in both themes and
+ * fixes its own ink light, so under the light theme the button drew light text
+ * on a near white fill and the sign out control in the header had no visible
+ * label at all. The fill is a token now, and the band says what it is.
+ */
+describe('an outlined button fills with what it stands on', () => {
+  const APP_CSS = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+
+  it('reads its fill from a token rather than always from paper', () => {
+    expect(APP_CSS).toContain('.btn.secondary.cut::before{background:var(--btn-fill,var(--paper))}');
+  });
+
+  it('is told by the night band that it stands on the night sky', () => {
+    const band = APP_CSS.slice(APP_CSS.indexOf('.skyband.night{'));
+    expect(band.slice(0, band.indexOf('}'))).toContain('--btn-fill:var(--sky-night-top)');
+  });
+
+  it('has a night sky top colour in both themes, because the band is dark in both', () => {
+    // Two definitions for the dark theme, the system preference and the stamped
+    // choice, and one for the light theme, which is how every other token in
+    // this stylesheet is written.
+    expect(APP_CSS.match(/--sky-night-top:/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+/**
+ * A page away from the feed puts its own title in the band, and the band draws
+ * it as an h1 because it is that page's first level heading. The stylesheet
+ * dressed h2, which is the greeting, and named h1 nowhere, so every page title
+ * on the site fell through to the browser's own h1. Tailwind's preflight resets
+ * that to inherit, so About, Calendar and Midterms were each announced in small
+ * regular body text.
+ *
+ * This is the same fault the feed heading had in the review before the release,
+ * one level up: a rule that names one heading level and a page that draws the
+ * other.
+ */
+describe('a page title in the band', () => {
+  const APP_CSS = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+
+  it('is dressed at all', () => {
+    expect(APP_CSS).toMatch(/\.greet h1\{/);
+  });
+
+  it('is set in the display face rather than left to the browser', () => {
+    const rule = APP_CSS.slice(APP_CSS.indexOf('.greet h1{'));
+    const body = rule.slice(0, rule.indexOf('}'));
+    expect(body).toContain('var(--display)');
+    expect(body).toMatch(/font-weight:\s*[78]00/);
+    expect(body).toMatch(/font-size:\s*\d\dpx/);
+  });
+});
+
+/**
+ * The motion document specifies five movements and says what each one is tied
+ * to. Two of them were not doing what it says.
+ *
+ * "Rows settle" is specified as each row starting 60 milliseconds after the one
+ * above, and the rule carried the animation with no delay at all, so every row
+ * on the feed settled at the same instant. A whole list arriving as one block
+ * is a different movement from a list arriving in order, and the second is the
+ * one that reads as the agenda landing.
+ *
+ * The same fact is true of the midterm schedule, which is also a list that has
+ * just arrived, and it settled not at all.
+ */
+describe('the movements the motion document specifies', () => {
+  const APP_CSS = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+
+  it('starts each row after the one above it rather than all at once', () => {
+    const delays = [...APP_CSS.matchAll(/\.ev:nth-of-type\((\d+)\)\{animation-delay:([\d.]+)s\}/g)]
+      .map(match => [Number(match[1]), Number(match[2])]);
+    expect(delays.length).toBeGreaterThanOrEqual(4);
+    // Sixty milliseconds a row, which is what the document says.
+    for (const [position, delay] of delays) {
+      expect(delay).toBeCloseTo((position - 1) * 0.06, 3);
+    }
+  });
+
+  it('stops staggering before a long list makes its last row wait', () => {
+    const delays = [...APP_CSS.matchAll(/\.ev:nth-of-type\(\d+\)\{animation-delay:([\d.]+)s\}/g)]
+      .map(match => Number(match[1]));
+    expect(Math.max(...delays)).toBeLessThanOrEqual(0.5);
+  });
+
+  it('settles the midterm rows too, which are also a list that has just arrived', () => {
+    expect(APP_CSS).toMatch(/\.exam\{[^}]*animation:settle/);
+  });
+
+  it('still stops every one of them for anybody who asks for stillness', () => {
+    expect(APP_CSS.replace(/\s+/g, '')).toContain(
+      '@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important',
+    );
+  });
+});

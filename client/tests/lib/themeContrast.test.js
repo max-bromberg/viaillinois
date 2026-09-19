@@ -214,3 +214,59 @@ describe.each(THEMES)('$name', ({ selector, lightIsDark }) => {
     expect(contrast(t['--faint'], t['--card'])).toBeGreaterThanOrEqual(1.8);
   });
 });
+
+/**
+ * The words on the lobby screen.
+ *
+ * The screen is the night sky in either theme, and it is read from across a
+ * room by somebody walking past, so every word on it is text somebody has one
+ * glance at. Three of them were set in the two grey tokens and measured below
+ * the threshold against the board behind them: the position in the rotation at
+ * 3.42 to 1, the words under the code at 3.93, and the labels over the hours
+ * and the room at 3.69, all in the light theme, with the first failing in the
+ * dark theme too at 4.22.
+ *
+ * The rotation counter was in the faint grey, which the colour document and the
+ * accessibility document both reserve for hairlines and hollow pads, never for
+ * words. None of these are large text: thirteen and fifteen and sixteen pixels
+ * are all under the eighteen and two thirds that bold text needs to qualify.
+ */
+describe('the lobby screen', () => {
+  /** The darkest and the lightest the board goes behind a word. */
+  const BOARD = ['#0a1516', '#3f4948'];
+
+  /**
+   * The tokens of a rule written on one line, which is how the design system's
+   * own rules come across from the reference stylesheet.
+   */
+  function tokensOfRule(selector) {
+    const rule = new RegExp(`(^|\\})${selector}\\{([^}]*)\\}`, 'm').exec(CSS);
+    expect(rule, `expected app.css to hold a ${selector} rule`).not.toBeNull();
+    const tokens = {};
+    for (const [, name, value] of rule[2].matchAll(/(--[\w-]+):\s*([^;]+)/g)) tokens[name] = value.trim();
+    return tokens;
+  }
+
+  it('sets every word on it in a colour that can be read against the board', () => {
+    const kiosk = tokensOfRule('\\.kiosk');
+    for (const [role, token] of [['secondary', '--ink-2'], ['muted', '--muted']]) {
+      const colour = kiosk[token];
+      expect(colour, `the kiosk sets ${token}`).toBeTruthy();
+      for (const board of BOARD) {
+        expect(contrast(colour, board), `${role} on the board at ${board}`)
+          .toBeGreaterThanOrEqual(TEXT);
+      }
+    }
+  });
+
+  it('keeps the faint grey for hairlines rather than for words', () => {
+    const words = readFileSync(
+      resolve(process.cwd(), 'src/lib/components/ui/KioskStage/KioskStage.svelte'), 'utf8',
+    );
+    // Every colour declaration in the stage, with the property it is on.
+    for (const [, property, value] of words.matchAll(/(color|background|border[a-z-]*):\s*([^;]+);/g)) {
+      if (property !== 'color') continue;
+      expect(value.includes('--faint'), `a word set in ${value.trim()}`).toBe(false);
+    }
+  });
+});

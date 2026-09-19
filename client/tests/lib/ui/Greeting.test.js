@@ -97,3 +97,22 @@ describe('Greeting', () => {
     expect(container.textContent).not.toContain('Good evening');
   });
 });
+
+/**
+ * The band's headline count named a building, which framed the whole platform
+ * around an address. It counts the evening now, wherever on campus it is.
+ */
+describe('the count under the greeting', () => {
+  it('says tonight rather than tonight in a named building', () => {
+    const { container } = render(Greeting, { hour: 18, name: 'Max', tonight: 3 });
+    const line = container.querySelector('.line').textContent;
+    expect(line).toContain('tonight');
+    expect(line).not.toContain('ECEB');
+    expect(line).not.toMatch(/tonight in/);
+  });
+
+  it('still names a place when it is given one, which the lobby screen does', () => {
+    const { container } = render(Greeting, { hour: 18, tonight: 2, where: 'ECEB' });
+    expect(container.querySelector('.line').textContent).toContain('tonight in ECEB');
+  });
+});

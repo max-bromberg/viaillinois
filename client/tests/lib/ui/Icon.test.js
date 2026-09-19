@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render } from '@testing-library/svelte';
 import { Icon, ICONS } from '../../../src/lib/components/ui/Icon/index.js';
 
@@ -7,16 +9,28 @@ import { Icon, ICONS } from '../../../src/lib/components/ui/Icon/index.js';
  *
  * The first version of the site used emoji as icons, which draw differently on
  * every platform and gave the page a different face on a phone than on the lobby
- * screen. These are the eight shapes the reference render uses, at the same
- * stroke weight as the traces in the mark.
+ * screen. These are the shapes the reference render uses, at the same stroke
+ * weight as the traces in the mark, and the set here is held against that render
+ * rather than written out again.
  *
  * docs/design/09-accessibility.md: an icon never appears without a label. Where
  * a label sits beside it in the interface the icon is decoration and says so;
  * where it stands alone it carries the label itself.
  */
 describe('Icon', () => {
-  it('draws every shape the reference render uses', () => {
-    expect(Object.keys(ICONS).sort()).toEqual(['arrow', 'back', 'bolt', 'cal', 'moon', 'pin', 'share', 'sun']);
+  /**
+   * 07-components says adding a shape means adding it to the reference render
+   * first, and the render is what a reviewer approves. The list was written out
+   * here by hand, so the test could pass while the two sets disagreed, which is
+   * the opposite of what its name claims. It reads the render now.
+   */
+  it('draws every shape the reference render draws, and no others', () => {
+    const reference = readFileSync(
+      resolve(process.cwd(), '../docs/design/foundation.html'), 'utf8',
+    );
+    const drawn = [...reference.matchAll(/<symbol id="([a-z-]+)"/g)].map(match => match[1]).sort();
+    expect(drawn.length).toBeGreaterThan(0);
+    expect(Object.keys(ICONS).sort()).toEqual(drawn);
   });
 
   it('draws the shape it is asked for', () => {
@@ -55,5 +69,32 @@ describe('Icon', () => {
 
   it('refuses a shape it does not have, rather than drawing nothing', () => {
     expect(() => render(Icon, { name: 'sparkles' })).toThrow();
+  });
+});
+
+/**
+ * A direction needs a shape that points.
+ *
+ * The calendar's Previous and Next controls were quiet buttons, and a quiet
+ * button draws a pad. Both drew the same pad, so neither said which way it
+ * went: the only thing distinguishing them was the word. The existing arrow
+ * and back shapes are a long shaft with a head, which reads as "go to" rather
+ * than "step one along" and is faint at the size a control like this uses.
+ *
+ * These are chevrons on the chamfer's own 45 degrees, which is the angle the
+ * cut takes on every card, button and band in the design.
+ */
+describe('the direction shapes', () => {
+  it('offers a chevron each way', () => {
+    const { container } = render(Icon, { name: 'next' });
+    expect(container.querySelector('svg.i path')).toBeTruthy();
+  });
+
+  it('draws them as mirror images of one another', () => {
+    const next = render(Icon, { name: 'next' }).container.querySelector('path').getAttribute('d');
+    const prev = render(Icon, { name: 'prev' }).container.querySelector('path').getAttribute('d');
+    expect(next).toBeTruthy();
+    expect(prev).toBeTruthy();
+    expect(prev).not.toBe(next);
   });
 });

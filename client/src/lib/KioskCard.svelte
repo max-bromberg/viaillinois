@@ -29,6 +29,10 @@
     position = null,
     /** How many events the rotation holds. */
     count = null,
+    /** The forecast, or nothing. */
+    weather = null,
+    /** Where this event's own page is, which the code on the slide carries. */
+    eventUrl = null,
   } = $props();
 
 
@@ -44,9 +48,9 @@
   const turn = $derived(position % 2 === 0 ? 'turn-b' : 'turn-a');
 </script>
 
-<KioskStage {event} {now} {position} {count} class={turn}>
+<KioskStage {event} {now} {position} {count} {weather} {eventUrl} class={turn}>
   {#snippet board()}
-    <CircuitBackground />
+    <CircuitBackground ambient />
   {/snippet}
   <KioskRail {next} {midterms} {now} />
 </KioskStage>

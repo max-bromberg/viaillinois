@@ -443,3 +443,50 @@ describe('Dashboard, the details tab', () => {
     expect(getByRole('button', { name: 'Save the details' }).disabled).toBe(false);
   });
 });
+
+/**
+ * Interest and feedback both arrive through the Discord bot, so a board whose
+ * members are not on Discord opened the insights tab and read nothing but
+ * zeros. How many times an event was read about is the one number the platform
+ * collects on its own, from the reading somebody is already doing, so it leads
+ * the tab and the Discord numbers follow it.
+ */
+describe('what the insights tab says about readings', () => {
+  const WITH_VIEWS = {
+    memberBreakdown: [], topTags: [], interest: [], feedback: [],
+    view_total: 137,
+    views: [
+      { event_id: 7, title: 'Design Review', start_time: '2026-09-20 18:00:00', view_count: 96 },
+      { event_id: 8, title: 'Socials', start_time: '2026-09-22 18:00:00', view_count: 41 },
+    ],
+  };
+
+  const openInsights = async () => {
+    const view = render(Dashboard);
+    await fireEvent.click(await view.findByRole('button', { name: 'Insights' }));
+    await view.findByRole('heading', { name: /read about/i });
+    return view;
+  };
+
+  it('leads with the total and lists each event', async () => {
+    getRsoStats.mockResolvedValue(WITH_VIEWS);
+    const view = await openInsights();
+    expect(view.getByText('Design Review')).toBeTruthy();
+    expect(view.container.textContent).toContain('96');
+    expect(view.container.textContent).toContain('137');
+  });
+
+  it('says so plainly when nothing has been read yet', async () => {
+    getRsoStats.mockResolvedValue({ ...WITH_VIEWS, views: [], view_total: 0 });
+    const view = await openInsights();
+    expect(view.container.textContent).toMatch(/No event page has been read/i);
+  });
+
+  it('survives a platform that has not been deployed with the readings yet', async () => {
+    getRsoStats.mockResolvedValue({ memberBreakdown: [], topTags: [], interest: [], feedback: [] });
+    const view = render(Dashboard);
+    await fireEvent.click(await view.findByRole('button', { name: 'Insights' }));
+    await view.findByRole('heading', { name: /members by role/i });
+    expect(view.container.querySelector('.insights')).toBeTruthy();
+  });
+});

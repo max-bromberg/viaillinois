@@ -27,6 +27,28 @@ describe('the name in the greeting', () => {
     expect(firstName({ full_name: '' })).toBe(null);
     expect(firstName({ net_id: 'jdoe2' })).toBe(null);
   });
+
+  /**
+   * Azure AD hands back a display name in the directory's own order, which for
+   * this campus is the family name, a comma, then the given name. Read as
+   * whitespace separated words, the first of those is "Bromberg," and the
+   * greeting drew "Good evening, Bromberg,." on the front page of the live
+   * site. The comma is the whole signal that the order is reversed.
+   */
+  it('reads the given name when the directory writes the family name first', () => {
+    expect(firstName({ full_name: 'Bromberg, Maxwell' })).toBe('Maxwell');
+    expect(firstName({ full_name: 'Bromberg,Maxwell' })).toBe('Maxwell');
+    expect(firstName({ full_name: 'Van Der Berg, Anna Marie' })).toBe('Anna');
+  });
+
+  it('keeps the plain order working, and never answers with a comma', () => {
+    expect(firstName({ full_name: '  Max   Bromberg  ' })).toBe('Max');
+    expect(firstName({ full_name: 'Cher' })).toBe('Cher');
+    // A trailing comma with nothing after it is a family name on its own, which
+    // is still better than greeting somebody with punctuation.
+    expect(firstName({ full_name: 'Bromberg,' })).toBe('Bromberg');
+    expect(firstName({ full_name: ', Maxwell' })).toBe('Maxwell');
+  });
 });
 
 describe('the counts', () => {
@@ -76,5 +98,37 @@ describe('the counts', () => {
     // real zero and is worth saying.
     const { tonight } = greetingCounts({ events: [at(10, 18, 'Siebel')], now: NOW });
     expect(tonight).toBe(0);
+  });
+});
+
+/**
+ * The headline number under the greeting counted only what was on in one
+ * building, and said so: "2 tonight in ECEB". That framed the whole platform
+ * around an address. The organizations VIA serves belong to a department, they
+ * meet in several buildings between them, and a student who follows one that
+ * meets in Everitt was being told there was nothing on tonight.
+ */
+describe('what tonight counts', () => {
+  const tonightAt = building => ({
+    start_time: '2026-09-10T18:00:00-05:00',
+    building,
+  });
+
+  it('counts everything on tonight when no building is named', () => {
+    const { tonight } = greetingCounts({
+      events: [tonightAt('ECEB'), tonightAt('Everitt'), tonightAt('CSL')],
+      now: NOW,
+      where: null,
+    });
+    expect(tonight).toBe(3);
+  });
+
+  it('still counts one building when one is named, which the kiosk needs', () => {
+    const { tonight } = greetingCounts({
+      events: [tonightAt('ECEB'), tonightAt('Everitt')],
+      now: NOW,
+      where: 'ECEB',
+    });
+    expect(tonight).toBe(1);
   });
 });

@@ -8,6 +8,14 @@ vi.mock('../../db/queries/advanced.js', () => ({
 }));
 const getInterestByRso = vi.hoisted(() => vi.fn());
 vi.mock('../../db/queries/eventInterest.ts', () => ({ getInterestByRso }));
+vi.mock('../../db/queries/eventViews.ts', () => ({
+  // The readings are answered beside the interest and the feedback now, so a
+  // test of either has to say what this one gives back or the controller
+  // reaches a database that is not there.
+  getViewsByRso: vi.fn().mockResolvedValue([]),
+  getViewTotalByRso: vi.fn().mockResolvedValue(0),
+  addViews: vi.fn(),
+}));
 vi.mock('../../db/queries/eventFeedback.ts', () => ({
   getFeedbackByRso: vi.fn().mockResolvedValue([]), saveFeedback: vi.fn(),
 }));

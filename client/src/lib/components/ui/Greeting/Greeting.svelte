@@ -25,8 +25,13 @@
     title = null,
     /** How many events are on tonight. */
     tonight = null,
-    /** Where tonight's events are, usually the building. */
-    where = 'ECEB',
+    /**
+     * A building to count tonight's events in. Left unset, tonight is the whole
+     * of campus, which is what the site is: the organizations it serves belong
+     * to a department and meet in several buildings between them. The lobby
+     * screen names its own building, because there it is the right question.
+     */
+    where = null,
     /** How many events are on this week. */
     week = null,
     /** The next midterm: how many days away, and which course. */
@@ -54,7 +59,7 @@
     {/if}
     <div class="line" aria-live="polite" aria-atomic="true">
       {#if tonight !== null}
-        <span><Numeral value={tonight} unit={`tonight in ${where}`} hot /></span>
+        <span><Numeral value={tonight} unit={where ? `tonight in ${where}` : 'tonight'} hot /></span>
       {/if}
       {#if week !== null}
         <span><Numeral value={week} unit="this week" /></span>

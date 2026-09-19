@@ -11,8 +11,10 @@ site draws. The mark is always shown in its own teal on paper or on a sky, and a
 white on the kiosk and the night sky. It is never recolored, outlined, rotated or placed
 inside a container.
 
-The full name, Virtually Integrated Agenda, sits beside the mark in the navigation in the
-condensed display face at 600, and reveals itself on hover the way it does today.
+The full name, Virtually Integrated Agenda, is not spelled out beside the mark in the
+navigation. The mark carries the name already, so setting it alongside put a second
+wordmark in the band competing with the links for the same row. The name is written out in
+the footer, in the page title, and wherever a sentence introduces the site.
 
 ## The sky
 

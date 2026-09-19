@@ -23,10 +23,15 @@ describe('Nav', () => {
     expect(nav.getAttribute('aria-label')).toBe('Main');
   });
 
-  it('carries the mark and the site full name', () => {
+  /**
+   * The mark carries the name on its own. Spelling the words out beside it put
+   * a second wordmark in the band, competing with the links for the same row.
+   */
+  it('carries the mark, and no wordmark beside it', () => {
     const { container } = render(Nav, { links: LINKS, here: '/' });
     expect(container.querySelector('svg.mark')).toBeTruthy();
-    expect(container.querySelector('.w').textContent).toBe('Virtually Integrated Agenda');
+    expect(container.querySelector('.w')).toBeNull();
+    expect(container.textContent).not.toContain('Virtually Integrated Agenda');
   });
 
   it('marks the page you are on, in words as well as in weight', () => {

@@ -1,6 +1,7 @@
 <script>
   import { Mark } from '../Mark/index.js';
   import { Pad } from '../Pad/index.js';
+  import { Qr } from '../Qr/index.js';
   import { campusDate, campusDayName, campusStartOfDay, campusTime, toInstant } from '../../../campusTime.js';
   import { locationLabel } from '../../../locationLabel.js';
   import { organizationColor } from '../../../organizationColor.js';
@@ -35,6 +36,10 @@
     count = null,
     /** Where the screen sends anybody who wants the rest of the week. */
     domain = 'viaillinois.com',
+    /** The forecast, or nothing. A screen that cannot reach it still shows events. */
+    weather = null,
+    /** Where this event's own page is, which the code on the slide carries. */
+    eventUrl = null,
     /** The circuit board, drawn behind everything on the stage. */
     board = undefined,
     /** Whatever stands in the second column, which is the kiosk rail. */
@@ -60,6 +65,19 @@
 
   const clock = $derived(clockParts(now));
   const day = $derived(campusDate(now, { weekday: 'long', month: 'long', day: 'numeric' }));
+
+  /**
+   * The event's own date, said in figures beside the word.
+   *
+   * "Tomorrow" is the reading somebody walking past wants, and it is also the
+   * one word on the slide that means something different depending on when you
+   * read it. The date beside it settles that for anybody who is unsure.
+   */
+  const eventDate = $derived(
+    event?.start_time
+      ? campusDate(event.start_time, { month: 'short', day: 'numeric' })
+      : null,
+  );
 
   /**
    * An event is running when the hour is inside it. An event filed without an
@@ -113,17 +131,44 @@
     {@render board?.()}
 
     <div class="k-top">
+      <!--
+        The mark leads the screen rather than signing off at the bottom of it.
+        A lobby display is read from across a room and from the top down, so the
+        thing that says whose screen this is belongs where the eye lands first.
+      -->
+      <div class="brand">
+        <Mark size={72} onDark />
+        <div class="brandsaid">
+          <span>{domain}</span>
+          {#if rotation}<span class="rot">{rotation}</span>{/if}
+        </div>
+      </div>
+
       {#if live}
         <!--
           A live event says so in words. The pad beside it breathes through the
           .nowtag rule in app.css, and the reference sets this one instance a
           little larger than the tag takes elsewhere.
         -->
-        <span class="nowtag" style="font-size: 15px"><Pad />Happening now</span>
+        <span class="nowtag" style="font-size: 18px"><Pad />Happening now</span>
       {/if}
-      <div>
+
+      <div class="clockstack">
         <time class="t" datetime={machine(now)}>{clock.reading}{#if clock.suffix}<small>{clock.suffix}</small>{/if}</time>
         <time class="d" datetime={campusStartOfDay(now)}>{day}</time>
+        {#if weather?.now}
+          <div class="wx">
+            <span class="deg">{weather.now.temperature}&deg;</span>
+            <span class="sky">{weather.now.summary}</span>
+            {#if weather.days?.length}
+              <span class="soon">
+                {#each weather.days.slice(1, 3) as ahead (ahead.name)}
+                  <span>{ahead.name.slice(0, 3)} {ahead.temperature}&deg;</span>
+                {/each}
+              </span>
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -138,7 +183,9 @@
         and the stage could not say about the event it is showing, so somebody
         walking past read a time with no date on it.
       -->
-      <time class="onday" datetime={campusStartOfDay(event?.start_time)}>{eventDay}</time>
+      <time class="onday" datetime={campusStartOfDay(event?.start_time)}>
+        {eventDay}{#if eventDate}<small>{eventDate}</small>{/if}
+      </time>
     {/if}
 
     <div class="whenk">
@@ -152,16 +199,16 @@
       </div>
     </div>
 
-    <div class="foot">
+    {#if eventUrl}
       <!--
-        docs/design/03-the-look.md: the mark is shown in its own teal on paper or
-        on a sky, and in white on the kiosk and the night sky. That is the one
-        variation it takes, and the Mark component is where it is drawn.
+        Every event the screen shows is public and still going ahead, because
+        the listing behind the kiosk excludes anything internal or cancelled, so
+        every slide has a page worth landing on and every slide gets a code.
       -->
-      <Mark size={64} onDark />
-      <span>{domain}</span>
-      {#if rotation}<span>&middot;</span><span>{rotation}</span>{/if}
-    </div>
+      <div class="code">
+        <Qr value={eventUrl} size={156} label="Open this event" />
+      </div>
+    {/if}
   </div>
 
   {@render children?.()}
@@ -178,17 +225,115 @@
    * The day sits under the title in the display face, large enough to read
    * while walking past but well under the title it qualifies.
    */
+  /*
+   * The word is what somebody walking past reads, and it is also the one word
+   * on the slide whose meaning depends on when it is read. The figures beside
+   * it settle that, set smaller and quieter so they qualify the word rather
+   * than competing with it.
+   */
   .onday {
-    display: block;
-    margin-top: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-top: 16px;
     font-family: var(--display);
     font-stretch: 80%;
     font-weight: 700;
-    font-size: 26px;
+    font-size: 34px;
+    color: var(--ink-2);
+  }
+
+  .onday small {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 400;
     color: var(--muted);
   }
 
   .k-top > :last-child {
     margin-left: auto;
+  }
+
+  /* The mark leads the screen, so the row it is in starts with it. */
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .brandsaid {
+    display: grid;
+    gap: 2px;
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--muted);
+  }
+
+  .brandsaid .rot {
+    font-size: 13px;
+    /* The colour document keeps the faint grey for hairlines and hollow pads,
+       never for words, and on the board it measured 3.42 to 1. */
+    color: var(--muted);
+  }
+
+  .clockstack {
+    display: grid;
+    justify-items: end;
+  }
+
+  /*
+   * The forecast under the clock, at the size the rest of the corner is read
+   * at. It is left out entirely when no source could be reached, because a
+   * lobby screen with an empty weather panel on it looks broken and a lobby
+   * screen with no weather panel looks finished.
+   */
+  .wx {
+    margin-top: 18px;
+    display: grid;
+    justify-items: end;
+    gap: 4px;
+  }
+
+  .wx .deg {
+    font-family: var(--display);
+    font-stretch: 75%;
+    font-weight: 700;
+    font-size: 40px;
+    line-height: 1;
+    color: #e6f0f0;
+  }
+
+  .wx .sky {
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--ink-2);
+  }
+
+  .wx .soon {
+    display: flex;
+    gap: 14px;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /*
+   * The code sits where the sign off used to, at the foot of the stage and
+   * clear of the rail, so a phone held up to it is not held over the listing.
+   */
+  /*
+   * The code sits in the corner the composition already leaves empty, rather
+   * than under the title where a white tile is the brightest thing on a dark
+   * screen and pulls the eye off the event. It is clear of the rail, so a phone
+   * held up to it covers nothing anybody else is reading.
+   */
+  .code {
+    position: absolute;
+    right: 60px;
+    bottom: 40px;
+    z-index: 2;
   }
 </style>

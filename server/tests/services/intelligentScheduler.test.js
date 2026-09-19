@@ -442,3 +442,157 @@ describe('recommend, for an event that repeats', () => {
     expect(pick.insights.some(i => /5 of 5 weeks/.test(i.text))).toBe(true);
   });
 });
+
+/**
+ * The scheduler ran on the request's own thread, and the work it did grew with
+ * the number of rooms times the number of slots times the number of events.
+ *
+ * scoreSlotBase answers a question about a slot: what else is on at that hour,
+ * which sections meet then, how near a midterm it is. None of that depends on
+ * which room is being considered, and the recurring path already works it out
+ * once per slot. The plain "find a time" path called it again for every room,
+ * and it scans the whole events list each time. Over a term that is thousands
+ * of slots times tens of rooms times up to a thousand events, which is minutes
+ * of unbroken synchronous work on a single threaded server: every other
+ * request queues behind it, the load shedding sees the event loop delay and
+ * starts refusing traffic, and everybody gets a gateway timeout from a search
+ * one person ran.
+ *
+ * The measurement is the number of rooms, because that is the multiplier that
+ * should not be there. A search over the same days and hours has the same
+ * amount of slot work to do whether the building has four rooms or forty.
+ */
+function countingRows(rows) {
+  const counts = { scans: 0 };
+  // Every overlap check reads the row's start. Counting the reads counts the
+  // comparisons, whichever way the search arranges them, so the measurement
+  // survives the rows being grouped or sorted differently later.
+  const list = rows.map(row => {
+    const { start_time, ...rest } = row;
+    return Object.defineProperty({ ...rest }, 'start_time', {
+      enumerable: true,
+      get() { counts.scans += 1; return start_time; },
+    });
+  });
+  return [list, counts];
+}
+
+const ROOM = n => ({
+  location_id: n,
+  building: 'Electrical & Computer Eng Bldg',
+  room_number: String(2000 + n),
+  max_capacity: 40,
+  weekly_usage: 3,
+});
+
+async function scansFor(roomCount) {
+  const [events, counts] = countingRows([
+    {
+      start_time: `${ymd(TOMORROW)} 17:00:00`,
+      end_time: `${ymd(TOMORROW)} 18:00:00`,
+      building: 'Electrical & Computer Eng Bldg',
+      room_number: '9999',
+    },
+  ]);
+  getByCapacity.mockResolvedValue(Array.from({ length: roomCount }, (_, i) => ROOM(i + 1)));
+  getPublicEvents.mockResolvedValue(events);
+  await recommend({ ...BASE_PARAMS });
+  return counts.scans;
+}
+
+describe('the work a search does', () => {
+  it('does not grow with the number of rooms it is choosing between', async () => {
+    const few = await scansFor(3);
+    const many = await scansFor(30);
+    expect(few).toBeGreaterThan(0);
+    expect(many).toBe(few);
+  });
+
+  it('answers the same thing whichever way the work is arranged', async () => {
+    getByCapacity.mockResolvedValue([ROOM(1), ROOM(2)]);
+    getPublicEvents.mockResolvedValue([]);
+    const answer = await recommend({ ...BASE_PARAMS });
+    expect(answer.curatedPicks.length).toBeGreaterThan(0);
+    for (const pick of answer.allOptions) {
+      expect(pick.score).toBeGreaterThan(0);
+      expect(pick.location.building).toBe('Electrical & Computer Eng Bldg');
+    }
+  });
+});
+
+/**
+ * The room index was rebuilt for every slot. It is a Map over every location on
+ * campus, and it never changes during a search, so a term long search built the
+ * same few hundred entry Map several thousand times over. That is smaller than
+ * the room multiplier above and it is on the same hot path.
+ */
+describe('the room index', () => {
+  it('is built once for a search rather than once for every slot', async () => {
+    let built = 0;
+    const rooms = Array.from({ length: 5 }, (_, i) => ROOM(i + 1));
+    // A location list that reports how many times it was walked. Building a Map
+    // from it is a walk, so the count is the number of times it was rebuilt.
+    const watched = new Proxy(rooms, {
+      get(target, key, receiver) {
+        if (key === 'map') built += 1;
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    getByCapacity.mockResolvedValue(watched);
+    getPublicEvents.mockResolvedValue([]);
+    getReservationsInRange.mockResolvedValue([]);
+
+    await recommend({ ...BASE_PARAMS });
+
+    // The index is one walk of the room list. A search over this window has
+    // twenty slots in it, so a per slot rebuild shows up as twenty of them.
+    expect(built).toBeLessThanOrEqual(2);
+  });
+});
+
+/**
+ * A budget rather than a shape, because the thing that went wrong in
+ * production was wall clock time on the one thread the server has.
+ *
+ * A term long search asks about every half hour of every day until the end of
+ * instruction, and for each of those it was comparing against every event in
+ * the term. Each comparison built four Date objects out of strings. That is
+ * several million parses in one request, it runs to seconds, and for the whole
+ * of it no other request is served: the load shedding sees the event loop
+ * delay, starts refusing traffic, and the edge answers everybody with a
+ * gateway timeout.
+ *
+ * An event can only clash with a slot on a day it touches, so the rows are
+ * indexed by day and a slot reads its own day. The budget is deliberately
+ * loose, because this runs on whatever the continuous integration machine is
+ * having that day. It caught a three and a half second search.
+ */
+describe('a term long search', () => {
+  it('does not hold the thread for anything like long enough to shed traffic', async () => {
+    const dayAt = i => {
+      const d = new Date(2026, 8, 1);
+      d.setDate(d.getDate() + i);
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    };
+
+    getByCapacity.mockResolvedValue(Array.from({ length: 40 }, (_, i) => ROOM(i + 1)));
+    getPublicEvents.mockResolvedValue(Array.from({ length: 800 }, (_, i) => ({
+      start_time: `${dayAt(i % 110)} 18:00:00`,
+      end_time: `${dayAt(i % 110)} 19:00:00`,
+      building: 'Electrical & Computer Eng Bldg',
+      room_number: String(9000 + i),
+    })));
+
+    const began = performance.now();
+    const answer = await recommend({
+      ...BASE_PARAMS,
+      timeConstraint: null,
+      dateRange: { start: dayAt(0), end: dayAt(110) },
+    });
+    const took = performance.now() - began;
+
+    expect(answer.allOptions.length).toBeGreaterThan(0);
+    expect(took).toBeLessThan(750);
+  }, 60_000);
+});

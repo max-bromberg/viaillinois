@@ -12,6 +12,9 @@
   --sky-afternoon:linear-gradient(180deg,#d8f3f3 0%,#edf8f8 55%,var(--paper) 100%);
   --sky-evening:linear-gradient(180deg,#ffd2bb 0%,#fbe3d9 30%,#d9f1f1 68%,var(--paper) 100%);
   --sky-night:linear-gradient(180deg,#0f2224 0%,#1c3538 45%,#4b5f60 80%,var(--paper) 100%);
+  --sky-night-top:#0f2224;
+  /* How wide the band, the page and the footer are allowed to run. */
+  --wrap:1320px;
   --sky-ink:var(--ink);
   --g-current:linear-gradient(160deg,#0a9a9e 0%,#007c80 60%,#005558 100%);
   --g-board:linear-gradient(160deg,#0f2e2f 0%,#0a1516 55%,#1a1210 100%);
@@ -34,6 +37,7 @@
   --sky-afternoon:linear-gradient(180deg,#0f2e2f 0%,#0d2224 55%,var(--paper) 100%);
   --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
   --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
+  --sky-night-top:#05090a;
   --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
   --lamp:22%;
   --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
@@ -51,6 +55,7 @@
   --sky-afternoon:linear-gradient(180deg,#0f2e2f 0%,#0d2224 55%,var(--paper) 100%);
   --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
   --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
+  --sky-night-top:#05090a;
   --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
   --lamp:22%;
   --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
@@ -63,7 +68,7 @@ a{color:var(--primary)}
 h1,h2,h3,h4{margin:0;text-wrap:balance}
 p{margin:0}
 svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 32px}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .disp{font-family:var(--display);font-variation-settings:"opsz" 96}
 .cond{font-family:var(--display);font-stretch:75%;font-variation-settings:"opsz" 96;letter-spacing:-.005em}
@@ -156,9 +161,12 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .tswitch .pad{position:absolute;left:0;top:5px;width:12px;height:12px;--h:var(--faint);transition:left 200ms ease,background 200ms ease}
 .tswitch.on::before{background:var(--g-current)}
 .tswitch.on .pad{left:40px;--h:var(--primary)}
-.dial{display:inline-flex;align-items:center;gap:10px;padding:6px 10px;border:1.5px solid var(--line-strong);border-radius:999px;font-size:13px;color:var(--muted)}
-.dial .pad{--h:var(--primary)}
-.dial b{color:var(--ink);font-family:var(--display);font-stretch:80%;font-weight:700}
+/* Three stops of equal width, so the thumb travels one stop at a time and
+   the travel is a fraction of the track rather than a measurement kept in
+   step with the padding by hand. */
+.dial{display:inline-flex;align-items:center;gap:0;padding:4px;border:1.5px solid var(--line-strong);border-radius:999px;font-size:13px;color:var(--muted);--stop-width:46px;--stop-step:46px}
+.dial .stop{width:var(--stop-width)}
+.dial b{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:12.5px}
 .fld{display:grid;gap:6px;max-width:320px}
 .fld label{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:14px}
 .fld .in{display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--line-strong);padding:6px 0}
@@ -170,6 +178,33 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .fld.err .in .pad{--h:var(--danger)}
 .fld .help{font-size:12.5px;color:var(--muted)}
 .fld.err .help{color:var(--danger)}
+/* One month of days. Every date control on the site is an arrangement of this:
+   the date field's floating sheet, and the picker that takes a set of dates.
+   A day is its number and the pad under it, because the chosen state is the
+   pad everywhere else on the site and a filled rectangle is a shape the design
+   does not use. The pad is drawn whether or not the day is chosen, so a month
+   does not change height as it is clicked through. */
+.cal{display:grid;gap:10px;width:268px;max-width:100%;user-select:none}
+.cal .mhead{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.cal .mhead b{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:15px}
+.cal .mstep{font:inherit;font-size:16px;background:none;border:0;color:var(--muted);cursor:pointer;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center}
+.cal .mstep:hover{color:var(--ink)}
+.cal .mstep:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:2px}
+.cal .wkrow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .dcap{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
+.cal .dbtn{font:inherit;background:none;border:0;cursor:pointer;width:100%;min-height:40px;display:grid;justify-items:center;align-content:center;gap:4px;padding:4px 0;color:var(--ink)}
+.cal .dbtn b{font-family:var(--display);font-stretch:75%;font-weight:700;font-size:16px;line-height:1}
+.cal .dbtn .pad{visibility:hidden;--h:var(--primary)}
+.cal .dbtn[aria-pressed="true"] .pad{visibility:visible}
+.cal .dbtn[aria-pressed="true"] b{color:var(--primary)}
+/* Today is the signal colour, as it is on the term calendar and in the agenda. */
+.cal .dbtn.now b{color:var(--signal-text)}
+.cal .dbtn:hover:not(:disabled) b,.cal .dbtn:focus-visible b{color:var(--primary)}
+.cal .dbtn:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:2px}
+/* A day out of range is still a word, and the design keeps words out of the
+   faint grey, so it is the muted ink held back rather than the faint token. */
+.cal .dbtn:disabled{cursor:default;color:var(--muted);opacity:.5}
+.cal .tally{font-size:12.5px;color:var(--muted)}
 .toast{display:inline-flex;gap:12px;align-items:center;padding:12px 18px 12px 14px;background:var(--ink);color:var(--paper);font-size:14px;--cut:10px;box-shadow:var(--shadow-float)}
 .toast .pad{--h:var(--signal);animation:pulse 1.6s ease-in-out infinite}
 .toast b{font-family:var(--display);font-stretch:80%;font-weight:700}
@@ -182,7 +217,7 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .mock{position:relative;background:var(--paper);box-shadow:var(--shadow-float);overflow:hidden}
 .cap{color:var(--muted);font-size:13.5px;max-width:70ch;margin-top:14px}
 .skyband{background:var(--sky-evening);--cut:44px;padding:0 0 34px;position:relative;overflow:hidden}
-.skyband.night{background:var(--sky-night);--sky-ink:#e6f0f0;--ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;--signal:#ff8a66;--signal-text:#ff8a66;color:#e6f0f0}
+.skyband.night{background:var(--sky-night);--btn-fill:var(--sky-night-top);--sky-ink:#e6f0f0;--ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;--signal:#ff8a66;--signal-text:#ff8a66;color:#e6f0f0}
 .nav{height:64px;display:flex;align-items:center;gap:26px;padding:0 28px}
 .nav .w{font-family:var(--display);font-stretch:75%;font-weight:600;font-size:14px;color:var(--ink-2);margin-left:-12px}
 .skyband.night .nav .w{color:#c3d3d3}
@@ -195,6 +230,7 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .nav .right{margin-left:auto;display:flex;gap:14px;align-items:center}
 .greet{padding:26px 28px 0;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;position:relative}
 .greet h2{font-family:var(--display);font-variation-settings:"opsz" 96;font-weight:300;font-stretch:100%;font-size:30px;line-height:1.05}
+.greet h1{font-family:var(--display);font-variation-settings:"opsz" 96;font-weight:800;font-stretch:75%;font-size:60px;line-height:.94;letter-spacing:-.02em}
 .greet h2 b{display:block;font-weight:800;font-stretch:75%;font-size:68px;line-height:.92;letter-spacing:-.02em;margin-top:2px}
 .greet .line{margin-top:18px;font-size:15px;color:var(--ink-2);display:flex;gap:22px;flex-wrap:wrap;align-items:baseline}
 .skyband.night .greet .line{color:#c3d3d3}
@@ -281,7 +317,7 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .ribbon .wkc.hot b{color:var(--signal-text)}
 .ribcap{display:flex;justify-content:space-between;margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
 .exams{margin-top:26px}
-.exam{display:grid;grid-template-columns:150px 1fr 190px 130px 110px;gap:20px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}
+.exam{display:grid;grid-template-columns:150px 1fr 190px 130px 110px;gap:20px;align-items:center;padding:14px 0;border-top:1px solid var(--line);animation:settle .6s ease-out both}
 .exam .code{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:30px;line-height:1;letter-spacing:-.01em}
 .exam .code small{display:block;font-family:var(--sans);font-size:12.5px;color:var(--muted);font-weight:400;font-stretch:100%;margin-top:3px;letter-spacing:0}
 .exam .ttl{font-family:var(--display);font-stretch:90%;font-weight:700;font-size:16px}
@@ -290,31 +326,38 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .exam .tm small{display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted);font-weight:400;margin-top:4px}
 .exam .rm{font-family:var(--mono);font-size:14px}
 /* kiosk */
-.kiosk{aspect-ratio:16/9;position:relative;background:var(--sky-night);background-size:100% 160%;background-position:0 0;--ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;--signal:#ff8a66;--signal-text:#ff8a66;color:#e6f0f0;overflow:hidden;display:grid;grid-template-columns:1fr 360px}
+/* The lobby screen carries the dark palette's inks whatever the page around it
+   is doing, and it lifts the two greys a step beyond that. Every word on this
+   surface is read once, from across a room, by somebody walking past, and the
+   board behind it runs from near black to a mid grey: the reading-page greys
+   measured 3.4 to 3.9 to 1 against it, under the threshold at every size on the
+   screen. The faint grey stays what the colour document says it is, a hairline
+   and a hollow pad, and no word is set in it. */
+.kiosk{aspect-ratio:16/9;position:relative;background:var(--sky-night);background-size:100% 160%;background-position:0 0;--ink:#e6f0f0;--ink-2:#e0ebeb;--muted:#c3d3d3;--faint:#5f7879;--signal:#ff8a66;--signal-text:#ff8a66;color:#e6f0f0;overflow:hidden;display:grid;grid-template-columns:1fr 440px}
 .kiosk .main{padding:48px 60px 40px;display:flex;flex-direction:column;position:relative;overflow:hidden}
 .kiosk .main::after{content:"";position:absolute;inset:0;background:radial-gradient(60% 60% at 20% 70%,rgba(255,138,102,.18) 0%,rgba(255,138,102,0) 70%);pointer-events:none}
 .kiosk canvas{position:absolute!important;inset:0;width:100%;height:100%;pointer-events:none}
 .kiosk .main > *{position:relative;z-index:1}
 .kiosk .k-top{display:flex;justify-content:space-between;align-items:flex-start}
-.kiosk .k-top .t{font-family:var(--display);font-stretch:75%;font-weight:200;font-size:54px;line-height:1;letter-spacing:-.02em}
-.kiosk .k-top .t small{font-size:18px;font-weight:500;margin-left:4px}
-.kiosk .k-top .d{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;text-align:right}
+.kiosk .k-top .t{font-family:var(--display);font-stretch:75%;font-weight:200;font-size:76px;line-height:1;letter-spacing:-.02em}
+.kiosk .k-top .t small{font-size:24px;font-weight:500;margin-left:6px}
+.kiosk .k-top .d{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:26px;color:var(--ink-2);margin-top:14px;text-align:right;display:block}
 .kiosk .spacer{flex:1}
-.kiosk .org{display:flex;gap:10px;align-items:center;font-family:var(--display);font-stretch:80%;font-weight:700;font-size:18px;color:#8fdfe1}
+.kiosk .org{display:flex;gap:12px;align-items:center;font-family:var(--display);font-stretch:80%;font-weight:700;font-size:26px;color:#8fdfe1}
 .kiosk h1{font-family:var(--display);font-stretch:75%;font-variation-settings:"opsz" 96;font-weight:800;font-size:96px;line-height:.88;letter-spacing:-.025em;margin-top:14px;max-width:11ch;color:#fff}
-.kiosk .whenk{margin-top:26px;display:flex;gap:44px;align-items:end}
-.kiosk .whenk .big{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:52px;line-height:.9;letter-spacing:-.02em;color:#fff}
-.kiosk .whenk .big small{font-size:18px;font-weight:500;font-stretch:100%;margin-left:3px}
-.kiosk .whenk .k{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:12px;color:var(--muted);margin-bottom:8px}
-.kiosk .whenk .room{font-family:var(--mono);font-size:24px;color:#e6f0f0}
+.kiosk .whenk{margin-top:30px;display:flex;gap:56px;align-items:end}
+.kiosk .whenk .big{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:66px;line-height:.9;letter-spacing:-.02em;color:#fff}
+.kiosk .whenk .big small{font-size:24px;font-weight:500;font-stretch:100%;margin-left:4px}
+.kiosk .whenk .k{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:16px;color:var(--muted);margin-bottom:10px}
+.kiosk .whenk .room{font-family:var(--mono);font-size:32px;color:#e6f0f0}
 .kiosk .foot{margin-top:30px;display:flex;align-items:center;gap:16px;color:var(--muted);font-family:var(--mono);font-size:12px}
-.kiosk .side{padding:44px 36px;display:flex;flex-direction:column;gap:16px;background:linear-gradient(180deg,rgba(10,21,22,.55),rgba(10,21,22,.85))}
-.kiosk .side h3{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:20px;color:#fff;margin-bottom:4px}
-.kiosk .side .item{display:grid;grid-template-columns:72px 1fr;gap:12px;font-size:15px;align-items:start}
-.kiosk .side .item .t{font-family:var(--display);font-stretch:75%;font-weight:700;font-size:20px;line-height:1;color:#8fdfe1}
-.kiosk .side .item .t small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--muted);font-weight:400;margin-top:3px}
-.kiosk .side .item b{font-family:var(--display);font-stretch:90%;font-weight:700;color:#e6f0f0;display:block;line-height:1.2;font-size:15.5px}
-.kiosk .side .item span{color:var(--muted);font-size:12.5px}
+.kiosk .side{padding:44px 40px;display:flex;flex-direction:column;gap:22px;background:linear-gradient(180deg,rgba(10,21,22,.55),rgba(10,21,22,.85))}
+.kiosk .side h3{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:26px;color:#fff;margin-bottom:6px}
+.kiosk .side .item{display:grid;grid-template-columns:92px 1fr;gap:16px;font-size:17px;align-items:start}
+.kiosk .side .item .t{font-family:var(--display);font-stretch:75%;font-weight:700;font-size:26px;line-height:1;color:#8fdfe1}
+.kiosk .side .item .t small{display:block;font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:400;margin-top:5px}
+.kiosk .side .item b{font-family:var(--display);font-stretch:90%;font-weight:700;color:#e6f0f0;display:block;line-height:1.22;font-size:19px}
+.kiosk .side .item span{color:var(--muted);font-size:15px}
 /* motion */
 .motion{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 40px;font-size:14.5px}
 .motion div{padding:14px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center}
@@ -323,6 +366,27 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .motion .demo{width:120px;height:44px;position:relative}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--h,var(--signal)) 24%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--h,var(--signal)) 0%,transparent)}}
 @keyframes settle{from{transform:translateY(8px)}to{transform:translateY(0)}}
+/* Sixty milliseconds a row, which is what the motion document specifies. A
+   list arriving as one block is a different movement from a list arriving in
+   order, and the second is the one that reads as the agenda landing. It stops
+   after eight rows, because past that the stagger stops reading as order and
+   starts reading as a page that is slow to finish. */
+.ev:nth-of-type(1){animation-delay:0s}
+.ev:nth-of-type(2){animation-delay:0.06s}
+.ev:nth-of-type(3){animation-delay:0.12s}
+.ev:nth-of-type(4){animation-delay:0.18s}
+.ev:nth-of-type(5){animation-delay:0.24s}
+.ev:nth-of-type(6){animation-delay:0.3s}
+.ev:nth-of-type(7){animation-delay:0.36s}
+.ev:nth-of-type(8){animation-delay:0.42s}
+.exam:nth-of-type(1){animation-delay:0s}
+.exam:nth-of-type(2){animation-delay:0.06s}
+.exam:nth-of-type(3){animation-delay:0.12s}
+.exam:nth-of-type(4){animation-delay:0.18s}
+.exam:nth-of-type(5){animation-delay:0.24s}
+.exam:nth-of-type(6){animation-delay:0.3s}
+.exam:nth-of-type(7){animation-delay:0.36s}
+.exam:nth-of-type(8){animation-delay:0.42s}
 @keyframes drift{0%{background-position:0 0}100%{background-position:0 100%}}
 .drift{background:var(--sky-evening);background-size:100% 300%;animation:drift 8s ease-in-out infinite alternate}
 .build{display:grid;grid-template-columns:1fr 1fr;gap:40px;font-size:14.5px;color:var(--ink-2)}
@@ -354,14 +418,19 @@ section.sec + section.sec{border-top:1px solid var(--line)}
 .poster .org b{color:var(--org-text,color-mix(in srgb,var(--h) 50%,var(--ink)))}
 .mast .clock .d,.greet .clock .d{color:var(--ink-2)}
 .skyband.night .greet .clock .d{color:#c3d3d3}
-.day .dh span:not(.pad),.ev .t em,.feedhead span,.ribcap,.ribbon .wkc span,.exam .tm small,.poster .link,.kiosk .k-top .d,.kiosk .side .item .t small{font-size:12px}
+/* The caption size the reading surfaces share. The lobby screen is not one of
+   them: it is read from across a room, and the two kiosk selectors that used to
+   sit in this list were stated at 26px and 13px further up and then quietly put
+   back to 12px here, because two rules of equal weight are settled by which
+   comes last. */
+.day .dh span:not(.pad),.ev .t em,.feedhead span,.ribcap,.ribbon .wkc span,.exam .tm small,.poster .link{font-size:12px}
 /* cut with a true border: outer layer is the border colour, inner layer the fill, both chamfered */
 .ocut{position:relative;isolation:isolate;border:0!important;--w:1.5px;--c:var(--cut,10px);clip-path:polygon(0 0,calc(100% - var(--c)) 0,100% var(--c),100% 100%,0 100%);background:var(--oc,var(--ink))}
 .ocut::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--ofill,var(--paper));clip-path:polygon(var(--w) var(--w),calc(100% - var(--c) - var(--w) * .414) var(--w),calc(100% - var(--w)) calc(var(--c) + var(--w) * .414),calc(100% - var(--w)) calc(100% - var(--w)),var(--w) calc(100% - var(--w)))}
 .btn.secondary.cut{background:var(--ink);box-shadow:none;border:0}
 .btn.secondary.cut,.btn.danger.cut,.btn.primary.cut{position:relative;isolation:isolate;--w:1.5px;--c:var(--cut,10px)}
 .btn.secondary.cut::before,.btn.danger.cut::before,.btn.primary.cut::before{content:"";position:absolute;inset:0;z-index:-1;clip-path:polygon(var(--w) var(--w),calc(100% - var(--c) - var(--w) * .414) var(--w),calc(100% - var(--w)) calc(var(--c) + var(--w) * .414),calc(100% - var(--w)) calc(100% - var(--w)),var(--w) calc(100% - var(--w)))}
-.btn.secondary.cut::before{background:var(--paper)}
+.btn.secondary.cut::before{background:var(--btn-fill,var(--paper))}
 .btn.danger.cut{background:var(--danger);box-shadow:none}
 .btn.danger.cut::before{background:var(--paper)}
 .btn.primary.cut{--w:0px;background:var(--ink)}
@@ -426,4 +495,20 @@ section.sec + section.sec{border-top:1px solid var(--line)}
  * table gives a phone. Nothing new is introduced: the parts keep their shapes
  * and their type roles, they stack, and the display sizes step down one rung.
  */
-@media (max-width:640px){.wrap{padding:0 16px}.nav{height:auto;flex-wrap:wrap;gap:12px 16px;padding:14px 16px}.nav .w{display:none}.nav .links{order:3;flex-basis:100%;gap:18px;overflow-x:auto}.nav .links span,.nav .links b{flex:none}.greet{padding:22px 16px 0;gap:18px}.greet h2{font-size:24px}.greet h2 b{font-size:44px}.greet .clock{text-align:left}.greet .clock .t{font-size:48px}.greet .line{gap:16px}.greet .line b{font-size:26px}.page{grid-template-columns:1fr;gap:24px;padding:22px 16px 28px}.feedhead h1,.feedhead h2,.feedhead h3{font-size:20px}.day{grid-template-columns:1fr;gap:0}.day .dh{position:static;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:0 0 10px}.day .dh b{font-size:26px}.day .dh span:not(.pad){margin-top:0}.day .dh .pad{margin-top:0}.ev{grid-template-columns:1fr;gap:8px;padding:14px 16px}.ev .t{font-size:26px}.ev .s{flex-direction:row;flex-wrap:wrap;align-items:center;padding-top:2px}.poster .body2{gap:28px;padding:10px 16px 0}.poster h1{font-size:44px}.poster .when{grid-template-columns:auto;gap:18px 0}.poster .when .big{font-size:40px}.poster aside{padding-top:0}.mt{padding:0 16px 28px}.mt .head{flex-direction:column;align-items:flex-start}.mt .head h1{font-size:38px}.ribbon{grid-template-columns:repeat(2,1fr)}.exam{grid-template-columns:1fr;gap:6px}.exam .tm{white-space:normal}}
+@media (max-width:640px){.wrap{padding:0 16px}.nav{height:auto;flex-wrap:wrap;gap:12px 16px;padding:14px 16px}.nav .w{display:none}.nav .links{order:3;flex-basis:100%;gap:18px;overflow-x:auto}.nav .links span,.nav .links b{flex:none}.greet{padding:22px 16px 0;gap:18px}.greet h1{font-size:34px}.greet h2{font-size:24px}.greet h2 b{font-size:44px}.greet .clock{text-align:left}.greet .clock .t{font-size:48px}.greet .line{gap:16px}.greet .line b{font-size:26px}.page{grid-template-columns:1fr;gap:24px;padding:22px 16px 28px}.feedhead h1,.feedhead h2,.feedhead h3{font-size:20px}.day{grid-template-columns:1fr;gap:0}.day .dh{position:static;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:0 0 10px}.day .dh b{font-size:26px}.day .dh span:not(.pad){margin-top:0}.day .dh .pad{margin-top:0}.ev{grid-template-columns:1fr;gap:8px;padding:14px 16px}.ev .t{font-size:26px}.ev .s{flex-direction:row;flex-wrap:wrap;align-items:center;padding-top:2px}.poster .body2{gap:28px;padding:10px 16px 0}.poster h1{font-size:44px}.poster .when{grid-template-columns:auto;gap:18px 0}.poster .when .big{font-size:40px}.poster aside{padding-top:0}.mt{padding:0 16px 28px}.mt .head{flex-direction:column;align-items:flex-start}.mt .head h1{font-size:38px}.ribbon{grid-template-columns:repeat(2,1fr)}.exam{grid-template-columns:1fr;gap:6px}.exam .tm{white-space:normal}}
+
+/*
+ * The shorter lobby screen.
+ *
+ * The render above is drawn at 1920 by 1080 and the sizes on the kiosk were
+ * lifted for it, because a lobby screen is read from across a room. Plenty of
+ * the screens in the buildings are 1280 by 720 or 1366 by 768, and the stage is
+ * the whole viewport with the main column clipped, so at those heights the
+ * hours and the room were cut in half at the bottom edge: measured 51 pixels
+ * past it at 720 and 3 at 768. The sizes step down one rung and the paddings
+ * with them, exactly as the phone block does for the reading pages. Nothing new
+ * is introduced and nothing changes shape, so the screen is the same screen.
+ *
+ * Keyed on height rather than width, because the height is what runs out.
+ */
+@media (max-height:820px){.kiosk .main{padding:32px 44px 28px}.kiosk h1{font-size:68px;margin-top:10px}.kiosk .org{font-size:22px}.kiosk .onday{font-size:26px}.kiosk .k-top .t{font-size:56px}.kiosk .k-top .t small{font-size:18px}.kiosk .k-top .d{font-size:20px;margin-top:10px}.kiosk .whenk{margin-top:20px;gap:40px}.kiosk .whenk .big{font-size:48px}.kiosk .whenk .big small{font-size:18px}.kiosk .whenk .room{font-size:24px}.kiosk .whenk .k{font-size:14px;margin-bottom:6px}.kiosk{grid-template-columns:1fr 340px}.kiosk .side .item .t{font-size:20px}}

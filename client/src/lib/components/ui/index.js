@@ -27,6 +27,7 @@ export { Button } from './Button/index.js';
 export { Field } from './Field/index.js';
 export { Switch } from './Switch/index.js';
 export { Dial } from './Dial/index.js';
+export { MonthCalendar } from './MonthCalendar/index.js';
 export { Toast } from './Toast/index.js';
 export { EmptyState } from './EmptyState/index.js';
 
@@ -34,6 +35,7 @@ export { EmptyState } from './EmptyState/index.js';
 export { SkyBand } from './SkyBand/index.js';
 export { Nav } from './Nav/index.js';
 export { Greeting } from './Greeting/index.js';
+export { Qr } from './Qr/index.js';
 export { Clock } from './Clock/index.js';
 export { DayGroup } from './DayGroup/index.js';
 export { EventRow } from './EventRow/index.js';

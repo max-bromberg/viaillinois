@@ -148,7 +148,7 @@
           {#each dayItems.midterms as midterm (midterm.midterm_id)}
             {@const { top, height } = placeItem(midterm.start_time, midterm.end_time)}
             <div
-              class="entry exam"
+              class="entry midterm"
               style="--h: var(--plum); top: {top}px; height: {height}px"
               title="Midterm: {midterm.title} ({midterm.course_code})"
             >
@@ -255,7 +255,15 @@
     overflow: hidden;
     text-align: left;
     font: inherit;
-    background: var(--card);
+    /*
+     * The grid behind this is hairlines on the card, so a block filled with the
+     * card is a block nobody can see: only the hue bar on its left edge showed,
+     * and the area holding the title and the time read as empty grid in both
+     * themes. The hue already says which organization the event belongs to on
+     * the edge, and carrying it into the fill makes the block itself visible
+     * and identifiable at the same time.
+     */
+    background: color-mix(in srgb, var(--h) 10%, var(--card));
     border: 0;
     border-left: 2px solid var(--h);
     padding: 4px 6px;
@@ -265,7 +273,7 @@
 
   .entry:hover,
   .entry:focus-visible {
-    background: color-mix(in srgb, var(--h) 14%, var(--card));
+    background: color-mix(in srgb, var(--h) 22%, var(--card));
   }
 
   .entry:focus-visible {
@@ -273,7 +281,15 @@
     outline-offset: 2px;
   }
 
-  .entry.exam {
+  /*
+   * Named midterm rather than exam. The design system claims .exam for the row
+   * on the midterm schedule, which is a five column grid with a hairline above
+   * it and the settle movement on it, and a block in the week view was being
+   * handed all of that: every midterm sat eight pixels low and slid up on each
+   * render while the events beside it held still. The motion document gives
+   * rows settle to the agenda and the midterm schedule, not to a calendar cell.
+   */
+  .entry.midterm {
     cursor: default;
   }
 

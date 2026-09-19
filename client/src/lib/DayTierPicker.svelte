@@ -60,7 +60,7 @@
       on:click={() => cycleDay(day)}
     >
       <Pad tone={tier ? TIER_TONES[tier] : null} hollow={!tier} />
-      <span class="day">{day}</span>
+      <span class="weekday">{day}</span>
       {#if tier}<span class="tier">{TIER_LABELS[tier]}</span>{/if}
     </button>
   {/each}
@@ -95,7 +95,7 @@
     outline-offset: 4px;
   }
 
-  .day {
+  .weekday {
     font-family: var(--display);
     font-stretch: 85%;
     font-weight: 700;

@@ -261,3 +261,28 @@ describe('the calendar and internal events', () => {
     expect(`${entry.getAttribute('title')} ${entry.textContent}`).toMatch(/internal/i);
   });
 });
+
+/**
+ * Previous and Next were both quiet buttons, and a quiet button draws a pad.
+ * Both drew the same pad, so the only thing telling a reader which way each one
+ * went was the word on it. Each now carries the chevron that points its way,
+ * on the side it points.
+ */
+describe('paging the calendar', () => {
+  it('shows which way each control goes', async () => {
+    const { findByRole } = render(Calendar);
+    const back = await findByRole('button', { name: /Previous/ });
+    const forward = await findByRole('button', { name: /Next/ });
+
+    expect(back.querySelector('svg.i')).toBeTruthy();
+    expect(forward.querySelector('svg.i')).toBeTruthy();
+    // The chevron leads the way back and follows the way forward, so each one
+    // points away from the words rather than at them. The quiet variant's pad
+    // comes before either of them, because the pad is what says the button is
+    // quiet, so the chevron leads the words rather than leading the button.
+    expect(back.firstElementChild.classList.contains('pad')).toBe(true);
+    expect(back.firstElementChild.nextElementSibling).toBe(back.querySelector('svg.i'));
+    expect(forward.firstElementChild.classList.contains('pad')).toBe(true);
+    expect(forward.lastElementChild).toBe(forward.querySelector('svg.i'));
+  });
+});

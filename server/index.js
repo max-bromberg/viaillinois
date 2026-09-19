@@ -6,6 +6,7 @@ import coursesPoller from './services/coursesPoller.js';
 import astraPoller from './services/astraPoller.js';
 import { pollersEnabled } from './lib/pollerConfig.js';
 import { startDenialRecorder, stopDenialRecorder } from './services/denialRecorder.js';
+import { startViewRecorder, stopViewRecorder } from './services/viewRecorder.js';
 import { startOutboxPruner, stopOutboxPruner } from './services/outboxPruner.js';
 import { registerMetadata, isConfigured } from './services/linkedRoles.js';
 import { missingProductionSettings } from './lib/requiredSettings.js';
@@ -30,6 +31,7 @@ const server = app.listen(PORT, () => {
     console.log('pollers disabled by POLLERS_ENABLED');
   }
   startDenialRecorder();
+  startViewRecorder();
   startOutboxPruner();
   // Discord keeps one set of linked role fields per application, so putting
   // ours at startup is how they are kept current and costs nothing when they
@@ -57,7 +59,7 @@ async function shutdown() {
   setTimeout(() => process.exit(0), 3000).unref();
   server.close(async () => {
     await Promise.all([
-      facilitiesPoller.stop(), coursesPoller.stop(), astraPoller.stop(), stopDenialRecorder(),
+      facilitiesPoller.stop(), coursesPoller.stop(), astraPoller.stop(), stopDenialRecorder(), stopViewRecorder(),
       stopOutboxPruner(),
     ]);
     pool.end().then(() => process.exit(0)).catch(() => process.exit(1));

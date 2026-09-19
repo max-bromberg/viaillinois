@@ -149,9 +149,45 @@ The argument is a web platform git tag that already exists and has been pushed. 
 tag goes with it is read from `deploy/bot-release` inside that tag, so this one command
 deploys both services.
 
+### Which script actually runs
+
+The command you type is this repository's `scripts/cutover.sh` as the deployment checkout
+has it, and the release you are deploying ships a `scripts/cutover.sh` of its own. Those two
+are not always the same file, and the steps a release needs belong to that release in the
+same way the bot tag it runs does.
+
+So the first thing the script does is take the release tag's own copy out of git and run
+that, from a path no checkout touches. Two problems go away together. A release can change
+its own deploy steps and have them take effect on the deploy that introduces them. And the
+checkout in step 1 can no longer rewrite the file the shell is reading: a shell reads a
+script lazily, by byte offset, so before this it carried on inside whatever file was at that
+path afterwards. That is the most likely reason the bot container was never created when
+v0.6.0 was deployed, because the steps that build and start the bot were in the new file and
+the shell was reading the old one, with nothing in the log to say so.
+
+One limit, and it is the kind that only bites once: this protects every deploy made from a
+host that already carries it, and it cannot protect the deploy that introduces it, because
+that run is made by whatever script the host is already sitting on. The first cutover after
+this change is therefore still driven by the previous release's script. Check that the
+previous release's script does what the new one needs before running it, or check the tag
+out by hand first and run `scripts/cutover.sh` from there.
+
+### Settings, asked for first
+
+Before anything is built, stopped or migrated, the script reads the `.env` beside the
+compose file and refuses if a setting either container needs is missing or is still a
+placeholder. Every one of the bot's settings defaults to empty in the compose file, so
+without this a host whose `.env` predates the bot starts a bot that never logs in, and the
+first anybody hears of it is the health check failing at the last step of the run, inside
+the maintenance window, taking the website back with it. A deployment counts as one that
+runs the bot when `BOT_SERVICE_TOKEN` is set, which is the same test the web platform
+applies to itself at start up.
+
 The order of the steps is the point. Everything that can fail cheaply happens before the
 site goes down:
 
+0. Run the release tag's own script, and refuse if a setting either container needs is
+   missing from `.env` or is still a placeholder.
 1. Refuse to start if either working tree is dirty, this one or the bot checkout, then
    check out the tag, read `deploy/bot-release`, and check the bot checkout out at the tag
    it names.

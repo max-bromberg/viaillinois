@@ -65,11 +65,29 @@ describe('the shell', () => {
     expect(await findByRole('link', { name: 'Sign in' })).toBeTruthy();
   });
 
-  it('offers the account and a way out when somebody is', async () => {
+  /**
+   * The band said the net id, which is an identifier the platform uses rather
+   * than anything a person calls themselves. The greeting under it was already
+   * using the first name, so the two halves of the same band named the same
+   * reader two different ways.
+   */
+  it('offers the account by name, and a way out, when somebody is signed in', async () => {
     getMe.mockResolvedValue({ user: { net_id: 'jdoe2', full_name: 'Jane Doe', memberships: [] } });
     const { findByRole } = render(App);
-    expect(await findByRole('link', { name: 'jdoe2' })).toBeTruthy();
+    expect(await findByRole('link', { name: 'Jane' })).toBeTruthy();
     expect(await findByRole('button', { name: 'Sign out' })).toBeTruthy();
+  });
+
+  it('falls back to the net id for somebody the directory has no name for', async () => {
+    getMe.mockResolvedValue({ user: { net_id: 'jdoe2', full_name: null, memberships: [] } });
+    const { findByRole } = render(App);
+    expect(await findByRole('link', { name: 'jdoe2' })).toBeTruthy();
+  });
+
+  it('reads the given name when the directory writes the family name first', async () => {
+    getMe.mockResolvedValue({ user: { net_id: 'jdoe2', full_name: 'Doe, Jane', memberships: [] } });
+    const { findByRole } = render(App);
+    expect(await findByRole('link', { name: 'Jane' })).toBeTruthy();
   });
 
   it('greets a signed in person by their first name', async () => {
@@ -144,6 +162,6 @@ describe('the sky in the shell', () => {
     const { container } = render(App);
     await waitFor(() => expect(container.querySelector('.clock .d')).toBeTruthy());
     const { campusSky } = await import('../../src/lib/campusTime.js');
-    expect(container.querySelector('.clock .d').textContent).toContain(`${campusSky(new Date()).sky} over ECEB`);
+    expect(container.querySelector('.clock .d').textContent).toContain(`${campusSky(new Date()).sky} over Urbana`);
   });
 });

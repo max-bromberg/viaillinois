@@ -1,5 +1,5 @@
 /**
- * The eight shapes the reference render draws.
+ * The ten shapes the reference render draws.
  *
  * The first version of the site used emoji as icons. They draw differently on
  * every platform, so the page had one face on a phone and another on the lobby
@@ -18,4 +18,14 @@ export const ICONS = {
   share: '<circle cx="6" cy="12" r="2.3"/><circle cx="18" cy="6" r="2.3"/><circle cx="18" cy="18" r="2.3"/><path d="M8 11l8-4M8 13l8 4"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M3 12h2M19 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/>',
   moon: '<path d="M20 13.5A8 8 0 0 1 10.5 4a8 8 0 1 0 9.5 9.5z"/>',
+  // A step one along, rather than a journey to somewhere. Drawn on the chamfer's
+  // own 45 degrees, which is the angle the cut takes on every card, button and
+  // band, so a direction reads as part of the same geometry as everything else.
+  next: '<path d="M9 5l7 7-7 7"/>',
+  prev: '<path d="M15 5l-7 7 7 7"/>',
+  // The sign off in the footer. Drawn rather than typed, because the emoji it
+  // replaces renders as a flat glyph on one platform and a colour picture on
+  // another, so the page had one face on a phone and another on the lobby
+  // screen, which is the whole reason this set exists.
+  heart: '<path d="M12 20s-7-4.6-7-9.4A4.1 4.1 0 0 1 12 8a4.1 4.1 0 0 1 7 2.6C19 15.4 12 20 12 20z"/>',
 };
