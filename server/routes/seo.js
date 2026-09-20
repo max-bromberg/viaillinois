@@ -31,6 +31,7 @@ const FIXED_PAGES = [
   { path: '/',              changefreq: 'daily',   priority: '1.0' },
   { path: '/calendar',      changefreq: 'daily',   priority: '0.9' },
   { path: '/organizations', changefreq: 'weekly',  priority: '0.9' },
+  { path: '/notifications', changefreq: 'monthly', priority: '0.8' },
   { path: '/midterms',      changefreq: 'weekly',  priority: '0.8' },
   { path: '/updates',       changefreq: 'weekly',  priority: '0.5' },
   { path: '/about',         changefreq: 'monthly', priority: '0.6' },

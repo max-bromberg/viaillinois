@@ -350,3 +350,26 @@ describe('the way through to the organization', () => {
     expect(link.getAttribute('href')).toBe('/organizations/2');
   });
 });
+
+/**
+ * The way from one event to hearing about the next one.
+ *
+ * Somebody reading an event page is the person most likely to want to be told
+ * about the ones after it, and this is the only moment VIA has their attention
+ * on a specific thing they care about. It is a line rather than a banner: the
+ * page is about the event, and a page that shouts about a Discord bot over an
+ * event somebody came to read would be worse than saying nothing.
+ */
+describe('being reminded about events like this one', () => {
+  it('offers the way to hear about events, pointing at the page that explains it', async () => {
+    const { findByRole } = render(EventDetail, { props: { id: 1 } });
+    const offer = await findByRole('link', { name: /remind|notified|hear about/i });
+    expect(offer.getAttribute('href')).toBe('/notifications');
+  });
+
+  it('says what it is offering in terms of events rather than of Discord', async () => {
+    const { findByRole } = render(EventDetail, { props: { id: 1 } });
+    const offer = await findByRole('link', { name: /remind|notified|hear about/i });
+    expect(offer.textContent.toLowerCase()).not.toContain('bot');
+  });
+});

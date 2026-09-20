@@ -57,6 +57,7 @@
     { href: '/calendar', label: 'Calendar' },
     { href: '/organizations', label: 'Organizations' },
     { href: '/midterms', label: 'Midterms' },
+    { href: '/notifications', label: 'Notifications' },
     { href: '/about', label: 'About' },
   ];
 

@@ -405,3 +405,25 @@ describe('the organizations listing whose lookup failed', () => {
     expect(page.unavailable).toBeUndefined();
   });
 });
+
+/**
+ * The page that explains how to be told about events.
+ *
+ * Every other way into VIA assumes somebody already thought to open it. This
+ * one is for the student who would come to things if they heard about them,
+ * and it has an address of its own so that it can be linked from a poster, a
+ * group chat, or the bottom of every other page.
+ */
+describe('the page about being notified', () => {
+  it('is a page a search engine is asked to keep', async () => {
+    const page = await describePage('/notifications', SITE);
+    expect(page.robots).toBe('index, follow');
+    expect(page.canonical).toBe(`${SITE}/notifications`);
+  });
+
+  it('describes itself in terms of hearing about events rather than of Discord', async () => {
+    const page = await describePage('/notifications', SITE);
+    expect(page.title.toLowerCase()).toMatch(/event/);
+    expect(page.description.length).toBeGreaterThan(50);
+  });
+});

@@ -195,6 +195,8 @@
           load={() => import('./routes/Organization.svelte')}
           props={{ id: parseInt(dynamicRoute.params.id) }}
         />
+      {:else if $currentPath === '/notifications'}
+        <LazyRoute load={() => import('./routes/Notifications.svelte')} />
       {:else if $currentPath === '/about' || dynamicRoute?.name === 'about-tab'}
         <LazyRoute load={() => import('./routes/About.svelte')} />
       {:else if $currentPath === '/scheduler'}

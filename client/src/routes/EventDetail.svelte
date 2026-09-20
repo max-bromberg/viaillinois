@@ -249,6 +249,20 @@
   </Poster>
 
   <div class="below">
+    <!--
+      The way from this event to hearing about the next one.
+
+      Somebody reading an event page is the person most likely to want telling
+      about the ones after it, and this is the only moment VIA has their
+      attention on something specific they care about. A line rather than a
+      banner, because the page is about the event: one that shouted about a
+      Discord bot over an event somebody came to read would be worse than
+      saying nothing at all.
+    -->
+    <p class="hear">
+      <a href="/notifications">Get reminded about events like this one</a>
+    </p>
+
     {#if alsoTrue.length}
       <div class="also">
         {#each alsoTrue as said (said)}<p>{said}</p>{/each}
@@ -284,6 +298,14 @@
 {/if}
 
 <style>
+  /*
+   * A line rather than a banner. Muted, the size of the small print around it,
+   * and carrying no button, because the page is about the event and this is an
+   * aside to it.
+   */
+  .below .hear { margin: 0 0 18px; font-size: 13.5px; color: var(--muted); }
+  .below .hear a { color: var(--primary); }
+
   /* The shape of the poster while it is on its way, in well colour. */
   .waiting {
     display: grid;

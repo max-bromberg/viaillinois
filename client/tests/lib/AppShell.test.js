@@ -46,7 +46,9 @@ describe('the shell', () => {
     const { container } = render(App);
     await waitFor(() => expect(container.querySelector('.nav')).toBeTruthy());
     const going = [...container.querySelectorAll('.nav .links a')].map(link => link.getAttribute('href'));
-    expect(going).toEqual(['/', '/calendar', '/organizations', '/midterms', '/about']);
+    expect(going).toEqual([
+      '/', '/calendar', '/organizations', '/midterms', '/notifications', '/about',
+    ]);
   });
 
   it('marks the page that is open', async () => {

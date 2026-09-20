@@ -360,6 +360,23 @@ const STATIC_PAGES = {
     title: 'Platform updates: VIA',
     description: 'What has changed on VIA, and what is being worked on next.',
   },
+  /*
+   * The page for a student who would come to things if they heard about them.
+   *
+   * Every other way into VIA assumes somebody already thought to open it, and
+   * most people do not open a website to find out whether anything is on. This
+   * one is about hearing rather than about looking, so it is described in terms
+   * of events rather than of the Discord bot that delivers them: the bot is how
+   * it works and not what it is for.
+   */
+  '/notifications': {
+    title: 'Never miss an ECE event at Illinois: VIA',
+    description:
+      'Hear about every talk, workshop and social run by Electrical and Computer '
+      + 'Engineering student organizations at the University of Illinois, without having to '
+      + 'check. Add VIA to your Discord account and it tells you what is coming up, reminds '
+      + 'you before the events you care about, and answers where a room is.',
+  },
   '/terms': { title: 'Terms of use: VIA', description: 'The terms that apply to using VIA.' },
   '/privacy': {
     title: 'Privacy: VIA',
