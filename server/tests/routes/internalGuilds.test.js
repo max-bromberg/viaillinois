@@ -40,6 +40,13 @@ const guildsDb = vi.hoisted(() => ({
 }));
 vi.mock('../../db/queries/discordGuilds.ts', () => guildsDb);
 
+const optInsDb = vi.hoisted(() => ({
+  getFollowsFor: vi.fn(), setFollow: vi.fn(), getRemindersFor: vi.fn(),
+  setReminder: vi.fn(), isFollowing: vi.fn(), hasReminder: vi.fn(),
+  replaceOptInsFor: vi.fn(),
+}));
+vi.mock('../../db/queries/discordOptIns.ts', () => optInsDb);
+
 vi.mock('../../db/queries/outbox.ts', async () => ({
   ...(await import('../support/outboxMock.js')).outboxMock(),
 }));
@@ -139,5 +146,61 @@ describe('DELETE /internal/v1/guilds/:guildId/binding', () => {
     const res = await asBot('delete', '/internal/v1/guilds/not-a-snowflake/binding');
     expect(res.status).toBe(400);
     expect(guildsDb.forgetBinding).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * What the bot says a person asked to be told about.
+ *
+ * The same two choices can be made in Discord, with the follow command and the
+ * reminder button, and the website would show stale answers if it only ever
+ * wrote its own. So the bot reports the whole of what it holds for one account
+ * and the mirror is replaced with it, which is the same shape as every other
+ * report: the state rather than the change.
+ */
+describe('PUT /internal/v1/optins/:discordUserId', () => {
+  const PERSON = '305255221017214977';
+
+  it('replaces what the website holds for that person', async () => {
+    const res = await asBot('put', `/internal/v1/optins/${PERSON}`)
+      .send({ following: [4, 9], reminders: [12] });
+
+    expect(res.status).toBe(204);
+    expect(optInsDb.replaceOptInsFor).toHaveBeenCalledWith({
+      discordUserId: PERSON, following: [4, 9], reminders: [12],
+    });
+  });
+
+  /** Somebody who follows nothing is an answer, and it empties the mirror. */
+  it('takes an empty report as meaning they chose nothing', async () => {
+    const res = await asBot('put', `/internal/v1/optins/${PERSON}`)
+      .send({ following: [], reminders: [] });
+
+    expect(res.status).toBe(204);
+    expect(optInsDb.replaceOptInsFor).toHaveBeenCalledWith({
+      discordUserId: PERSON, following: [], reminders: [],
+    });
+  });
+
+  it('refuses a person identifier that is not a Discord one', async () => {
+    const res = await asBot('put', '/internal/v1/optins/not-a-snowflake')
+      .send({ following: [], reminders: [] });
+
+    expect(res.status).toBe(400);
+    expect(optInsDb.replaceOptInsFor).not.toHaveBeenCalled();
+  });
+
+  /** A list that is not a list of identifiers is a mistake worth refusing. */
+  it('refuses a report whose lists are not lists of identifiers', async () => {
+    const res = await asBot('put', `/internal/v1/optins/${PERSON}`)
+      .send({ following: ['the ieee one'], reminders: [] });
+
+    expect(res.status).toBe(400);
+    expect(optInsDb.replaceOptInsFor).not.toHaveBeenCalled();
+  });
+
+  it('is refused without the service token, as everything internal is', async () => {
+    const res = await request(app).put(`/internal/v1/optins/${PERSON}`).send({});
+    expect(res.status).toBe(401);
   });
 });

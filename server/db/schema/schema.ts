@@ -408,6 +408,44 @@ export const rsoDiscordGuilds = mysqlTable("Rso_Discord_Guilds", {
 ]);
 
 /**
+ * The organizations a linked person follows, as the bot reported them.
+ *
+ * A mirror rather than the record. Subscriptions in via_bot is what the bot
+ * reads when it decides who to write to, because the bot is what sends the
+ * messages. This exists so the website can offer the same choice from an
+ * organization's own page, and show what the person already chose.
+ *
+ * Keyed by the Discord account, because that is what the bot holds and what it
+ * reports. Unlinking takes these with it, which is the point of the foreign
+ * key: somebody who unlinks should leave no record of what they followed.
+ */
+export const discordRsoFollows = mysqlTable("Discord_Rso_Follows", {
+	discordUserId: varchar("discord_user_id", { length: 32 }).notNull()
+		.references(() => discordLinks.discordUserId, { onDelete: "cascade" } ),
+	rsoId: int("rso_id").notNull().references(() => rsOs.rsoId, { onDelete: "cascade" } ),
+	followedAt: datetime("followed_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	primaryKey({ columns: [table.discordUserId, table.rsoId], name: "Discord_Rso_Follows_pk"}),
+]);
+
+/**
+ * The events a linked person asked to be reminded about, as the bot reported
+ * them. A mirror of Reminders in via_bot, for the same reason and on the same
+ * terms as the follows above.
+ */
+export const discordEventReminders = mysqlTable("Discord_Event_Reminders", {
+	discordUserId: varchar("discord_user_id", { length: 32 }).notNull()
+		.references(() => discordLinks.discordUserId, { onDelete: "cascade" } ),
+	eventId: int("event_id").notNull().references(() => events.eventId, { onDelete: "cascade" } ),
+	askedAt: datetime("asked_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("idx_discord_event_reminders_event").on(table.eventId),
+	primaryKey({ columns: [table.discordUserId, table.eventId], name: "Discord_Event_Reminders_pk"}),
+]);
+
+/**
  * The short lived handshake before a link exists. Opened by the bot for the
  * Discord account that asked, completed on the website, and checked against
  * the Discord account the callback actually receives.

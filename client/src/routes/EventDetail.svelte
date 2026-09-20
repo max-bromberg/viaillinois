@@ -8,6 +8,7 @@
   import { getRso } from '../api/rsos.js';
   import { locationLabel } from '../lib/locationLabel.js';
   import { calendarFileFor } from '../lib/calendarFile.js';
+  import NotifyToggle from '../lib/NotifyToggle.svelte';
   import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import { campusDate, campusTime, toInstant } from '../lib/campusTime.js';
   import { organizationColors } from '../lib/organizationColor.js';
@@ -260,7 +261,7 @@
       saying nothing at all.
     -->
     <p class="hear">
-      <a href="/notifications">Get reminded about events like this one</a>
+      <NotifyToggle kind="event" id={event.event_id} name={event.title} />
     </p>
 
     {#if alsoTrue.length}

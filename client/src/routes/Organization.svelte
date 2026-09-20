@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import NotifyToggle from '../lib/NotifyToggle.svelte';
   import { getRso } from '../api/rsos.js';
   import { getEvents } from '../api/events.js';
   import { navigate } from '../lib/router.js';
@@ -97,6 +98,13 @@
       <p class="facts">
         <span>An Electrical and Computer Engineering student organization at Illinois.</span>
         {#if rso?.founded_year}<span class="mono">Founded in {rso.founded_year}.</span>{/if}
+      </p>
+      <!--
+        Somebody decides they care about an organization while they are reading
+        about it, which is here rather than in a settings screen somewhere else.
+      -->
+      <p class="follow">
+        <NotifyToggle kind="organization" id={rso?.rso_id} name={named} />
       </p>
     </header>
 

@@ -474,3 +474,34 @@ export async function recordGuildUnbound(
     payload: { guild_id: guildId, rso_id: rsoId },
   });
 }
+
+/**
+ * Somebody changed, on the website, what they want to hear about.
+ *
+ * Following an organization and asking for a reminder both belong to the bot,
+ * because the bot is what sends the message, and the website cannot reach the
+ * tables they live in. So the choice is written to the website's own mirror,
+ * which is what the page reads back, and left here for the bot to apply where
+ * it counts.
+ *
+ * The subject is the organization or the event, and wanted says which way the
+ * control was moved. Both directions are entries, because stopping is a change
+ * the bot has to hear about exactly as much as starting.
+ */
+export async function recordOptInChanged(
+  { discordUserId, subject, subjectId, wanted }:
+  { discordUserId: string, subject: 'rso' | 'event', subjectId: number, wanted: boolean },
+) {
+  return writeOutbox({
+    kind: 'optin.changed',
+    subjectType: subject,
+    subjectId,
+    rsoId: subject === 'rso' ? subjectId : null,
+    payload: {
+      discord_user_id: discordUserId,
+      subject,
+      subject_id: subjectId,
+      wanted,
+    },
+  });
+}

@@ -141,6 +141,13 @@
       "when": 1789617989249,
       "tag": "0019_rso_discord_guilds",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1789704389249,
+      "tag": "0020_discord_notification_optins",
+      "breakpoints": true
     }
   ]
 }

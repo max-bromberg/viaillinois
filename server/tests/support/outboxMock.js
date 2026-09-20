@@ -39,5 +39,6 @@ export function outboxMock() {
     recordLinkCompleted: vi.fn(),
     recordLinkRevoked: vi.fn(),
     recordGuildUnbound: vi.fn(),
+    recordOptInChanged: vi.fn(),
   };
 }

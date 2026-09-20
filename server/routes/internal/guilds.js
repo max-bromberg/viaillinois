@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { sendApiError, ERROR_CODES } from '../../lib/apiError.js';
 import { getRso } from '../../db/queries/internalReads.ts';
 import { reportBinding, forgetBinding } from '../../db/queries/discordGuilds.ts';
+import { replaceOptInsFor } from '../../db/queries/discordOptIns.ts';
 import { snowflake } from '../../lib/identifiers.js';
 
 /**
@@ -77,5 +78,41 @@ export function createGuildsRouter() {
     } catch (err) { next(err); }
   });
 
+  /*
+   * What one person asked to be told about, as the bot holds it.
+   *
+   * The same two choices can be made inside Discord, so the website's mirror
+   * would drift if it only ever wrote what was chosen on the website. The bot
+   * reports the whole of what it has for one account and the mirror is replaced
+   * with it: a report that leaves something out is the bot saying it is no
+   * longer followed, which a merge could never express.
+   */
+  router.put('/optins/:discordUserId', async (req, res, next) => {
+    try {
+      const discordUserId = snowflake(req.params.discordUserId);
+      if (!discordUserId) {
+        return sendApiError(res, 400, ERROR_CODES.INVALID,
+          'The person identifier has to be a Discord user identifier, written as the string of digits Discord uses.');
+      }
+
+      const following = identifierList(req.body?.following);
+      const reminders = identifierList(req.body?.reminders);
+      if (!following || !reminders) {
+        return sendApiError(res, 400, ERROR_CODES.INVALID,
+          'following and reminders each have to be a list of the whole numbers that identify them.');
+      }
+
+      await replaceOptInsFor({ discordUserId, following, reminders });
+      res.status(204).end();
+    } catch (err) { next(err); }
+  });
+
   return router;
+}
+
+/** A list of identifiers, or null where the value is not one. */
+function identifierList(value) {
+  if (!Array.isArray(value)) return null;
+  if (!value.every(entry => Number.isInteger(entry) && entry > 0)) return null;
+  return value;
 }
