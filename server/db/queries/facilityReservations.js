@@ -1,5 +1,15 @@
-import { query } from '../pool.js';
+import pool, { query } from '../pool.js';
 import { campusNow } from '../../lib/timezone.js';
+
+/**
+ * How long a value in the facility text dictionary is.
+ *
+ * Both the write and the read truncate to this, because a value stored short and looked up
+ * long matches nothing and would quietly record a booking as having no name. It is the
+ * length that keeps a utf8mb4 unique key comfortably inside the index limit, and room
+ * booking titles are far shorter in practice.
+ */
+const TEXT_LENGTH = 191;
 export { upsertLocation as upsertFacilityLocation } from './locations.js';
 
 /**
@@ -10,26 +20,137 @@ export { upsertLocation as upsertFacilityLocation } from './locations.js';
  * @returns {Promise<import('mysql2').ResultSetHeader>}
  */
 export async function upsertReservation(reservation) {
-  const { location_id, customer, event_name, start_time, end_time, source } = reservation
+  const {
+    location_id, customer, event_name, start_time, end_time, source,
+    activity_id = null, parent_activity_id = null, astra_event_id = null, activity_type = null,
+    section_id = null, instructor = null,
+  } = reservation
+  const now = campusNow()
+
+  /*
+   * When each source first showed this booking, worked out here rather than in SQL.
+   *
+   * The source column is a SET, and reading a SET back inside ON DUPLICATE KEY UPDATE to
+   * decide which of the two columns to touch is the kind of expression that is easy to get
+   * subtly wrong. The caller already knows which source it is, so it passes a value for
+   * that source and nothing for the other, and COALESCE keeps whichever was there first.
+   */
+  const astraFirstSeen = source === 'astra' ? now : null
+  const tableauFirstSeen = source === 'tableau' ? now : null
+
+  /*
+   * Everything Ad Astra says beyond where and when is written only when it arrives.
+   * Tableau sends none of it, so a Tableau poll must not blank what Ad Astra recorded, and
+   * a field Ad Astra stops sending must leave the last known value alone rather than
+   * replacing it with nothing.
+   */
   return query(
-    `INSERT INTO Facility_Reservations (location_id, customer, event_name, start_time, end_time, source, scraped_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO Facility_Reservations
+       (location_id, customer, event_name, start_time, end_time, source, scraped_at,
+        activity_id, parent_activity_id, astra_event_id, activity_type, section_id, instructor,
+        astra_first_seen, tableau_first_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        customer = IF(VALUES(customer) != '', VALUES(customer), customer),
        event_name = IF(VALUES(event_name) != '', VALUES(event_name), event_name),
        source = source | VALUES(source),
-       scraped_at = VALUES(scraped_at)`,
-    [location_id, customer, event_name, start_time, end_time, source, campusNow()]
+       scraped_at = VALUES(scraped_at),
+       activity_id = COALESCE(VALUES(activity_id), activity_id),
+       parent_activity_id = COALESCE(VALUES(parent_activity_id), parent_activity_id),
+       astra_event_id = COALESCE(VALUES(astra_event_id), astra_event_id),
+       activity_type = COALESCE(VALUES(activity_type), activity_type),
+       section_id = COALESCE(VALUES(section_id), section_id),
+       instructor = COALESCE(VALUES(instructor), instructor),
+       astra_first_seen = COALESCE(astra_first_seen, VALUES(astra_first_seen)),
+       tableau_first_seen = COALESCE(tableau_first_seen, VALUES(tableau_first_seen))`,
+    [
+      location_id, customer, event_name, start_time, end_time, source, now,
+      activity_id, parent_activity_id, astra_event_id, activity_type, section_id, instructor,
+      astraFirstSeen, tableauFirstSeen,
+    ]
   )
 }
 
 /**
- * Delete all facility reservations with end_time before now.
- * Keeps the table from growing unboundedly across daily scrape runs.
- * @returns {Promise<import('mysql2').ResultSetHeader>}
+ * Move every reservation that has already happened out of the working set and into
+ * history.
+ *
+ * This replaces a delete. Until migration 0021 the pollers destroyed a booking within
+ * hours of the event happening, so VIA never retained a single completed reservation and
+ * no question about what campus did last term could be answered at all. VISION.md has the
+ * reasoning.
+ *
+ * Expired rows still leave the working set, exactly as they did before, because every
+ * reader on a request path (the conflict check, the free room search, the scheduler) only
+ * ever asks about the present and the future, and that table has to stay the size of the
+ * rolling window the pollers fetch rather than growing for ever. No existing reader
+ * changes behaviour. The rows are kept instead of dropped.
+ *
+ * History normalises its text into Facility_Text. One course section meeting three times a
+ * week writes the same name and the same instructor dozens of times, so pointing them at
+ * one dictionary row turns roughly seventy bytes of repeated text per row into twelve
+ * bytes of identifiers. That is done here, in a batch, and never on a request path.
+ *
+ * The whole move runs in one transaction, so a failure halfway leaves the working set
+ * exactly as it was rather than losing rows that were never written.
+ *
+ * @returns {Promise<{ archived: number }>}
  */
-export async function deleteExpiredReservations() {
-  return query('DELETE FROM Facility_Reservations WHERE end_time < ?', [campusNow()])
+export async function archiveExpiredReservations() {
+  const cutoff = campusNow()
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+
+    /*
+     * Every distinct string about to be needed, written once. INSERT IGNORE is what makes
+     * this safe to run on every poll cycle for ever: a value the dictionary already holds
+     * is skipped rather than duplicated or refused.
+     *
+     * An empty string is not a value worth a dictionary row. The columns it comes from are
+     * NOT NULL with an empty default, so an absent name arrives as '' rather than as null,
+     * and history should record that as nothing known rather than as a name that is blank.
+     *
+     * Truncated to the dictionary column's length here and matched the same way below. Both
+     * sides have to agree, because a value stored short and looked up long finds nothing and
+     * records a booking as having no name at all.
+     */
+    for (const column of ['event_name', 'customer', 'instructor', 'activity_type']) {
+      await conn.query(
+        `INSERT IGNORE INTO Facility_Text (value)
+         SELECT DISTINCT LEFT(${column}, ${TEXT_LENGTH}) FROM Facility_Reservations
+         WHERE end_time < ? AND ${column} IS NOT NULL AND ${column} <> ''`,
+        [cutoff],
+      )
+    }
+
+    const [moved] = await conn.query(
+      `INSERT INTO Facility_Reservation_History
+         (location_id, start_time, end_time, activity_id, parent_activity_id, astra_event_id, section_id,
+          event_name_id, customer_id, instructor_id, activity_type_id,
+          source, astra_first_seen, tableau_first_seen)
+       SELECT
+         r.location_id, r.start_time, r.end_time, r.activity_id, r.parent_activity_id,
+         r.astra_event_id, r.section_id, en.text_id, cu.text_id, ins.text_id, at.text_id,
+         r.source, r.astra_first_seen, r.tableau_first_seen
+       FROM Facility_Reservations r
+       LEFT JOIN Facility_Text en  ON en.value  = LEFT(r.event_name, ${TEXT_LENGTH})    AND r.event_name <> ''
+       LEFT JOIN Facility_Text cu  ON cu.value  = LEFT(r.customer, ${TEXT_LENGTH})      AND r.customer <> ''
+       LEFT JOIN Facility_Text ins ON ins.value = LEFT(r.instructor, ${TEXT_LENGTH})
+       LEFT JOIN Facility_Text at  ON at.value  = LEFT(r.activity_type, ${TEXT_LENGTH})
+       WHERE r.end_time < ?`,
+      [cutoff],
+    )
+
+    await conn.query('DELETE FROM Facility_Reservations WHERE end_time < ?', [cutoff])
+    await conn.commit()
+    return { archived: moved.affectedRows ?? 0 }
+  } catch (err) {
+    await conn.rollback()
+    throw err
+  } finally {
+    conn.release()
+  }
 }
 
 /**
@@ -59,4 +180,66 @@ export async function getReservationsInRange(startTime, endTime) {
     JOIN Locations l ON fr.location_id = l.location_id
     WHERE fr.start_time < ? AND fr.end_time > ?
   `, [endTime, startTime])
+}
+
+/**
+ * One booking from the working set, whole.
+ *
+ * Deliberately separate from getReservationsInRange, which the scheduler calls with a
+ * range covering weeks and which therefore reads as few columns as it can get away with.
+ * This one is for asking about a single booking, where the extra columns cost nothing.
+ *
+ * @returns {Promise<object|null>}
+ */
+export async function findReservation(locationId, startTime, endTime) {
+  const rows = await query(
+    `SELECT * FROM Facility_Reservations
+      WHERE location_id = ? AND start_time = ? AND end_time = ?`,
+    [locationId, startTime, endTime],
+  )
+  return rows[0] ?? null
+}
+
+/**
+ * Reservations that have already happened, with their text resolved back out of the
+ * dictionary.
+ *
+ * Nothing on a request path calls this. History exists for the questions VISION.md asks
+ * about terms, rooms and sources, and those are asked offline, which is what lets the
+ * table be shaped for size rather than for speed of access.
+ *
+ * The joins resolve the four dictionary columns. A booking that carried no name, no
+ * customer, no instructor or no type reads back as null for that column, which is the
+ * honest record of a string the source never sent.
+ *
+ * @param {string} startTime campus wall clock
+ * @param {string} endTime campus wall clock
+ * @param {{ limit?: number }} [options] a ceiling, because history only grows
+ */
+export async function getHistoryOverlapping(startTime, endTime, { limit = 5000 } = {}) {
+  return query(
+    `SELECT
+       h.history_id, h.location_id, h.start_time, h.end_time,
+       h.activity_id, h.parent_activity_id, h.astra_event_id, h.section_id,
+       en.value  AS event_name,
+       cu.value  AS customer,
+       ins.value AS instructor,
+       at.value  AS activity_type,
+       h.source, h.astra_first_seen, h.tableau_first_seen, h.archived_at
+     FROM Facility_Reservation_History h
+     LEFT JOIN Facility_Text en  ON en.text_id  = h.event_name_id
+     LEFT JOIN Facility_Text cu  ON cu.text_id  = h.customer_id
+     LEFT JOIN Facility_Text ins ON ins.text_id = h.instructor_id
+     LEFT JOIN Facility_Text at  ON at.text_id  = h.activity_type_id
+     WHERE h.start_time < ? AND h.end_time > ?
+     ORDER BY h.start_time
+     LIMIT ?`,
+    [endTime, startTime, limit],
+  )
+}
+
+/** How many reservations have been kept, which the poller logs after each archive run. */
+export async function countHistory() {
+  return query('SELECT COUNT(*) as count FROM Facility_Reservation_History')
+    .then(result => result[0].count)
 }

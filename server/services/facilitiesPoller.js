@@ -23,7 +23,7 @@
 import {
   upsertFacilityLocation,
   upsertReservation,
-  deleteExpiredReservations,
+  archiveExpiredReservations,
   countReservations,
 } from '../db/queries/facilityReservations.js';
 
@@ -32,6 +32,26 @@ import { resolveBuilding, resolveRoom } from '../lib/locationNormalizer.js';
 import { runWithLogging } from '../lib/pollerUtils.js';
 
 const DEFAULT_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+/** The columns this poller reads. Anything else in the export is reported, not used. */
+const COLUMNS_READ = ['Building', 'Room', 'Customer', 'EventName', 'StartDate', 'StartTime', 'EndTime'];
+
+/**
+ * Say which columns the export carried that the poller does not read.
+ *
+ * The export's shape is the university's rather than VIA's, and the only way to learn what
+ * else is in it is to look at a real download. Naming the unread columns once per run puts
+ * that in the logs instead of leaving it to somebody checking by hand, which is how a field
+ * worth keeping gets noticed. Nothing here reads a new column or stores anything: this
+ * collection point took a great deal of trial and error and is left alone on purpose.
+ */
+function reportUnusedColumns(rows) {
+  const seen = Object.keys(rows[0] ?? {});
+  const unused = seen.filter(column => column && !COLUMNS_READ.includes(column));
+  if (unused.length) {
+    console.log(`[facilities] the export carries ${unused.length} columns it does not read: ${unused.join(', ')}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // CSV parsing
@@ -118,8 +138,18 @@ export async function runOnce() {
     return { upserted: 0, skipped: 0 };
   }
 
+  reportUnusedColumns(rows);
+
+  /*
+   * Move what has already happened into history rather than deleting it.
+   *
+   * This call used to destroy the booking, so VIA never retained a single completed
+   * reservation. Expired rows still leave the working set, which is what keeps that table
+   * the size of the rolling window rather than growing for ever, and nothing that reads it
+   * behaves differently. They are kept now. VISION.md has the reasoning.
+   */
   try {
-    await deleteExpiredReservations();
+    await archiveExpiredReservations();
   } catch (e) {
     if (!e.message.includes('Not implemented')) throw e;
   }

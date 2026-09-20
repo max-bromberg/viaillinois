@@ -7,7 +7,7 @@ global.fetch = vi.fn();
 vi.mock('../../db/queries/facilityReservations.js', () => ({
   upsertFacilityLocation:    vi.fn().mockResolvedValue(42),
   upsertReservation:         vi.fn().mockResolvedValue({ affectedRows: 1 }),
-  deleteExpiredReservations: vi.fn().mockResolvedValue(undefined),
+  archiveExpiredReservations: vi.fn().mockResolvedValue({ archived: 0 }),
   countReservations:         vi.fn().mockResolvedValue(5),
 }));
 
@@ -168,5 +168,93 @@ describe('astraPoller.runOnce()', () => {
       headers: { get: () => 'text/html; charset=utf-8' },
     });
     await expect(runOnce()).rejects.toThrow('not authenticated');
+  });
+});
+
+/**
+ * What Ad Astra sends beyond where and when a booking is.
+ *
+ * The request has always asked for eighteen fields and the poller stored four, so the
+ * identity of a booking, its type, its series, its section and its instructor were fetched
+ * over the network and then dropped on the floor. None of that can be recovered later,
+ * which is why capturing it comes before anything that would use it.
+ *
+ * Every one of them is optional. Ad Astra sends an empty string for a field that does not
+ * apply, and a field it stops sending altogether has to arrive as nothing rather than
+ * stopping the poll.
+ */
+describe('the fields the poller used to throw away', () => {
+  /** A row with every field Ad Astra offers filled in, at the indices FIELDS declares. */
+  function fullRow() {
+    const r = new Array(18).fill('');
+    r[0] = 'ACT-1001';          // ActivityId
+    r[1] = 'ECE 210 Lecture';   // ActivityName
+    r[3] = 'LECT';              // ActivityTypeCode
+    r[5] = '1ECEB';
+    r[6] = '1002';
+    r[8] = '2026-04-16T09:00:00';
+    r[9] = '2026-04-16T10:00:00';
+    r[10] = 'R Garcia';         // InstructorName
+    r[13] = 'SEC-55';           // SectionId
+    r[14] = 'EVT-900';          // EventId
+    r[16] = 'PAR-77';           // ParentActivityId
+    return r;
+  }
+
+  it('records everything Ad Astra said about the booking', async () => {
+    mockSession();
+    mockDataFetch([fullRow()]);
+
+    await runOnce();
+
+    expect(upsertReservation).toHaveBeenCalledWith(expect.objectContaining({
+      activity_id: 'ACT-1001',
+      activity_type: 'LECT',
+      instructor: 'R Garcia',
+      section_id: 'SEC-55',
+      astra_event_id: 'EVT-900',
+      parent_activity_id: 'PAR-77',
+    }));
+  });
+
+  /**
+   * A booking that is an event rather than a class has no section and no instructor, and
+   * Ad Astra sends empty strings for both. Nothing known is recorded as nothing rather
+   * than as an empty string, so that history does not fill with blank dictionary rows.
+   */
+  it('records a field Ad Astra did not send as nothing rather than as empty', async () => {
+    mockSession();
+    mockDataFetch([makeRow('ECE Board Meeting', '1ECEB', '3002', '2026-04-16T09:00:00', '2026-04-16T10:00:00')]);
+
+    await runOnce();
+
+    expect(upsertReservation).toHaveBeenCalledWith(expect.objectContaining({
+      activity_id: null,
+      activity_type: null,
+      instructor: null,
+      section_id: null,
+      astra_event_id: null,
+      parent_activity_id: null,
+    }));
+  });
+
+  /**
+   * The row shape is Ad Astra's, not VIA's, and it has changed before. A row shorter than
+   * the poller expects must still produce the booking it does describe.
+   */
+  it('still records the booking when the row is shorter than the field list', async () => {
+    mockSession();
+    const short = new Array(10).fill('');
+    short[1] = 'Truncated row';
+    short[5] = '1ECEB'; short[6] = '1002';
+    short[8] = '2026-04-16T09:00:00'; short[9] = '2026-04-16T10:00:00';
+    mockDataFetch([short]);
+
+    const result = await runOnce();
+
+    expect(result.upserted).toBe(1);
+    expect(upsertReservation).toHaveBeenCalledWith(expect.objectContaining({
+      event_name: 'Truncated row', instructor: null, section_id: null,
+    }));
   });
 });
