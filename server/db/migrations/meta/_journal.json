@@ -134,6 +134,13 @@
       "when": 1789531589249,
       "tag": "0018_event_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1789617989249,
+      "tag": "0019_rso_discord_guilds",
+      "breakpoints": true
     }
   ]
 }

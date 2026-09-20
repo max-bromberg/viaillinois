@@ -3,6 +3,8 @@
   import { campusDate, campusTime } from '../lib/campusTime.js';
   import { onMount } from 'svelte';
   import { currentUser, adminRsoIds, boardRsoIds } from '../stores/auth.js';
+  import { getRsoDiscord } from '../api/rsoDiscord.js';
+  import DiscordPanel from '../lib/DiscordPanel.svelte';
   import { getMe } from '../api/users.js';
   import { getRso, updateRso, addMember, removeMember, getRsoStats } from '../api/rsos.js';
   import { createEvent, createEventSeries, updateEvent, deleteEvent, cancelEvent, restoreEvent } from '../api/events.js';
@@ -23,6 +25,69 @@
   let selectedRso = null;
   let loading = false;
   let activeTab = 'events';
+
+  /**
+   * Whether this organization has a Discord server connected, as the bot last
+   * reported it. Null while it is unknown, which covers both the moment before
+   * the answer arrives and a lookup that failed, because a board that has a
+   * server should never be reminded to connect one on the strength of a
+   * request that did not come back.
+   */
+  let discordGuilds = null;
+  /** Where a board sends somebody to put the bot in their server. */
+  let discordInstallUrl = null;
+  const DISCORD_NOTICE_KEY = 'via.discordNotice.dismissed';
+
+  /**
+   * The organizations this browser has put the reminder away for.
+   *
+   * Declared after the key it reads, because a const is in its temporal dead
+   * zone until the line that declares it runs, and the read is guarded, so the
+   * other order left the reminder coming back on every visit with nothing said.
+   */
+  let discordNoticeDismissed = readDismissedNotices();
+
+  /**
+   * Browser storage throws outright in a private window and comes back empty
+   * where site data was cleared, and neither is a reason for the dashboard not
+   * to draw, so a reminder that cannot be remembered is simply shown again.
+   */
+  function readDismissedNotices() {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(DISCORD_NOTICE_KEY) ?? '[]');
+      return Array.isArray(stored) ? stored : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function dismissDiscordNotice() {
+    discordNoticeDismissed = [...discordNoticeDismissed, selectedRso.rso_id];
+    try {
+      window.localStorage.setItem(DISCORD_NOTICE_KEY, JSON.stringify(discordNoticeDismissed));
+    } catch {
+      // Put away for this visit, which is the part that matters right now.
+    }
+  }
+
+  /**
+   * What the bot reported about this organization's servers.
+   *
+   * A failure leaves the answer unknown rather than empty, so the reminder
+   * stays away. The panel in the details tab reads this for itself, because it
+   * also needs the address a board adds the bot from and it reloads after a
+   * disconnect.
+   */
+  async function loadDiscord(rsoId) {
+    discordGuilds = null;
+    try {
+      const { guilds, install_url } = await getRsoDiscord(rsoId);
+      discordGuilds = guilds ?? [];
+      discordInstallUrl = install_url ?? null;
+    } catch {
+      discordGuilds = null;
+    }
+  }
 
   // ── Derived role for selected RSO ─────────────────────────────────────────
   $: userRole = $currentUser?.memberships?.find(m => m.rso_id === selectedRso?.rso_id)?.role
@@ -112,6 +177,7 @@
     try {
       const { rso } = await getRso(rsoId);
       selectedRso = rso;
+      loadDiscord(rsoId);
       events = rso.events || [];
       detailsForm = {
         name: rso.name || '',
@@ -380,6 +446,39 @@
         <p class="about">{selectedRso.description}</p>
       {/if}
     </div>
+
+    <!--
+      The reminder that no Discord server is connected.
+
+      A reminder rather than a demand. A board with no Discord server, or one
+      that does not want the bot, is running their organization perfectly well,
+      so this is one quiet line that never stands between somebody and the work
+      they opened the dashboard to do, and it can be put away for good. It is
+      shown only where the answer is known to be none: a lookup that failed
+      leaves it unknown, and a board that has a server is never told to connect
+      one because a request did not come back.
+    -->
+    {#if selectedRso && discordGuilds?.length === 0
+         && !discordNoticeDismissed.includes(selectedRso.rso_id)}
+      <aside class="dnotice" role="note">
+        <Pad />
+        <p>
+          This organization is not connected to Discord. The VIA bot posts your events in
+          your server and reminds your members about them.
+        </p>
+        <span class="acts">
+          {#if discordInstallUrl}
+            <a class="btn quiet" href={discordInstallUrl} target="_blank" rel="noopener noreferrer">
+              Add the VIA bot
+            </a>
+          {/if}
+          <button type="button" class="iconbtn" aria-label="Dismiss this reminder"
+            on:click={dismissDiscordNotice}>
+            Dismiss
+          </button>
+        </span>
+      </aside>
+    {/if}
 
     {#if selectedRso}
       <div class="tabs">
@@ -763,6 +862,13 @@
     {#if activeTab === 'details' && selectedRso && isBoard}
       <div class="tabbody details">
         <!--
+          The board's own Discord server. It reads the same mirror the reminder
+          above does, and reloads itself after a disconnect, so the reminder and
+          the panel never disagree about whether a server is connected.
+        -->
+        <DiscordPanel rsoId={selectedRso.rso_id} onchanged={() => loadDiscord(selectedRso.rso_id)} />
+
+        <!--
           The handler is a property rather than an event directive. The field is
           its own component now, and a component does not forward a browser
           event unless it is written to; given as a property it is spread onto
@@ -817,6 +923,30 @@
 {/if}
 
 <style>
+  /*
+   * The reminder that no Discord server is connected.
+   *
+   * Paper rather than a coloured banner, one line of muted text, and a hairline
+   * rule the same weight the rest of the dashboard divides things with. It has
+   * to read as a note somebody left rather than as something gone wrong, so it
+   * borrows nothing from the toast and nothing from the danger colour.
+   */
+  .dnotice {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin: 0 0 18px; padding: 10px 14px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); color: var(--muted);
+  }
+  .dnotice p { margin: 0; font-size: 13.5px; flex: 1 1 260px; }
+  .dnotice .acts { display: flex; align-items: center; gap: 4px; }
+  .dnotice .iconbtn {
+    background: transparent; border: 0; color: var(--muted);
+    font: inherit; font-size: 12.5px; cursor: pointer;
+    padding: 6px 8px; border-radius: 8px;
+  }
+  .dnotice .iconbtn:hover { color: var(--ink); }
+  .dnotice .iconbtn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
   .dash {
     display: grid;
     gap: 22px;

@@ -372,6 +372,42 @@ export const discordLinks = mysqlTable("Discord_Links", {
 ]);
 
 /**
+ * Which Discord server an organization's board has bound the bot to.
+ *
+ * A mirror rather than the record. The binding is a fact about a Discord
+ * server, the bot is what is installed there, and Guild_Installations in
+ * via_bot holds it. The bot reports each binding here through the internal
+ * service API so that the board's own dashboard can say whether the bot is set
+ * up, because the website has no account on the bot's database and is not
+ * meant to have one.
+ *
+ * Nothing is authorized from this table. Unlinking is authorized by the same
+ * requireRSOAdmin the rest of the dashboard uses, and the bot is what applies
+ * it. Being a few seconds behind is therefore a cosmetic problem rather than a
+ * correctness one.
+ *
+ * reported_at also carries ON UPDATE CURRENT_TIMESTAMP in the database, which
+ * Drizzle's datetime cannot express, so the migration owns that clause as it
+ * does for Events.updated_at.
+ */
+export const rsoDiscordGuilds = mysqlTable("Rso_Discord_Guilds", {
+	guildId: varchar("guild_id", { length: 32 }).notNull(),
+	rsoId: int("rso_id").notNull().references(() => rsOs.rsoId, { onDelete: "cascade" } ),
+	// What the server calls itself, so the dashboard names it rather than
+	// showing the identifier.
+	guildName: varchar("guild_name", { length: 200 }).default('').notNull(),
+	// The Discord account that bound the server, which the web platform
+	// confirmed was on the board at the time.
+	boundBy: varchar("bound_by", { length: 32 }),
+	boundAt: datetime("bound_at", { mode: 'string'}),
+	reportedAt: datetime("reported_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("idx_rso_discord_guilds_rso").on(table.rsoId),
+	primaryKey({ columns: [table.guildId], name: "Rso_Discord_Guilds_guild_id"}),
+]);
+
+/**
  * The short lived handshake before a link exists. Opened by the bot for the
  * Discord account that asked, completed on the website, and checked against
  * the Discord account the callback actually receives.

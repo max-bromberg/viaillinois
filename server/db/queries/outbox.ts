@@ -456,3 +456,21 @@ export async function recordLinkRevoked(
     payload: { discord_user_id: discordUserId, net_id: netId },
   });
 }
+
+/**
+ * A board disconnected its Discord server from the dashboard.
+ *
+ * The binding lives in the bot's database, so the website cannot clear it. It
+ * clears its own mirror, so the board sees the answer at once, and leaves this
+ * for the bot to apply where the binding actually is. The bot is not asked
+ * synchronously, because a board should not be told their request failed
+ * because the bot happened to be restarting.
+ */
+export async function recordGuildUnbound(
+  { guildId, rsoId }: { guildId: string, rsoId: number },
+) {
+  return writeOutbox({
+    kind: 'guild.unbound', subjectType: 'guild', subjectId: guildId, rsoId,
+    payload: { guild_id: guildId, rso_id: rsoId },
+  });
+}
