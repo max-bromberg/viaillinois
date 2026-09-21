@@ -4,6 +4,31 @@ import { startTestDb, resetTestDb, testDbConfig } from '../support/testDb.js';
 
 let reservations;
 
+/*
+ * One database, one pool and one teardown for the whole file.
+ *
+ * The pool is a module singleton, so a describe block that ends it leaves every later
+ * block in the file with a closed connection. Both blocks below need the same migrated
+ * database, so the setup belongs here rather than in either of them.
+ */
+beforeAll(async () => {
+  await startTestDb();
+  process.env.DB_HOST = testDbConfig.host;
+  process.env.DB_PORT = String(testDbConfig.port);
+  process.env.DB_USER = testDbConfig.user;
+  process.env.DB_PASSWORD = testDbConfig.password;
+  process.env.DB_NAME = testDbConfig.database;
+  await resetTestDb();
+  const { applyMigrations } = await import('../../db/migrate.ts');
+  await applyMigrations();
+  reservations = await import('../../db/queries/facilityReservations.js');
+}, 180_000);
+
+afterAll(async () => {
+  const pool = (await import('../../db/pool.js')).default;
+  await pool.end();
+});
+
 /**
  * Keeping what the facilities pollers collect.
  *
@@ -17,24 +42,6 @@ let reservations;
  * same instructor dozens of times.
  */
 describe('keeping reservations after they have happened', () => {
-  afterAll(async () => {
-    const pool = (await import('../../db/pool.js')).default;
-    await pool.end();
-  });
-
-  beforeAll(async () => {
-    await startTestDb();
-    process.env.DB_HOST = testDbConfig.host;
-    process.env.DB_PORT = String(testDbConfig.port);
-    process.env.DB_USER = testDbConfig.user;
-    process.env.DB_PASSWORD = testDbConfig.password;
-    process.env.DB_NAME = testDbConfig.database;
-    await resetTestDb();
-    const { applyMigrations } = await import('../../db/migrate.ts');
-    await applyMigrations();
-    reservations = await import('../../db/queries/facilityReservations.js');
-  }, 180_000);
-
   beforeEach(async () => {
     const conn = await mysql.createConnection(testDbConfig);
     await conn.query('DELETE FROM Facility_Reservation_History');
@@ -244,20 +251,6 @@ describe('keeping reservations after they have happened', () => {
  * deploy happened.
  */
 describe('when an event was entered', () => {
-  afterAll(async () => {
-    const pool = (await import('../../db/pool.js')).default;
-    await pool.end();
-  });
-
-  beforeAll(async () => {
-    await startTestDb();
-    process.env.DB_HOST = testDbConfig.host;
-    process.env.DB_PORT = String(testDbConfig.port);
-    process.env.DB_USER = testDbConfig.user;
-    process.env.DB_PASSWORD = testDbConfig.password;
-    process.env.DB_NAME = testDbConfig.database;
-  }, 180_000);
-
   it('is recorded for an event written from now on', async () => {
     const conn = await mysql.createConnection(testDbConfig);
     await conn.query('DELETE FROM Events');
