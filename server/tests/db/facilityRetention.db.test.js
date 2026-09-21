@@ -156,6 +156,37 @@ describe('keeping reservations after they have happened', () => {
     expect(names).toBe(1);
   });
 
+  /**
+   * A booking that finished earlier today is still in every poll for the rest of the day,
+   * because Ad Astra is asked for everything from midnight of the current day onwards.
+   * Archiving it now would move it to history, let the next poll put it back, and write it
+   * to history again on the poll after that.
+   */
+  it('leaves a booking that finished earlier today where it is', async () => {
+    const { campusStartOfToday } = await import('../../lib/timezone.js');
+    const today = campusStartOfToday().slice(0, 10);
+    const start = `${today} 00:05:00`;
+    const end = `${today} 00:10:00`;
+
+    await reservations.upsertReservation(booking({ start_time: start, end_time: end }));
+    await reservations.archiveExpiredReservations();
+
+    expect(await reservations.findReservation(1, start, end)).toBeTruthy();
+    expect(await reservations.countHistory()).toBe(0);
+  });
+
+  /**
+   * The same booking archived twice is the failure that matters here, so the run is made
+   * twice over on purpose and history is counted rather than merely read.
+   */
+  it('writes a booking to history once, however many times the archive runs', async () => {
+    await reservations.upsertReservation(booking());
+    await reservations.archiveExpiredReservations();
+    await reservations.archiveExpiredReservations();
+
+    expect(await reservations.countHistory()).toBe(1);
+  });
+
   /** The pollers call this every cycle, so a run with nothing to move is the common case. */
   it('does nothing and refuses nothing when there is nothing to move', async () => {
     await expect(reservations.archiveExpiredReservations()).resolves.not.toThrow();

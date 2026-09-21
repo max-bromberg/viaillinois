@@ -258,3 +258,38 @@ describe('the fields the poller used to throw away', () => {
     }));
   });
 });
+
+/**
+ * The columns these fields are written into have lengths, and MySQL refuses a value longer
+ * than the column rather than trimming it. A refusal inside the row loop is caught and
+ * logged, so an unexpectedly long identifier would cost the whole booking rather than just
+ * the field. Ad Astra's row shape has changed before, so the cap matches the column.
+ */
+describe('a field longer than the column that holds it', () => {
+  it('is stored cut to the column rather than costing the booking', async () => {
+    const row = new Array(18).fill('');
+    row[1] = 'ECE 210 Lecture';
+    row[5] = '1ECEB';
+    row[6] = '1002';
+    row[8] = '2026-04-16T09:00:00';
+    row[9] = '2026-04-16T10:00:00';
+    row[0] = 'A'.repeat(90);   // activity_id, varchar(40)
+    row[3] = 'B'.repeat(90);   // activity_type, varchar(32)
+    row[10] = 'C'.repeat(300); // instructor, varchar(200)
+    row[13] = 'D'.repeat(90);  // section_id, varchar(32)
+    row[14] = 'E'.repeat(90);  // astra_event_id, varchar(40)
+    row[16] = 'F'.repeat(90);  // parent_activity_id, varchar(40)
+
+    mockSession();
+    mockDataFetch([row]);
+    await runOnce();
+
+    const written = upsertReservation.mock.calls.at(-1)[0];
+    expect(written.activity_id).toHaveLength(40);
+    expect(written.astra_event_id).toHaveLength(40);
+    expect(written.parent_activity_id).toHaveLength(40);
+    expect(written.activity_type).toHaveLength(32);
+    expect(written.section_id).toHaveLength(32);
+    expect(written.instructor).toHaveLength(200);
+  });
+});

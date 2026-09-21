@@ -61,6 +61,11 @@ CREATE INDEX `idx_facility_reservations_activity` ON `Facility_Reservations` (`a
 --
 -- A hundred and ninety one is the length that keeps a utf8mb4 unique key comfortably inside
 -- the index limit. Room booking titles are far shorter than that in practice.
+--
+-- The unique key uses the table's collation, which ignores case and accents, so two names
+-- that differ only in case share one dictionary row and history shows whichever spelling
+-- arrived first. The lookup uses the same collation, so both still resolve to that row and
+-- neither is recorded as having no name.
 CREATE TABLE `Facility_Text` (
   `text_id` int unsigned AUTO_INCREMENT NOT NULL,
   `value` varchar(191) NOT NULL,

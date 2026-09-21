@@ -214,6 +214,36 @@ describe('Dashboard, with repeating events', () => {
     await waitFor(() => expect(deleteEvent).toHaveBeenCalledWith(8, 'one'));
   });
 
+  /**
+   * An edit into a room that is reserved rather than taken goes through, and
+   * the board is told what the room shows so that a reservation belonging to
+   * somebody else is not passed over in silence.
+   */
+  it('says the room is reserved when an edit lands in one', async () => {
+    updateEvent.mockResolvedValue({ ok: true, updated: 1, reserved: true });
+    const { findAllByRole, getByRole } = render(Dashboard);
+    const edits = await findAllByRole('button', { name: 'Edit' });
+    await fireEvent.click(edits[0]);
+    await fireEvent.click(getByRole('button', { name: 'Update event' }));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(
+      expect.stringMatching(/already has a reservation/)
+    ));
+  });
+
+  it('names the weeks a repeat was moved into a reserved room on', async () => {
+    updateEvent.mockResolvedValue({ ok: true, updated: 3, reserved: ['2026-10-06'] });
+    const { findAllByRole, getByRole } = render(Dashboard);
+    const edits = await findAllByRole('button', { name: 'Edit' });
+    await fireEvent.click(edits[1]);
+    await fireEvent.click(getByRole('button', { name: 'Update event' }));
+    await fireEvent.click(getByRole('button', { name: 'All events in the series' }));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(
+      expect.stringMatching(/reservation on these dates: 2026-10-06/)
+    ));
+  });
+
   it('asks which weeks an edit is for, when the event repeats', async () => {
     const { findAllByRole, getByRole } = render(Dashboard);
     const edits = await findAllByRole('button', { name: 'Edit' });

@@ -1,5 +1,5 @@
 import pool, { query } from '../pool.js';
-import { campusNow } from '../../lib/timezone.js';
+import { campusNow, campusStartOfToday } from '../../lib/timezone.js';
 
 /**
  * How long a value in the facility text dictionary is.
@@ -72,17 +72,37 @@ export async function upsertReservation(reservation) {
 }
 
 /**
- * Move every reservation that has already happened out of the working set and into
- * history.
+ * The name of the lock one archive run holds while it is moving rows.
+ *
+ * Both pollers call the archive and both run a cycle the moment the server starts, so two
+ * runs over the same rows is an ordinary occurrence rather than a rare race. Two runs that
+ * each read the same expired rows write every one of them to history twice, and nothing in
+ * the table would afterwards show which copy was real. The second run stands aside and
+ * takes the rows on its next cycle instead.
+ */
+const ARCHIVE_LOCK = 'via_facilities_archive'
+
+/**
+ * Move every reservation whose campus day is over out of the working set and into history.
  *
  * This replaces a delete. Until migration 0021 the pollers destroyed a booking within
  * hours of the event happening, so VIA never retained a single completed reservation and
  * no question about what campus did last term could be answered at all. VISION.md has the
  * reasoning.
  *
- * Expired rows still leave the working set, exactly as they did before, because every
- * reader on a request path (the conflict check, the free room search, the scheduler) only
- * ever asks about the present and the future, and that table has to stay the size of the
+ * The cutoff is the start of the current campus day rather than the present moment, and
+ * that is load bearing. Ad Astra is asked for everything from midnight of the current day
+ * onwards, so a booking that finished at ten in the morning is still in every poll for the
+ * rest of that day. Archiving at the present moment moved it to history at noon, the next
+ * poll put it straight back into the working set, and the poll after that wrote it to
+ * history a second time. A booking finishing today would have reached history several
+ * times over, its first seen timestamps reset on each return, and the history this work
+ * exists to build would have been wrong from its first day. Waiting for the day to end
+ * costs one day of expired rows in a table bounded by a hundred and eighty days, and
+ * nothing reads those rows because every reader on a request path asks about the present
+ * and the future.
+ *
+ * Expired rows still leave the working set, which is what keeps that table the size of the
  * rolling window the pollers fetch rather than growing for ever. No existing reader
  * changes behaviour. The rows are kept instead of dropped.
  *
@@ -92,15 +112,38 @@ export async function upsertReservation(reservation) {
  * bytes of identifiers. That is done here, in a batch, and never on a request path.
  *
  * The whole move runs in one transaction, so a failure halfway leaves the working set
- * exactly as it was rather than losing rows that were never written.
+ * exactly as it was rather than losing rows that were never written. Every statement in it
+ * is held to the rows that existed when the run began, because a booking written by a poll
+ * between the copy and the delete would otherwise be deleted without ever having been
+ * copied.
  *
- * @returns {Promise<{ archived: number }>}
+ * @returns {Promise<{ archived: number, skipped?: true }>}
  */
 export async function archiveExpiredReservations() {
-  const cutoff = campusNow()
+  const cutoff = campusStartOfToday()
   const conn = await pool.getConnection()
+  let holdsLock = false
   try {
+    const [[lock]] = await conn.query('SELECT GET_LOCK(?, 0) AS got', [ARCHIVE_LOCK])
+    if (Number(lock?.got) !== 1) return { archived: 0, skipped: true }
+    holdsLock = true
+
     await conn.beginTransaction()
+
+    /*
+     * The highest identifier among the rows this run is taking. Identifiers are handed out
+     * in order, so a row written after this point has a larger one and is left for the next
+     * run rather than being deleted by this one without having been copied.
+     */
+    const [[oldest]] = await conn.query(
+      'SELECT MAX(reservation_id) AS ceiling FROM Facility_Reservations WHERE end_time < ?',
+      [cutoff],
+    )
+    const ceiling = oldest?.ceiling ?? null
+    if (ceiling === null) {
+      await conn.commit()
+      return { archived: 0 }
+    }
 
     /*
      * Every distinct string about to be needed, written once. INSERT IGNORE is what makes
@@ -119,8 +162,9 @@ export async function archiveExpiredReservations() {
       await conn.query(
         `INSERT IGNORE INTO Facility_Text (value)
          SELECT DISTINCT LEFT(${column}, ${TEXT_LENGTH}) FROM Facility_Reservations
-         WHERE end_time < ? AND ${column} IS NOT NULL AND ${column} <> ''`,
-        [cutoff],
+         WHERE end_time < ? AND reservation_id <= ?
+           AND ${column} IS NOT NULL AND ${column} <> ''`,
+        [cutoff, ceiling],
       )
     }
 
@@ -138,17 +182,24 @@ export async function archiveExpiredReservations() {
        LEFT JOIN Facility_Text cu  ON cu.value  = LEFT(r.customer, ${TEXT_LENGTH})      AND r.customer <> ''
        LEFT JOIN Facility_Text ins ON ins.value = LEFT(r.instructor, ${TEXT_LENGTH})
        LEFT JOIN Facility_Text at  ON at.value  = LEFT(r.activity_type, ${TEXT_LENGTH})
-       WHERE r.end_time < ?`,
-      [cutoff],
+       WHERE r.end_time < ? AND r.reservation_id <= ?`,
+      [cutoff, ceiling],
     )
 
-    await conn.query('DELETE FROM Facility_Reservations WHERE end_time < ?', [cutoff])
+    await conn.query(
+      'DELETE FROM Facility_Reservations WHERE end_time < ? AND reservation_id <= ?',
+      [cutoff, ceiling],
+    )
     await conn.commit()
     return { archived: moved.affectedRows ?? 0 }
   } catch (err) {
     await conn.rollback()
     throw err
   } finally {
+    // The lock goes back before the connection does, because releasing a connection returns
+    // it to the pool rather than closing it, and a lock left held would lock out every
+    // later run for the life of the process.
+    if (holdsLock) await conn.query('SELECT RELEASE_LOCK(?)', [ARCHIVE_LOCK])
     conn.release()
   }
 }

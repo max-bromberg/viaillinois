@@ -74,9 +74,12 @@ const PAGE_SIZE = 500;
  * is never mistaken for a value and never reaches the dictionary as a blank entry.
  *
  * Trimmed and capped, because these are written into columns with a length and a name that
- * arrives with trailing whitespace is the same name as one that does not.
+ * arrives with trailing whitespace is the same name as one that does not. The cap given at
+ * each call is the width of the column the value lands in. MySQL refuses a value wider than
+ * its column rather than trimming it, and the refusal is caught per row, so a cap set wider
+ * than the column would cost the whole booking rather than the end of one field.
  */
-function optional(value, maxLength = 200) {
+function optional(value, maxLength) {
   const text = String(value ?? '').trim();
   return text ? text.slice(0, maxLength) : null;
 }
@@ -297,12 +300,12 @@ export async function runOnce() {
      * an empty string or as a thrown error. The shape of these rows is Ad Astra's and it
      * has changed before.
      */
-    const activityId       = optional(row[0]);
-    const activityType     = optional(row[3]);
-    const instructor       = optional(row[10]);
-    const sectionId        = optional(row[13]);
-    const astraEventId     = optional(row[14]);
-    const parentActivityId = optional(row[16]);
+    const activityId       = optional(row[0], 40);
+    const activityType     = optional(row[3], 32);
+    const instructor       = optional(row[10], 200);
+    const sectionId        = optional(row[13], 32);
+    const astraEventId     = optional(row[14], 40);
+    const parentActivityId = optional(row[16], 40);
 
     if (!buildingRaw || !roomRaw || !startTime || !endTime) {
       skipped++;
