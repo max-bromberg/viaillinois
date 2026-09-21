@@ -209,20 +209,38 @@
   });
 
   // ── Event handlers ────────────────────────────────────────────────────────
+
+  /**
+   * What to add when the room already shows a reservation.
+   *
+   * A reservation is not a refusal and it is not a failure. It usually means
+   * this organization booked the room through the campus reservation system
+   * and VIA collected that booking before the event was entered. The board is
+   * told so that a reservation belonging to somebody else does not go unnoticed.
+   */
+  function reservationNote(dates) {
+    if (!dates?.length) return '';
+    return ` The room already has a reservation on these dates: ${dates.join(', ')}.`
+      + ' Check that the reservation is yours.';
+  }
+
+  const SINGLE_RESERVED = 'The room already has a reservation at that time.'
+    + ' Check that the reservation is yours.';
+
   async function handleCreate(e) {
     loading = true;
     try {
       if (e.detail.recurrence) {
-        const { created, skipped } = await createEventSeries(e.detail);
+        const { created, skipped, reserved } = await createEventSeries(e.detail);
         showToast(
-          skipped?.length
+          (skipped?.length
             ? `Created ${created} events. These weeks were left out because the room was taken: ${skipped.join(', ')}.`
-            : `Created ${created} events`,
+            : `Created ${created} events`) + reservationNote(reserved),
           skipped?.length ? 'error' : undefined
         );
       } else {
-        await createEvent(e.detail);
-        showToast('Event created');
+        const { reserved } = await createEvent(e.detail) ?? {};
+        showToast(reserved ? `Event created. ${SINGLE_RESERVED}` : 'Event created');
       }
       showCreateForm = false;
       await loadRso(selectedRso.rso_id);
@@ -246,8 +264,13 @@
   async function applyUpdate(eventId, payload, scope) {
     loading = true;
     try {
-      await updateEvent(eventId, payload, scope);
-      showToast(scope === 'one' ? 'Event updated' : 'Events updated');
+      const { reserved } = await updateEvent(eventId, payload, scope) ?? {};
+      const updated = scope === 'one' ? 'Event updated' : 'Events updated';
+      showToast(
+        reserved === true
+          ? `${updated}. ${SINGLE_RESERVED}`
+          : updated + reservationNote(Array.isArray(reserved) ? reserved : null)
+      );
       editingEvent = null;
       await loadRso(selectedRso.rso_id);
     } catch (err) {

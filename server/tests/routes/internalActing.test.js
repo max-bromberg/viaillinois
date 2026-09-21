@@ -43,9 +43,9 @@ const seriesDb = vi.hoisted(() => ({
 }));
 vi.mock('../../db/queries/eventSeries.js', () => seriesDb);
 
-const checkConflict = vi.hoisted(() => vi.fn());
+const occupancyInRoom = vi.hoisted(() => vi.fn());
 vi.mock('../../services/conflictDetector.js', () => ({
-  checkConflict, occupiedLocationIds: vi.fn().mockResolvedValue(new Set()),
+  occupancyInRoom, occupiedLocationIds: vi.fn().mockResolvedValue(new Set()),
 }));
 
 const recommend = vi.hoisted(() => vi.fn());
@@ -110,7 +110,7 @@ beforeEach(() => {
   rsoDb.getUserMemberships.mockResolvedValue([{ rso_id: 4, role: 'Editor' }]);
   eventsDb.getEventById.mockResolvedValue({ ...EVENT });
   eventsDb.updateEvent.mockResolvedValue({ affectedRows: 1 });
-  checkConflict.mockResolvedValue(null);
+  occupancyInRoom.mockResolvedValue({ event: false, reservation: false });
   interestDb.countInterest.mockResolvedValue(4);
   feedbackDb.saveFeedback.mockResolvedValue(undefined);
   recommend.mockResolvedValue({ recommendations: [], considered: 0 });
@@ -197,7 +197,7 @@ describe('POST /internal/v1/events/{id}/postpone', () => {
   });
 
   it('refuses a room somebody else has taken', async () => {
-    checkConflict.mockResolvedValue({ event_id: 99 });
+    occupancyInRoom.mockResolvedValue({ event: true, reservation: false });
     const res = await send(EDITOR);
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('conflict');

@@ -162,6 +162,49 @@ describe('POST /api/v1/events/series', () => {
     expect(seriesDb.createSeriesWithOccurrences).not.toHaveBeenCalled();
   });
 
+  /**
+   * The case the platform most wants to support, and the one it used to refuse.
+   * An organization books its room through the real reservation system, that
+   * booking reaches VIA from Ad Astra or from Tableau days or weeks before
+   * anybody enters the repeat, and the organization was then told its own room
+   * was taken. The week is kept now, and the board is told what the room shows.
+   */
+  it('keeps a week whose room is reserved, and says the room is reserved', async () => {
+    seriesDb.busyInRoom.mockResolvedValue([
+      { start_time: '2026-09-08 18:00:00', end_time: '2026-09-08 19:30:00', source: 'reservation' },
+    ]);
+    const res = await post({ ...BODY, location_id: 7 });
+    expect(res.status).toBe(201);
+    expect(res.body.skipped).toEqual([]);
+    expect(res.body.reserved).toEqual(['2026-09-08']);
+    const { occurrences } = seriesDb.createSeriesWithOccurrences.mock.calls[0][0];
+    expect(occurrences.map(o => o.date)).toContain('2026-09-08');
+  });
+
+  it('creates the whole repeat when every week is reserved rather than refusing it', async () => {
+    seriesDb.busyInRoom.mockResolvedValue([
+      { start_time: '2026-09-01 00:00:00', end_time: '2026-10-01 00:00:00', source: 'reservation' },
+    ]);
+    const res = await post({ ...BODY, location_id: 7 });
+    expect(res.status).toBe(201);
+    expect(seriesDb.createSeriesWithOccurrences).toHaveBeenCalled();
+    expect(res.body.reserved.length).toBeGreaterThan(0);
+  });
+
+  it('still refuses the repeat when every week is taken by another event', async () => {
+    seriesDb.busyInRoom.mockResolvedValue([
+      { start_time: '2026-09-01 00:00:00', end_time: '2026-10-01 00:00:00', source: 'event' },
+    ]);
+    const res = await post({ ...BODY, location_id: 7 });
+    expect(res.status).toBe(409);
+    expect(seriesDb.createSeriesWithOccurrences).not.toHaveBeenCalled();
+  });
+
+  it('reports nothing reserved when the room is free', async () => {
+    const res = await post({ ...BODY, location_id: 7 });
+    expect(res.body.reserved).toEqual([]);
+  });
+
   it('asks about the room only when the event is in one', async () => {
     await post({ ...BODY, location_text: 'Zoom' });
     expect(seriesDb.busyInRoom).not.toHaveBeenCalled();

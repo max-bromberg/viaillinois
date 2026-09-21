@@ -123,6 +123,56 @@ describe('Dashboard, with repeating events', () => {
     ));
   });
 
+  /**
+   * The room being reserved is not a failure, and it is not silence either.
+   * An organization that booked the room through the real reservation system
+   * sees that booking arrive on VIA from Ad Astra or from Tableau before it
+   * enters the event, so the repeat is created and the board is told which
+   * weeks the room already shows a reservation on.
+   */
+  it('names the weeks the room is already reserved on, without calling it a failure', async () => {
+    createEventSeries.mockResolvedValue({
+      series_id: 3, created: 14, skipped: [], reserved: ['2026-10-06', '2026-11-03'],
+    });
+    const { findByRole, getByRole, getByLabelText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Weekly meeting' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-09-01T18:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-09-01T19:30' } });
+    await fireEvent.click(getByRole('button', { name: 'Every week' }));
+    await fireEvent.click(getByRole('button', { name: 'Create event' }));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(
+      expect.stringMatching(/reservation on these dates: 2026-10-06, 2026-11-03/), undefined
+    ));
+  });
+
+  it('tells a board the room is reserved when it enters a single event', async () => {
+    createEvent.mockResolvedValue({ event_id: 8, reserved: true });
+    const { findByRole, getByRole, getByLabelText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Career fair' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-10-01T10:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-10-01T14:00' } });
+    await fireEvent.click(getByRole('button', { name: 'Create event' }));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(
+      expect.stringMatching(/already has a reservation/)
+    ));
+  });
+
+  it('says only that the event was created when the room shows no reservation', async () => {
+    createEvent.mockResolvedValue({ event_id: 8, reserved: false });
+    const { findByRole, getByRole, getByLabelText } = render(Dashboard);
+    await fireEvent.click(await findByRole('button', { name: 'Add an event' }));
+    await fireEvent.input(getByLabelText(/Event title/i), { target: { value: 'Career fair' } });
+    await fireEvent.input(getByLabelText(/Start time/i), { target: { value: '2026-10-01T10:00' } });
+    await fireEvent.input(getByLabelText(/End time/i), { target: { value: '2026-10-01T14:00' } });
+    await fireEvent.click(getByRole('button', { name: 'Create event' }));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('Event created'));
+  });
+
   it('creates a single event when no repeat is asked for', async () => {
     const { findByRole, getByRole, getByLabelText } = render(Dashboard);
     await fireEvent.click(await findByRole('button', { name: 'Add an event' }));

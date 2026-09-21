@@ -15,6 +15,11 @@ import { recordSeriesCreated } from './outbox.ts';
  * What already occupies a room in a range of time: other events, and bookings
  * the facilities pollers recorded.
  *
+ * Each row says which of the two it is, because they are answered differently.
+ * Another event is a clash. A reservation is reported and the week is kept,
+ * since it is very often the organization's own booking arriving here before
+ * the event is entered. splitByBusyRoom is what draws that line.
+ *
  * A series moving within its own room does not clash with itself, so its own
  * occurrences can be left out.
  *
@@ -22,7 +27,7 @@ import { recordSeriesCreated } from './outbox.ts';
  * @param {string} from wall clock
  * @param {string} to wall clock
  * @param {{ excludeSeriesId?: number }} [options]
- * @returns {Promise<Array<{ start_time: string, end_time: string }>>}
+ * @returns {Promise<Array<{ start_time: string, end_time: string, source: 'event'|'reservation' }>>}
  */
 export async function busyInRoom(locationId, from, to, { excludeSeriesId = null } = {}) {
   const ownRows = excludeSeriesId === null
@@ -41,7 +46,12 @@ export async function busyInRoom(locationId, from, to, { excludeSeriesId = null 
         gt(facilityReservations.endTime, from),
       )),
   ]);
-  return [...bookedEvents, ...bookedRooms];
+  // The two readings are already separate queries, so each one says what it is
+  // here rather than carrying a literal through the database and back.
+  return [
+    ...bookedEvents.map(row => ({ ...row, source: 'event' })),
+    ...bookedRooms.map(row => ({ ...row, source: 'reservation' })),
+  ];
 }
 
 /**

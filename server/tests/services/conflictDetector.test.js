@@ -7,36 +7,63 @@ vi.mock('../../db/queries/internalReads.ts', () => ({
   getSectionsOccupying: vi.fn(),
 }));
 
-const { checkConflict, occupiedLocationIds } = await import('../../services/conflictDetector.js');
+const { occupancyInRoom, occupiedLocationIds } = await import('../../services/conflictDetector.js');
 const { getOccupiedDuring } = await import('../../db/queries/locations.js');
 const { getSectionsOccupying } = await import('../../db/queries/internalReads.ts');
 
-describe('checkConflict()', () => {
-  it('returns false when location is not occupied', async () => {
-    getOccupiedDuring.mockResolvedValueOnce([{ location_id: 2 }, { location_id: 3 }]);
-    const result = await checkConflict(1, '2026-04-01 18:00:00', '2026-04-01 20:00:00');
-    expect(result).toBe(false);
+/**
+ * What has the room during a window, told apart by where it came from.
+ *
+ * Another event on VIA and a reservation collected from Ad Astra or from
+ * Tableau are both occupancy, and they are answered differently. A second event
+ * in one room is something VIA created and can refuse. A reservation is very
+ * often the organization's own booking, which reaches VIA from the facilities
+ * sources before anybody enters the event, so refusing it turned an
+ * organization away from the room it had actually booked.
+ */
+describe('occupancyInRoom()', () => {
+  const WINDOW = ['2026-04-01 18:00:00', '2026-04-01 20:00:00'];
+
+  it('finds nothing when the room is free', async () => {
+    getOccupiedDuring.mockResolvedValueOnce([
+      { location_id: 2, source: 'event' }, { location_id: 3, source: 'reservation' },
+    ]);
+    expect(await occupancyInRoom(1, ...WINDOW)).toEqual({ event: false, reservation: false });
   });
 
-  it('returns true when location_id is in occupied list', async () => {
-    getOccupiedDuring.mockResolvedValueOnce([{ location_id: 1 }, { location_id: 5 }]);
-    const result = await checkConflict(1, '2026-04-01 18:00:00', '2026-04-01 20:00:00');
-    expect(result).toBe(true);
+  it('reports another event in the room', async () => {
+    getOccupiedDuring.mockResolvedValueOnce([{ location_id: 1, source: 'event' }]);
+    expect(await occupancyInRoom(1, ...WINDOW)).toEqual({ event: true, reservation: false });
   });
 
-  it('passes excludeEventId to getOccupiedDuring', async () => {
+  it('reports a reservation as a reservation rather than as an event', async () => {
+    getOccupiedDuring.mockResolvedValueOnce([{ location_id: 1, source: 'reservation' }]);
+    expect(await occupancyInRoom(1, ...WINDOW)).toEqual({ event: false, reservation: true });
+  });
+
+  it('reports both when the room has both', async () => {
+    getOccupiedDuring.mockResolvedValueOnce([
+      { location_id: 1, source: 'reservation' }, { location_id: 1, source: 'event' },
+    ]);
+    expect(await occupancyInRoom(1, ...WINDOW)).toEqual({ event: true, reservation: true });
+  });
+
+  /** A row that does not say where it came from is an event, which is refused. */
+  it('treats a row naming no source as an event', async () => {
     getOccupiedDuring.mockResolvedValueOnce([{ location_id: 1 }]);
-    const result = await checkConflict(1, '2026-04-01 18:00:00', '2026-04-01 20:00:00', 42);
-    expect(result).toBe(true);
-    expect(getOccupiedDuring).toHaveBeenCalledWith(
-      '2026-04-01 18:00:00', '2026-04-01 20:00:00', 42
-    );
+    expect(await occupancyInRoom(1, ...WINDOW)).toEqual({ event: true, reservation: false });
+  });
+
+  it('leaves the event being edited out of the reading', async () => {
+    getOccupiedDuring.mockResolvedValueOnce([]);
+    await occupancyInRoom(1, ...WINDOW, 42);
+    expect(getOccupiedDuring).toHaveBeenCalledWith(...WINDOW, 42);
   });
 });
 
 /**
  * Whether a room is free for a window is a wider question than whether an
- * event can be booked into it. checkConflict weighs the two things VIA
+ * event can be booked into it. occupancyInRoom weighs the two things VIA
  * schedules against, its own events and the facility reservations it collects,
  * because those are the two a board can do something about. A person asking
  * which rooms are free at six also has to be told about the class that meets

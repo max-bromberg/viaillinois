@@ -52,7 +52,8 @@ vi.mock('../../db/queries/courses.js', () => ({
 
 const occupiedLocationIds = vi.hoisted(() => vi.fn());
 vi.mock('../../services/conflictDetector.js', () => ({
-  occupiedLocationIds, checkConflict: vi.fn().mockResolvedValue(false),
+  occupiedLocationIds,
+  occupancyInRoom: vi.fn().mockResolvedValue({ event: false, reservation: false }),
 }));
 
 const TOKEN = 'd'.repeat(64);

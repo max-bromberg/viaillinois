@@ -194,3 +194,66 @@ describe('splitByBusyRoom', () => {
     expect(keep).toHaveLength(3);
   });
 });
+
+/**
+ * A room reservation is not the same kind of obstacle as another event.
+ *
+ * An organization that booked its room through the real reservation system has
+ * that booking arrive here from Ad Astra or from Tableau days or weeks before
+ * anybody gets around to entering the event on VIA. Treating it as a clash
+ * refused an organization its own room, which is the one case the platform
+ * most wants to support. VIA observes the reservation system rather than
+ * competing with it, so a reservation is reported and the week is kept. Another
+ * event on VIA is still a clash, because that one is VIA's own to prevent.
+ */
+describe('splitByBusyRoom, when the room is reserved rather than taken by an event', () => {
+  const occurrences = [
+    { date: '2026-09-01', start: '2026-09-01 18:00:00', end: '2026-09-01 19:30:00' },
+    { date: '2026-09-08', start: '2026-09-08 18:00:00', end: '2026-09-08 19:30:00' },
+    { date: '2026-09-15', start: '2026-09-15 18:00:00', end: '2026-09-15 19:30:00' },
+  ];
+
+  it('keeps a week whose room is reserved, and says the room is reserved', () => {
+    const { keep, skipped, reserved } = splitByBusyRoom(occurrences, [
+      { start_time: '2026-09-08 18:00:00', end_time: '2026-09-08 19:30:00', source: 'reservation' },
+    ]);
+    expect(keep.map(o => o.date)).toEqual(['2026-09-01', '2026-09-08', '2026-09-15']);
+    expect(skipped).toEqual([]);
+    expect(reserved).toEqual(['2026-09-08']);
+  });
+
+  it('still leaves out a week another event has', () => {
+    const { keep, skipped, reserved } = splitByBusyRoom(occurrences, [
+      { start_time: '2026-09-08 18:00:00', end_time: '2026-09-08 19:30:00', source: 'event' },
+    ]);
+    expect(keep.map(o => o.date)).toEqual(['2026-09-01', '2026-09-15']);
+    expect(skipped).toEqual(['2026-09-08']);
+    expect(reserved).toEqual([]);
+  });
+
+  /** An event and a reservation over one week is still an event over that week. */
+  it('leaves out a week that has both, rather than keeping it', () => {
+    const { skipped, reserved } = splitByBusyRoom(occurrences, [
+      { start_time: '2026-09-08 18:00:00', end_time: '2026-09-08 19:30:00', source: 'reservation' },
+      { start_time: '2026-09-08 18:30:00', end_time: '2026-09-08 19:00:00', source: 'event' },
+    ]);
+    expect(skipped).toEqual(['2026-09-08']);
+    expect(reserved).toEqual([]);
+  });
+
+  /**
+   * A row that does not say where it came from is treated as an event, because
+   * refusing a room that is free is a smaller harm than handing an organization
+   * a room somebody else has.
+   */
+  it('treats a row that names no source as a clash', () => {
+    const { skipped } = splitByBusyRoom(occurrences, [
+      { start_time: '2026-09-08 18:00:00', end_time: '2026-09-08 19:30:00' },
+    ]);
+    expect(skipped).toEqual(['2026-09-08']);
+  });
+
+  it('reports nothing reserved when the room is free', () => {
+    expect(splitByBusyRoom(occurrences, []).reserved).toEqual([]);
+  });
+});
