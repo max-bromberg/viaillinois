@@ -4,6 +4,10 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+## 0.9.0 (2026-09-21)
+
+- 
+
 ## 0.8.0 (2026-09-21)
 
 - 
