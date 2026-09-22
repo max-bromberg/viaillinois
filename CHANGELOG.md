@@ -4,6 +4,10 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+## 0.8.0 (2026-09-21)
+
+- 
+
 - The front page, the organizations and the event pages stopped moving while they load. The page body had no height of its own, so it was nothing tall at first paint and the footer sat under the band and then dropped as the content arrived, taking everything below the fold with it. On the organizations page that measured 0.478 of layout shift, which Core Web Vitals calls poor, and it is 0.015 now.
 - Asking VIA who is looking is no longer an error when nobody is. Every visitor's first request is that one, because the page cannot read the cookie holding the session, and the answer was 401 to anybody not signed in. A browser writes a failed request into the console whatever the page does about it, so every anonymous reader and every crawler that renders a page met a red error on the way in.
 - A page VIA could not describe now answers 503 rather than 200. The page builders treated a failed query and an empty answer as the same thing, so a minute of the database being away served noindex for every event on the site, and noindex is the one instruction Google acts on immediately and takes weeks to undo.
