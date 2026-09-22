@@ -33,6 +33,11 @@ RUN npx playwright install chromium
 COPY server/ ./
 # Place built frontend where app.js expects it
 COPY --from=client-build /app/client/dist ../client/dist
+# The platform updates, which the server reads the filenames of to know which
+# addresses under /updates a real update was written for. Without them every
+# such address looks unrecognised and asks not to be indexed. See
+# server/lib/seo/updateSlugs.js.
+COPY client/src/content/updates ../client/src/content/updates
 
 EXPOSE 3001
 # Below the container's 1g limit, so V8 collects under pressure instead of the

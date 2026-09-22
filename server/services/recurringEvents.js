@@ -223,24 +223,41 @@ function planPickedDates({ start, end, recurrence }) {
 }
 
 /**
- * Split the occurrences into the ones whose room is free and the dates whose
- * room is not.
+ * Split the occurrences into the ones whose room is free, the dates another
+ * event has, and the dates the room is reserved on.
  *
  * A booked week is not a reason to refuse a term of meetings. Two bookings that
  * only touch, one ending exactly as the other begins, are not a clash.
  *
+ * The two kinds of occupancy are answered differently. Another event on VIA is
+ * a clash, because a room given to two events is something VIA created and can
+ * prevent. A reservation collected from Ad Astra or from Tableau is not a
+ * clash, because it is very often the organization's own booking arriving here
+ * before the organization gets around to entering the event, and VIA observes
+ * the reservation system rather than asserting bookings of its own. Those weeks
+ * are kept and reported, so the board is told what the room already shows.
+ *
+ * A row that names no source counts as an event. Refusing a room that turns out
+ * to be free is a smaller harm than handing an organization a room somebody
+ * else holds.
+ *
  * @param {Array<{date: string, start: string, end: string}>} occurrences
- * @param {Array<{start_time: string, end_time: string}>} busy
- * @returns {{ keep: Array<object>, skipped: string[] }}
+ * @param {Array<{start_time: string, end_time: string, source?: string}>} busy
+ * @returns {{ keep: Array<object>, skipped: string[], reserved: string[] }}
  */
 export function splitByBusyRoom(occurrences, busy) {
   const keep = [];
   const skipped = [];
+  const reserved = [];
   for (const occurrence of occurrences) {
-    const clash = busy.some(taken =>
+    const over = busy.filter(taken =>
       String(taken.start_time) < occurrence.end && String(taken.end_time) > occurrence.start);
-    if (clash) skipped.push(occurrence.date);
-    else keep.push(occurrence);
+    if (over.some(taken => taken.source !== 'reservation')) {
+      skipped.push(occurrence.date);
+      continue;
+    }
+    if (over.length > 0) reserved.push(occurrence.date);
+    keep.push(occurrence);
   }
-  return { keep, skipped };
+  return { keep, skipped, reserved };
 }

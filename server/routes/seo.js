@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getPublicEventSitemapEntries } from '../db/queries/events.js';
+import { getPublicOrganizations } from '../db/queries/rso.js';
 import { escapeHtml } from '../lib/seo/render.js';
 import { toIsoWithOffset } from '../lib/timezone.js';
 import { publicFor } from '../middleware/caching.js';
@@ -27,14 +28,48 @@ const crawlerCache = publicFor({ browserSeconds: 300, edgeSeconds: 900 });
 
 /** Pages that always exist, with how often they are worth revisiting. */
 const FIXED_PAGES = [
-  { path: '/',          changefreq: 'daily',   priority: '1.0' },
-  { path: '/calendar',  changefreq: 'daily',   priority: '0.9' },
-  { path: '/midterms',  changefreq: 'weekly',  priority: '0.8' },
-  { path: '/updates',   changefreq: 'weekly',  priority: '0.5' },
-  { path: '/about',     changefreq: 'monthly', priority: '0.6' },
-  { path: '/privacy',   changefreq: 'yearly',  priority: '0.2' },
-  { path: '/terms',     changefreq: 'yearly',  priority: '0.2' },
+  { path: '/',              changefreq: 'daily',   priority: '1.0' },
+  { path: '/calendar',      changefreq: 'daily',   priority: '0.9' },
+  { path: '/organizations', changefreq: 'weekly',  priority: '0.9' },
+  { path: '/notifications', changefreq: 'monthly', priority: '0.8' },
+  { path: '/midterms',      changefreq: 'weekly',  priority: '0.8' },
+  { path: '/updates',       changefreq: 'weekly',  priority: '0.5' },
+  { path: '/about',         changefreq: 'monthly', priority: '0.6' },
+  { path: '/privacy',       changefreq: 'yearly',  priority: '0.2' },
+  { path: '/terms',         changefreq: 'yearly',  priority: '0.2' },
 ];
+
+/**
+ * One entry, with a lastmod only where VIA actually knows when the page
+ * changed.
+ *
+ * Google reads lastmod as a crawl signal where it is consistently accurate and
+ * ignores it everywhere once it is not, so a date guessed at costs more than a
+ * date left out. The event entries used to publish the hour the event starts
+ * at, which for anything still to come is a claim to have been modified in the
+ * future.
+ */
+function urlEntry({ loc, lastmod, changefreq, priority }) {
+  return [
+    '  <url>',
+    `    <loc>${escapeHtml(loc)}</loc>`,
+    ...(lastmod ? [`    <lastmod>${escapeHtml(lastmod)}</lastmod>`] : []),
+    ...(changefreq ? [`    <changefreq>${changefreq}</changefreq>`] : []),
+    ...(priority ? [`    <priority>${priority}</priority>`] : []),
+    '  </url>',
+  ].join('\n');
+}
+
+/** Read a list the sitemap would like, answering with none of it rather than failing. */
+async function listedOrNothing(read) {
+  try {
+    return await read();
+  } catch {
+    // The rest of the sitemap is still worth submitting, so one table being
+    // away degrades what is listed rather than removing the file.
+    return [];
+  }
+}
 
 /** The address the site is actually being served on. */
 export function originOf(req) {
@@ -46,26 +81,31 @@ router.get('/sitemap.xml', crawlerCache, async (req, res, next) => {
   try {
     const site = originOf(req);
 
-    let events = [];
-    try {
-      events = await getPublicEventSitemapEntries();
-    } catch {
-      // The fixed pages are still worth submitting, so a database problem
-      // degrades the sitemap rather than removing it.
-      events = [];
-    }
+    const [events, organizations] = await Promise.all([
+      listedOrNothing(getPublicEventSitemapEntries),
+      listedOrNothing(getPublicOrganizations),
+    ]);
 
     const entries = [
-      ...FIXED_PAGES.map(page =>
-        `  <url>\n    <loc>${escapeHtml(site + page.path)}</loc>\n`
-        + `    <changefreq>${page.changefreq}</changefreq>\n`
-        + `    <priority>${page.priority}</priority>\n  </url>`),
-      ...events.map(event => {
-        const lastmod = toIsoWithOffset(event.start_time);
-        return `  <url>\n    <loc>${escapeHtml(`${site}/events/${event.event_id}`)}</loc>\n`
-          + (lastmod ? `    <lastmod>${escapeHtml(lastmod)}</lastmod>\n` : '')
-          + '    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>';
-      }),
+      ...FIXED_PAGES.map(page => urlEntry({
+        loc: site + page.path,
+        changefreq: page.changefreq,
+        priority: page.priority,
+      })),
+      // The organizations come before the events, because a crawler working
+      // down a sitemap reaches the pages that link to every event first.
+      ...organizations.map(rso => urlEntry({
+        loc: `${site}/organizations/${rso.rso_id}`,
+        lastmod: toIsoWithOffset(rso.last_change),
+        changefreq: 'weekly',
+        priority: '0.8',
+      })),
+      ...events.map(event => urlEntry({
+        loc: `${site}/events/${event.event_id}`,
+        lastmod: toIsoWithOffset(event.updated_at),
+        changefreq: 'weekly',
+        priority: '0.7',
+      })),
     ];
 
     res.type('application/xml').send(
@@ -146,6 +186,9 @@ organization meeting, and when are the ECE midterms.
 
 - [Event feed](${site}/): every upcoming public event, newest first
 - [Calendar](${site}/calendar): the same events, month by month
+- [Student organizations](${site}/organizations): every ECE student organization
+  publishing on VIA, each with a page of its own at /organizations/{id} carrying
+  what it is and the events it has coming up
 - [Midterm schedule](${site}/midterms): ECE midterm and evening exam dates
 - [About](${site}/about): what VIA is and who runs it
 
@@ -154,7 +197,10 @@ organization meeting, and when are the ECE midterms.
 - [Sitemap](${site}/sitemap.xml): every public page, including one per event
 - Every event page carries schema.org Event data as JSON-LD, including start
   and end times with the campus timezone offset, the organizing student
-  organization, and the room or online location.
+  organization and a link to its page, the room or online location, and the
+  fact that every event is free to attend.
+- Every organization page carries schema.org Organization data and a list of
+  that organization's events.
 - Events are in America/Chicago. Times published as JSON-LD carry an explicit
   offset; times shown on the page are local to campus.
 

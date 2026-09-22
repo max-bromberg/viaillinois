@@ -15,7 +15,7 @@ vi.mock('../../lib/locationNormalizer.js', () => ({
 vi.mock('../../db/queries/facilityReservations.js', () => ({
   upsertFacilityLocation:    vi.fn().mockRejectedValue(new Error('Not implemented')),
   upsertReservation:         vi.fn().mockRejectedValue(new Error('Not implemented')),
-  deleteExpiredReservations: vi.fn().mockRejectedValue(new Error('Not implemented')),
+  archiveExpiredReservations: vi.fn().mockRejectedValue(new Error('Not implemented')),
   countReservations:         vi.fn().mockRejectedValue(new Error('Not implemented')),
 }));
 
@@ -61,5 +61,45 @@ describe('facilitiesPoller.runOnce()', () => {
   it('throws when downloadTableauCsv rejects', async () => {
     downloadTableauCsv.mockRejectedValue(new Error('Tableau unreachable'));
     await expect(runOnce()).rejects.toThrow('Tableau unreachable');
+  });
+});
+
+/**
+ * What the Tableau export actually contains.
+ *
+ * The poller reads seven columns by name and nothing here knows what else the export
+ * carries, because the only way to find out is to look at a real download. Naming the
+ * columns it did not read, once per run, turns that into something the logs answer rather
+ * than something somebody has to go and check by hand. It reads nothing new and changes
+ * nothing about what is stored, which matters because this collection point is delicate.
+ */
+describe('reporting what the export offers', () => {
+  it('names the columns it received and did not use', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    downloadTableauCsv.mockResolvedValue(
+      'Building,Room,Customer,EventName,StartDate,StartTime,EndTime,Department,Contact\n'
+      + 'ECEB,1002,IEEE,Soldering night,4/16/2026,12/30/1899 9:00:00 AM,4/16/2026 10:00:00 AM,ECE,someone\n',
+    );
+
+    await runOnce();
+
+    const said = log.mock.calls.map(args => args.join(' ')).join('\n');
+    expect(said).toContain('Department');
+    expect(said).toContain('Contact');
+    log.mockRestore();
+  });
+
+  it('says nothing when every column it received is one it reads', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    downloadTableauCsv.mockResolvedValue(
+      'Building,Room,Customer,EventName,StartDate,StartTime,EndTime\n'
+      + 'ECEB,1002,IEEE,Soldering night,4/16/2026,12/30/1899 9:00:00 AM,4/16/2026 10:00:00 AM\n',
+    );
+
+    await runOnce();
+
+    const said = log.mock.calls.map(args => args.join(' ')).join('\n');
+    expect(said).not.toContain('columns it does not read');
+    log.mockRestore();
   });
 });

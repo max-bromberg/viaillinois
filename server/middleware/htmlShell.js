@@ -25,6 +25,13 @@ import { originOf } from '../routes/seo.js';
  */
 const CACHE_CONTROL = 'no-cache';
 
+/**
+ * How long a crawler is asked to wait before trying a page VIA could not
+ * describe. Long enough that a database restarting is over, short enough that
+ * nothing sits in a search engine's queue for an afternoon.
+ */
+const RETRY_AFTER_SECONDS = 120;
+
 export function createHtmlShellHandler(distPath) {
   const shellPath = join(distPath, 'index.html');
   // Read once. The file only changes when a new build is deployed, and a
@@ -35,7 +42,24 @@ export function createHtmlShellHandler(distPath) {
     try {
       const site = originOf(req);
       const page = await describePage(req.path, site);
-      res.set('Cache-Control', CACHE_CONTROL);
+
+      /*
+       * A page whose lookup failed is a page VIA could not describe, not a page
+       * that is gone. Answered 200 it would have to carry either a description
+       * of nothing or noindex, and noindex is the one instruction Google acts
+       * on at once and takes weeks to undo, so a minute of the database being
+       * away could cost the site its event pages. A 503 says come back. The
+       * application is still sent, because a person who followed the link is
+       * better off with a page that retries than with a blank one.
+       */
+      if (page.unavailable) {
+        res.status(503);
+        res.set('Retry-After', String(RETRY_AFTER_SECONDS));
+        res.set('Cache-Control', 'no-store');
+      } else {
+        res.set('Cache-Control', CACHE_CONTROL);
+      }
+
       res.type('html').send(renderShell(shell, {
         ...page,
         // A PNG, because no social platform renders the SVG logo.

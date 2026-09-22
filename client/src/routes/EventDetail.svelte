@@ -8,6 +8,7 @@
   import { getRso } from '../api/rsos.js';
   import { locationLabel } from '../lib/locationLabel.js';
   import { calendarFileFor } from '../lib/calendarFile.js';
+  import NotifyToggle from '../lib/NotifyToggle.svelte';
   import { recurrenceLabel } from '../lib/recurrenceLabel.js';
   import { campusDate, campusTime, toInstant } from '../lib/campusTime.js';
   import { organizationColors } from '../lib/organizationColor.js';
@@ -77,7 +78,6 @@
   $: alsoTrue = event ? [
     repeats,
     interestSentence,
-    event.max_capacity ? `There is room for ${event.max_capacity} people.` : null,
     event.is_private ? `This event is internal to ${event.rso_name} and is not listed publicly.` : null,
   ].filter(Boolean) : [];
 
@@ -171,6 +171,18 @@
     save(`via-event-${event.event_id}.png`, qrDataUrl);
   }
 
+  /**
+   * Follow the link to the organization through the router rather than by
+   * reloading the document. It stays a real anchor so that a crawler reads it
+   * and the middle mouse button still opens a tab, which is what an onclick on
+   * a span would have cost.
+   */
+  function goToOrganization(clickEvent) {
+    if (clickEvent.metaKey || clickEvent.ctrlKey || clickEvent.shiftKey || clickEvent.button) return;
+    clickEvent.preventDefault();
+    navigate(`/organizations/${event.rso_id}`);
+  }
+
 </script>
 
 <svelte:head>
@@ -238,6 +250,20 @@
   </Poster>
 
   <div class="below">
+    <!--
+      The way from this event to hearing about the next one.
+
+      Somebody reading an event page is the person most likely to want telling
+      about the ones after it, and this is the only moment VIA has their
+      attention on something specific they care about. A line rather than a
+      banner, because the page is about the event: one that shouted about a
+      Discord bot over an event somebody came to read would be worse than
+      saying nothing at all.
+    -->
+    <p class="hear">
+      <NotifyToggle kind="event" id={event.event_id} name={event.title} />
+    </p>
+
     {#if alsoTrue.length}
       <div class="also">
         {#each alsoTrue as said (said)}<p>{said}</p>{/each}
@@ -256,12 +282,31 @@
         <p class="count">
           {rso.event_count ?? 0} event{(rso.event_count ?? 0) !== 1 ? 's' : ''} on VIA
         </p>
+        <!--
+          The way through to the organization's own page. Until this, an event
+          page linked nowhere except back to the feed, so a reader who wanted
+          the rest of what this organization runs had to go and find it, and a
+          crawler reading the page learned of no other page from it.
+        -->
+        <p class="onwards">
+          <a href="/organizations/{event.rso_id}" onclick={goToOrganization}>
+            Everything {rso.rso_name} has on
+          </a>
+        </p>
       </section>
     {/if}
   </div>
 {/if}
 
 <style>
+  /*
+   * A line rather than a banner. Muted, the size of the small print around it,
+   * and carrying no button, because the page is about the event and this is an
+   * aside to it.
+   */
+  .below .hear { margin: 0 0 18px; font-size: 13.5px; color: var(--muted); }
+  .below .hear a { color: var(--primary); }
+
   /* The shape of the poster while it is on its way, in well colour. */
   .waiting {
     display: grid;

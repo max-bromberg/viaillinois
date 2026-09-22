@@ -1,7 +1,14 @@
 import { getPublicEvents, getEventById } from '../db/queries/events.js';
 import { getConfirmedMidterms } from '../db/queries/midterms.js';
-import { eventSchema, eventListSchema, siteSchema, organizationSchema } from '../lib/seo/structuredData.js';
+import {
+  getPublicOrganization, getPublicOrganizations, getPublicEventsForRso,
+} from '../db/queries/rso.js';
+import {
+  eventSchema, eventListSchema, siteSchema, organizationSchema,
+  studentOrganizationSchema, organizationListSchema, breadcrumbSchema,
+} from '../lib/seo/structuredData.js';
 import { escapeHtml } from '../lib/seo/render.js';
+import { isUpdateSlug } from '../lib/seo/updateSlugs.js';
 import { toIsoWithOffset, CAMPUS_TIME_ZONE } from '../lib/timezone.js';
 import { cardAlt } from './shareCard.js';
 
@@ -92,12 +99,48 @@ async function homePage(site) {
  */
 const sharedCard = site => `${site}/og/card.png`;
 
+/**
+ * A single path segment as it was written, where it can be read at all.
+ *
+ * An address arrives here as it was requested, so a slug carrying anything
+ * escaped is escaped here too. A stray percent sign is not a valid escape and
+ * decoding one throws, which would turn a malformed address into a crash
+ * rather than a page politely declining to be indexed, so the segment is
+ * handed back untouched and simply matches no update.
+ */
+function safeDecode(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/**
+ * What a page says when VIA could not ask the database at all.
+ *
+ * Not knowing is not the same as knowing there is nothing. Every builder here
+ * used to treat a failed query as an empty answer, so a minute of the database
+ * being away served noindex for every event on the site, and noindex is the
+ * one instruction Google acts on immediately and takes weeks to undo. A page
+ * that could not be described says so, and the shell turns that into a 503,
+ * which is a crawler being asked to come back rather than told to forget.
+ */
+function couldNotAsk(site, path) {
+  return {
+    title: 'VIA',
+    description: SITE_DESCRIPTION,
+    canonical: `${site}${path}`,
+    unavailable: true,
+  };
+}
+
 async function eventPage(id, site) {
   let event = null;
   try {
     event = await getEventById(id);
   } catch {
-    event = null;
+    return couldNotAsk(site, `/events/${id}`);
   }
 
   if (!event || event.is_private) {
@@ -135,6 +178,143 @@ async function eventPage(id, site) {
       + `${escapeHtml(when)}</time></p>`
       + `<p>${escapeHtml(where)}</p>`
       + (event.description ? `<p>${escapeHtml(event.description)}</p>` : '')
+      + '<p><a href="/">All upcoming ECE events</a></p></article>',
+  };
+}
+
+/**
+ * The page listing every organization that has something to show.
+ *
+ * It exists for two readers. A student who knows the name of a club and not
+ * what it has been running finds it here, and a crawler that reads one page
+ * and follows its links finds every organization from here, which is a second
+ * route into every event page. Before this, the only route to an event page
+ * was the front page, and a site with one way into each of its pages is one a
+ * search engine discovers and declines to crawl, which is what Search Console
+ * has been reporting.
+ */
+async function organizationsPage(site) {
+  let organizations = [];
+  try {
+    organizations = await getPublicOrganizations();
+  } catch {
+    // Not knowing is not the same as knowing there is none, and this is the
+    // page whose whole purpose is to be a route into every other one. Served
+    // as an empty list it would be an indexable page headed "Every ECE student
+    // organization" with nothing under it, which is the thin content the rest
+    // of this work package exists to stop serving.
+    return couldNotAsk(site, '/organizations');
+  }
+
+  const description =
+    'Every Electrical and Computer Engineering student organization at the University of '
+    + 'Illinois Urbana-Champaign that publishes its events on VIA, with what each one is '
+    + 'and what it has coming up.';
+
+  return {
+    title: 'ECE student organizations at Illinois: VIA',
+    description,
+    canonical: `${site}/organizations`,
+    robots: INDEX,
+    type: 'website',
+    jsonLd: [
+      organizationListSchema(organizations, site),
+      breadcrumbSchema([
+        { name: 'Events', path: '/' },
+        { name: 'Organizations', path: '/organizations' },
+      ], site),
+    ],
+    content:
+      '<h1>ECE student organizations at Illinois</h1>'
+      + `<p>${escapeHtml(description)}</p>`
+      + `<ul>${organizations.map(rso =>
+        `<li><a href="/organizations/${rso.rso_id}"><h2>${escapeHtml(rso.name)}</h2></a>`
+        + (rso.description ? `<p>${escapeHtml(rso.description)}</p>` : '')
+        + `<p>${escapeHtml(countsLine(rso))}</p></li>`).join('')}</ul>`,
+  };
+}
+
+/** How much an organization has on, in a sentence rather than a pair of numbers. */
+function countsLine(rso) {
+  const upcoming = Number(rso.upcoming_count ?? 0);
+  const total = Number(rso.event_count ?? 0);
+  if (upcoming === 0) {
+    return total === 1
+      ? 'One event on VIA, none of it still to come.'
+      : `${total} events on VIA, none of them still to come.`;
+  }
+  return upcoming === 1
+    ? `One event still to come, out of ${total} on VIA.`
+    : `${upcoming} events still to come, out of ${total} on VIA.`;
+}
+
+async function organizationPage(id, site) {
+  let rso = null;
+  let events = { upcoming: [], past: [] };
+  try {
+    rso = await getPublicOrganization(id);
+  } catch {
+    return couldNotAsk(site, `/organizations/${id}`);
+  }
+
+  if (rso) {
+    try {
+      events = await getPublicEventsForRso(id);
+    } catch {
+      // The organization is real and its description is worth serving, so a
+      // listing that could not be read is an empty listing rather than a page
+      // nobody is shown.
+      events = { upcoming: [], past: [] };
+    }
+  }
+
+  // An organization with nothing public has an empty page, and an empty page
+  // is the thin content a search engine discovers and then declines to keep.
+  if (!rso) {
+    return {
+      title: 'Student organization: VIA',
+      description: SITE_DESCRIPTION,
+      canonical: `${site}/organizations/${id}`,
+      robots: NOINDEX,
+    };
+  }
+
+  const about = rso.description?.trim();
+  const description = [
+    `${rso.name} is an Electrical and Computer Engineering student organization at the `
+    + 'University of Illinois Urbana-Champaign.',
+    about,
+    'See what it has coming up, with the dates, the rooms and what each event is.',
+  ].filter(Boolean).join(' ').slice(0, 300);
+
+  const listed = [...events.upcoming, ...events.past];
+
+  return {
+    title: `${rso.name}: events at Illinois: VIA`,
+    description,
+    canonical: `${site}/organizations/${rso.rso_id}`,
+    robots: INDEX,
+    type: 'website',
+    jsonLd: [
+      studentOrganizationSchema(rso, site),
+      eventListSchema(listed, site),
+      breadcrumbSchema([
+        { name: 'Events', path: '/' },
+        { name: 'Organizations', path: '/organizations' },
+        { name: rso.name, path: `/organizations/${rso.rso_id}` },
+      ], site),
+    ],
+    content:
+      `<article><h1>${escapeHtml(rso.name)}</h1>`
+      + (about ? `<p>${escapeHtml(about)}</p>` : '')
+      + (rso.founded_year ? `<p>Founded in ${escapeHtml(rso.founded_year)}.</p>` : '')
+      + (events.upcoming.length
+        ? `<h2>Coming up</h2><ul>${events.upcoming.map(eventListItem).join('')}</ul>`
+        : '<p>Nothing from this organization is coming up on VIA just now.</p>')
+      + (events.past.length
+        ? `<h2>Recently</h2><ul>${events.past.map(eventListItem).join('')}</ul>`
+        : '')
+      + '<p><a href="/organizations">Every ECE student organization</a></p>'
       + '<p><a href="/">All upcoming ECE events</a></p></article>',
   };
 }
@@ -180,6 +360,23 @@ const STATIC_PAGES = {
     title: 'Platform updates: VIA',
     description: 'What has changed on VIA, and what is being worked on next.',
   },
+  /*
+   * The page for a student who would come to things if they heard about them.
+   *
+   * Every other way into VIA assumes somebody already thought to open it, and
+   * most people do not open a website to find out whether anything is on. This
+   * one is about hearing rather than about looking, so it is described in terms
+   * of events rather than of the Discord bot that delivers them: the bot is how
+   * it works and not what it is for.
+   */
+  '/notifications': {
+    title: 'Never miss an ECE event at Illinois: VIA',
+    description:
+      'Hear about every talk, workshop and social run by Electrical and Computer '
+      + 'Engineering student organizations at the University of Illinois, without having to '
+      + 'check. Add VIA to your Discord account and it tells you what is coming up, reminds '
+      + 'you before the events you care about, and answers where a room is.',
+  },
   '/terms': { title: 'Terms of use: VIA', description: 'The terms that apply to using VIA.' },
   '/privacy': {
     title: 'Privacy: VIA',
@@ -204,9 +401,44 @@ export async function describePage(path, site) {
   if (event) return withCard(await eventPage(Number(event[1]), site));
 
   if (clean === '/midterms') return withCard(await midtermsPage(site));
+  if (clean === '/organizations') return withCard(await organizationsPage(site));
+
+  const organization = /^\/organizations\/(\d+)$/.exec(clean);
+  if (organization) return withCard(await organizationPage(Number(organization[1]), site));
 
   if (STATIC_PAGES[clean]) {
     return withCard({ ...STATIC_PAGES[clean], canonical: `${site}${clean}`, robots: INDEX });
+  }
+
+  /*
+   * One platform update, under its own address. These were falling past every
+   * case and serving the fallback, which is the site title, no canonical
+   * address and noindex, so a page written to be read was telling search
+   * engines to ignore it.
+   *
+   * Only an update that was actually written. Answering for any address of
+   * this shape meant anybody could hand a crawler an address nobody had ever
+   * written an update for and VIA would agree it was a real page, which is the
+   * thin content the rest of this work package set out to stop serving.
+   */
+  const update = /^\/updates\/([^/]+)$/.exec(clean);
+  if (update && isUpdateSlug(safeDecode(update[1]))) {
+    return withCard({
+      title: 'Platform update: VIA',
+      description: 'What has changed on VIA, and what is being worked on next.',
+      canonical: `${site}${clean}`,
+      robots: INDEX,
+    });
+  }
+
+  /*
+   * A tab of About is the same page reached at a different address, so it
+   * points at About rather than asking to be kept as a page of its own. That
+   * is what a canonical address is for, and it is the honest answer to Search
+   * Console reporting pages whose canonical the site never chose.
+   */
+  if (/^\/about\/[^/]+$/.test(clean)) {
+    return withCard({ ...STATIC_PAGES['/about'], canonical: `${site}/about`, robots: INDEX });
   }
 
   if (PRIVATE_PATHS.has(clean) || clean.startsWith('/kiosk')) {

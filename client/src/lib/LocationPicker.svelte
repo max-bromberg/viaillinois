@@ -104,7 +104,6 @@
               <button type="button" class="room" on:click={() => chooseRoom(room)}>
                 <Pad hollow />
                 <span class="where">{roomLabel(room)}</span>
-                <span class="seats mono">seats {room.max_capacity}</span>
               </button>
             </li>
           {/each}
@@ -216,11 +215,5 @@
 
   .where {
     flex: 1;
-  }
-
-  .seats {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--muted);
   }
 </style>

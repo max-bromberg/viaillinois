@@ -93,6 +93,7 @@ export async function getPublicEvents(filters = {}) {
       e.end_time,
       e.is_private,
       e.cancelled_at,
+      e.rso_id,
       r.name AS rso_name,
       e.location_text,
       l.building,
@@ -156,6 +157,7 @@ export async function getAllEvents(filters = {}) {
       e.end_time,
       e.is_private,
       e.cancelled_at,
+      e.rso_id,
       r.name AS rso_name,
       e.location_text,
       l.building,
@@ -260,13 +262,36 @@ export async function getEventById(eventId) {
  * @param {number} [limit] a sitemap holds at most fifty thousand addresses
  * @returns {Promise<Array<{ event_id: number, start_time: string }>>}
  */
+/**
+ * How far back a sitemap reaches. An event from three years ago is a page
+ * worth keeping and not one worth asking a search engine to come back for, and
+ * a small site has a crawl budget to spend on what people are looking for.
+ */
+export const SITEMAP_PAST_MONTHS = 12
+
+/**
+ * The events a sitemap should carry: everything still to come, and the past
+ * year of it.
+ *
+ * Cancelled events are left out. One stays on the site so that whoever planned
+ * to go is told, and its listing says EventCancelled, so there is nothing for
+ * a searcher in being sent to it and nothing for VIA in asking Google to keep
+ * coming back to it.
+ *
+ * updated_at is when the row last changed, which is what a sitemap means by
+ * lastmod. It used to publish start_time, so every event that had not happened
+ * yet claimed to have been modified in the future, and Google ignores a
+ * lastmod it cannot believe.
+ */
 export async function getPublicEventSitemapEntries(limit = 5000) {
     return query(
-        `SELECT event_id, start_time FROM Events
+        `SELECT event_id, updated_at FROM Events
           WHERE is_private = FALSE
+            AND cancelled_at IS NULL
+            AND start_time >= DATE_SUB(NOW(), INTERVAL ? MONTH)
           ORDER BY start_time DESC
           LIMIT ?`,
-        [limit]
+        [SITEMAP_PAST_MONTHS, limit]
     )
 }
 

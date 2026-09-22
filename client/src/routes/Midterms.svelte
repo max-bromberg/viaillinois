@@ -466,7 +466,6 @@
                   on:click={() => selectLocation(loc)}
                 >
                   <span><b>{loc.building}</b> {loc.room_number}</span>
-                  <span class="cap">room for {loc.max_capacity}</span>
                 </button>
               </li>
             {/each}
@@ -721,13 +720,6 @@
   .suggestions button:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: -2px;
-  }
-
-  .suggestions .cap {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--muted);
-    white-space: nowrap;
   }
 
   @media (max-width: 640px) {

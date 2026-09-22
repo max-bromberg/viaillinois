@@ -37,7 +37,7 @@ describe('FilterRail', () => {
 
   it('heads each part of the rail in words, with no label above a heading', () => {
     const { container } = render(FilterRail, { rsos: RSOS });
-    const headings = [...container.querySelectorAll('.rail h4')].map(heading => heading.textContent);
+    const headings = [...container.querySelectorAll('.rail h3')].map(heading => heading.textContent);
     // Five headings, which is what the surfaces document lists. The date range
     // asks the same question the two words do, so it sits under When rather
     // than adding a sixth.
@@ -173,6 +173,6 @@ describe('the rail on a phone', () => {
     const { container } = render(FilterRail, { rsos: RSOS });
     const groups = container.querySelector('.rail .groups');
     expect(groups).toBeTruthy();
-    expect(container.querySelectorAll('.rail .groups h4').length).toBeGreaterThan(3);
+    expect(container.querySelectorAll('.rail .groups h3').length).toBeGreaterThan(3);
   });
 });

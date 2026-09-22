@@ -231,3 +231,25 @@ describe('what each position of the dial says it does', () => {
     expect(checked[0].getAttribute('aria-label')).toMatch(/system/i);
   });
 });
+
+/**
+ * WCAG 2.5.3, Label in Name: where a control shows a word, the name a screen
+ * reader and a voice control read has to contain that word. Somebody saying
+ * "click Auto" was reaching for a control whose name was "Follow the system",
+ * and nothing happened.
+ */
+describe('what the dial is called', () => {
+  it('names the stop that shows a word with that word in it', () => {
+    const { container } = render(Dial, { mode: 'auto' });
+    const auto = [...container.querySelectorAll('.stop')]
+      .find(stop => stop.textContent.trim() === 'Auto');
+    expect(auto.getAttribute('aria-label')).toContain('Auto');
+  });
+
+  it('still says what following the system means', () => {
+    const { container } = render(Dial, { mode: 'auto' });
+    const auto = [...container.querySelectorAll('.stop')]
+      .find(stop => stop.textContent.trim() === 'Auto');
+    expect(auto.getAttribute('aria-label').length).toBeGreaterThan('Auto'.length);
+  });
+});

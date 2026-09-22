@@ -26,7 +26,9 @@ vi.mock('../../db/queries/eventSeries.js', () => ({
   deleteSeries: vi.fn().mockResolvedValue({ affectedRows: 1 }),
   syncSeriesEnd: vi.fn(), findSeriesByUid: vi.fn(), updateSeriesRule: vi.fn(),
 }));
-vi.mock('../../services/conflictDetector.js', () => ({ checkConflict: vi.fn().mockResolvedValue(false) }));
+vi.mock('../../services/conflictDetector.js', () => ({
+  occupancyInRoom: vi.fn().mockResolvedValue({ event: false, reservation: false }),
+}));
 vi.mock('../../db/queries/rso.js', () => ({
   getMembership: vi.fn().mockResolvedValue({ role: 'Board' }),
   getUserMemberships: vi.fn().mockResolvedValue([]),
@@ -39,7 +41,7 @@ const app = (await import('../../app.js')).default;
 const { signToken } = await import('../../middleware/auth.js');
 const eventsDb = await import('../../db/queries/events.js');
 const seriesDb = await import('../../db/queries/eventSeries.js');
-const { checkConflict } = await import('../../services/conflictDetector.js');
+const { occupancyInRoom } = await import('../../services/conflictDetector.js');
 
 const cookie = `via_token=${signToken({ net_id: 'boardmember' })}`;
 
@@ -69,7 +71,7 @@ beforeEach(() => {
   seriesDb.deleteOccurrencesFrom.mockResolvedValue({ affectedRows: 2, remaining: 1 });
   seriesDb.occurrencesOfSeries.mockResolvedValue([]);
   seriesDb.busyInRoom.mockResolvedValue([]);
-  checkConflict.mockResolvedValue(false);
+  occupancyInRoom.mockResolvedValue({ event: false, reservation: false });
 });
 
 /**
@@ -244,10 +246,28 @@ describe('PUT /api/v1/events/:id with a scope', () => {
   it('checks the room for a single edit, and says when it is taken', async () => {
     const res = await put(5, '', { ...EDIT, location_id: 7 });
     expect(res.status).toBe(200);
-    expect(checkConflict).toHaveBeenCalledWith(7, EDIT.start_time, EDIT.end_time, 5);
+    expect(occupancyInRoom).toHaveBeenCalledWith(7, EDIT.start_time, EDIT.end_time, 5);
 
-    checkConflict.mockResolvedValue(true);
+    occupancyInRoom.mockResolvedValue({ event: true, reservation: false });
     expect((await put(5, '', { ...EDIT, location_id: 7 })).status).toBe(409);
+  });
+
+  /**
+   * An edit into a room that is reserved rather than taken by another event
+   * goes through, because the reservation is very often the organization's
+   * own booking, and the answer says what the room shows.
+   */
+  it('allows an edit into a room that is only reserved, and says so', async () => {
+    occupancyInRoom.mockResolvedValue({ event: false, reservation: true });
+    const res = await put(5, '', { ...EDIT, location_id: 7 });
+    expect(res.status).toBe(200);
+    expect(res.body.reserved).toBe(true);
+    expect(eventsDb.updateEvent).toHaveBeenCalled();
+  });
+
+  it('says nothing about a reservation on an edit into a free room', async () => {
+    const res = await put(5, '', { ...EDIT, location_id: 7 });
+    expect(res.body.reserved).toBe(false);
   });
 
   /**
@@ -266,6 +286,24 @@ describe('PUT /api/v1/events/:id with a scope', () => {
     expect(res.status).toBe(409);
     expect(res.body.conflicts).toEqual(['2026-09-22']);
     expect(seriesDb.applyToSeries).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Moving a series into a room that is reserved rather than taken is allowed,
+   * and the weeks the room already shows a reservation on are named.
+   */
+  it('moves a series into a reserved room, and names the reserved weeks', async () => {
+    seriesDb.occurrencesOfSeries.mockResolvedValue([
+      { event_id: 5, start_time: '2026-09-15 18:00:00', end_time: '2026-09-15 19:30:00', detached: 0 },
+      { event_id: 6, start_time: '2026-09-22 18:00:00', end_time: '2026-09-22 19:30:00', detached: 0 },
+    ]);
+    seriesDb.busyInRoom.mockResolvedValue([
+      { start_time: '2026-09-22 18:00:00', end_time: '2026-09-22 19:30:00', source: 'reservation' },
+    ]);
+    const res = await put(5, '?scope=all', { ...EDIT, location_id: 7 });
+    expect(res.status).toBe(200);
+    expect(res.body.reserved).toEqual(['2026-09-22']);
+    expect(seriesDb.applyToSeries).toHaveBeenCalled();
   });
 
   it('does not count the series own weeks against itself', async () => {

@@ -185,6 +185,26 @@ export const events = mysqlTable("Events", {
 	cancelledAt: datetime("cancelled_at", { mode: 'string'}),
 	// The small thing a board changes at the door, shown beside the room.
 	locationNote: varchar("location_note", { length: 500 }),
+	// When the row last changed, which is what the sitemap publishes as lastmod.
+	// It used to publish the hour the event starts at, so a sitemap full of
+	// events that have not happened yet claimed to have been modified in the
+	// future, and Google ignores a lastmod it cannot believe.
+	//
+	// The column also carries ON UPDATE CURRENT_TIMESTAMP in the database.
+	// Drizzle's datetime cannot express that, only timestamp can, so the
+	// migration owns it, as it does for Facility_Reservations.scraped_at.
+	updatedAt: datetime("updated_at", { mode: 'string'})
+		.default(sql`CURRENT_TIMESTAMP`).notNull(),
+	/*
+	 * When an organizer entered this event, which VIA never recorded before.
+	 *
+	 * Nullable and deliberately not backfilled. Every row older than migration 0021 has an
+	 * unknown creation time, and writing the moment the migration ran into them would put a
+	 * confident wrong answer where the honest answer is that nobody wrote it down. Null
+	 * means unknown, so any question about how far in advance organizers plan has to say
+	 * how much it does not know.
+	 */
+	createdAt: datetime("created_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`),
 },
 (table) => [
 	index("rso_id").on(table.rsoId),
@@ -210,11 +230,98 @@ export const facilityReservations = mysqlTable("Facility_Reservations", {
 	// The column also carries ON UPDATE CURRENT_TIMESTAMP in the database. Drizzle's
 	// datetime cannot express that, only timestamp can, so the migration owns it.
 	scrapedAt: datetime("scraped_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	/*
+	 * What Ad Astra says about a booking beyond where and when it is.
+	 *
+	 * All nullable, because Tableau supplies none of them and because a field Ad Astra
+	 * stops sending has to degrade into an empty column rather than into a failed poll.
+	 * The activity identifier is the only stable identity a booking has, which is what
+	 * lets a booking that moved be recognised as the same booking.
+	 */
+	activityId: varchar("activity_id", { length: 40 }),
+	parentActivityId: varchar("parent_activity_id", { length: 40 }),
+	// Ad Astra's own event identifier, which a booking that is an event rather than a class
+	// carries. Named for its source so it is never mistaken for Events.event_id, which is
+	// VIA's own and unrelated.
+	astraEventId: varchar("astra_event_id", { length: 40 }),
+	activityType: varchar("activity_type", { length: 32 }),
+	sectionId: varchar("section_id", { length: 32 }),
+	instructor: varchar({ length: 200 }),
+	/*
+	 * When each source first showed this booking. Two columns rather than a log of
+	 * observations, because the only question anybody asks of it is how long one source
+	 * took to agree with the other, and ten bytes answers that where a row every four
+	 * hours for every booking on campus would cost gigabytes to answer the same thing.
+	 */
+	astraFirstSeen: datetime("astra_first_seen", { mode: 'string'}),
+	tableauFirstSeen: datetime("tableau_first_seen", { mode: 'string'}),
 },
 (table) => [
+	index("idx_facility_reservations_activity").on(table.activityId),
 	primaryKey({ columns: [table.reservationId], name: "Facility_Reservations_reservation_id"}),
 	unique("uq_reservation").on(table.locationId, table.startTime, table.endTime),
 	check("chk_reservation_times", sql`(\`end_time\` > \`start_time\`)`),
+]);
+
+/**
+ * The strings that facility reservation history points at instead of repeating.
+ *
+ * History grows without bound and its text repeats enormously: one course section meeting
+ * three times a week for a term writes the same name and instructor forty eight times.
+ * One dictionary row and a four byte identifier replaces about ninety bytes of repeated
+ * text per row.
+ *
+ * Values are truncated to the column's length on the way in and on the way out, so two
+ * longer values that agree that far resolve to one shortened name rather than one of them
+ * silently ending up with no name. The migration says why that matters.
+ */
+export const facilityText = mysqlTable("Facility_Text", {
+	textId: int("text_id").autoincrement().notNull(),
+	value: varchar({ length: 191 }).notNull(),
+},
+(table) => [
+	primaryKey({ columns: [table.textId], name: "Facility_Text_text_id"}),
+	unique("uq_facility_text_value").on(table.value),
+]);
+
+/**
+ * Every reservation that has already happened.
+ *
+ * Rows arrive here when they leave the working set, which is what used to be a delete.
+ * Nothing on a request path reads this table: it exists for the questions VISION.md asks
+ * about terms, rooms and sources, all of which are asked offline.
+ *
+ * There is deliberately no foreign key on the location. History has to outlive what it
+ * refers to, and a cascade would destroy the record of what happened in a room because the
+ * room was removed from a table.
+ */
+export const facilityReservationHistory = mysqlTable("Facility_Reservation_History", {
+	// int rather than bigint: at the order of a million rows a year this lasts four thousand
+	// years, and the four bytes saved are paid again in every index entry.
+	historyId: int("history_id").autoincrement().notNull(),
+	locationId: int("location_id").notNull(),
+	startTime: datetime("start_time", { mode: 'string'}).notNull(),
+	endTime: datetime("end_time", { mode: 'string'}).notNull(),
+	activityId: varchar("activity_id", { length: 40 }),
+	parentActivityId: varchar("parent_activity_id", { length: 40 }),
+	astraEventId: varchar("astra_event_id", { length: 40 }),
+	sectionId: varchar("section_id", { length: 32 }),
+	eventNameId: int("event_name_id"),
+	customerId: int("customer_id"),
+	instructorId: int("instructor_id"),
+	activityTypeId: int("activity_type_id"),
+	source: reservationSource('source').default('astra').notNull(),
+	astraFirstSeen: datetime("astra_first_seen", { mode: 'string'}),
+	tableauFirstSeen: datetime("tableau_first_seen", { mode: 'string'}),
+	archivedAt: datetime("archived_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	// Two indexes, not four. The migration has the accounting: the four that first suggested
+	// themselves cost more than the data they indexed, and nothing on a request path reads
+	// this table, so a question that has to scan is a few seconds in a job nobody waits on.
+	index("idx_frh_start").on(table.startTime),
+	index("idx_frh_activity").on(table.activityId),
+	primaryKey({ columns: [table.historyId], name: "Facility_Reservation_History_history_id"}),
 ]);
 
 export const localAccounts = mysqlTable("LocalAccounts", {
@@ -359,6 +466,80 @@ export const discordLinks = mysqlTable("Discord_Links", {
 (table) => [
 	primaryKey({ columns: [table.discordUserId], name: "Discord_Links_discord_user_id"}),
 	unique("uq_discord_links_net_id").on(table.netId),
+]);
+
+/**
+ * Which Discord server an organization's board has bound the bot to.
+ *
+ * A mirror rather than the record. The binding is a fact about a Discord
+ * server, the bot is what is installed there, and Guild_Installations in
+ * via_bot holds it. The bot reports each binding here through the internal
+ * service API so that the board's own dashboard can say whether the bot is set
+ * up, because the website has no account on the bot's database and is not
+ * meant to have one.
+ *
+ * Nothing is authorized from this table. Unlinking is authorized by the same
+ * requireRSOAdmin the rest of the dashboard uses, and the bot is what applies
+ * it. Being a few seconds behind is therefore a cosmetic problem rather than a
+ * correctness one.
+ *
+ * reported_at also carries ON UPDATE CURRENT_TIMESTAMP in the database, which
+ * Drizzle's datetime cannot express, so the migration owns that clause as it
+ * does for Events.updated_at.
+ */
+export const rsoDiscordGuilds = mysqlTable("Rso_Discord_Guilds", {
+	guildId: varchar("guild_id", { length: 32 }).notNull(),
+	rsoId: int("rso_id").notNull().references(() => rsOs.rsoId, { onDelete: "cascade" } ),
+	// What the server calls itself, so the dashboard names it rather than
+	// showing the identifier.
+	guildName: varchar("guild_name", { length: 200 }).default('').notNull(),
+	// The Discord account that bound the server, which the web platform
+	// confirmed was on the board at the time.
+	boundBy: varchar("bound_by", { length: 32 }),
+	boundAt: datetime("bound_at", { mode: 'string'}),
+	reportedAt: datetime("reported_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("idx_rso_discord_guilds_rso").on(table.rsoId),
+	primaryKey({ columns: [table.guildId], name: "Rso_Discord_Guilds_guild_id"}),
+]);
+
+/**
+ * The organizations a linked person follows, as the bot reported them.
+ *
+ * A mirror rather than the record. Subscriptions in via_bot is what the bot
+ * reads when it decides who to write to, because the bot is what sends the
+ * messages. This exists so the website can offer the same choice from an
+ * organization's own page, and show what the person already chose.
+ *
+ * Keyed by the Discord account, because that is what the bot holds and what it
+ * reports. Unlinking takes these with it, which is the point of the foreign
+ * key: somebody who unlinks should leave no record of what they followed.
+ */
+export const discordRsoFollows = mysqlTable("Discord_Rso_Follows", {
+	discordUserId: varchar("discord_user_id", { length: 32 }).notNull()
+		.references(() => discordLinks.discordUserId, { onDelete: "cascade" } ),
+	rsoId: int("rso_id").notNull().references(() => rsOs.rsoId, { onDelete: "cascade" } ),
+	followedAt: datetime("followed_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	primaryKey({ columns: [table.discordUserId, table.rsoId], name: "Discord_Rso_Follows_pk"}),
+]);
+
+/**
+ * The events a linked person asked to be reminded about, as the bot reported
+ * them. A mirror of Reminders in via_bot, for the same reason and on the same
+ * terms as the follows above.
+ */
+export const discordEventReminders = mysqlTable("Discord_Event_Reminders", {
+	discordUserId: varchar("discord_user_id", { length: 32 }).notNull()
+		.references(() => discordLinks.discordUserId, { onDelete: "cascade" } ),
+	eventId: int("event_id").notNull().references(() => events.eventId, { onDelete: "cascade" } ),
+	askedAt: datetime("asked_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("idx_discord_event_reminders_event").on(table.eventId),
+	primaryKey({ columns: [table.discordUserId, table.eventId], name: "Discord_Event_Reminders_pk"}),
 ]);
 
 /**

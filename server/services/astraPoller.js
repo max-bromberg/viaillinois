@@ -22,7 +22,7 @@ import https from 'https';
 import {
   upsertFacilityLocation,
   upsertReservation,
-  deleteExpiredReservations,
+  archiveExpiredReservations,
 } from '../db/queries/facilityReservations.js';
 
 import { resolveBuilding, resolveRoom } from '../lib/locationNormalizer.js';
@@ -64,6 +64,25 @@ const FIELDS = [
 ];
 
 const PAGE_SIZE = 500;
+
+/**
+ * One optional field from an Ad Astra row.
+ *
+ * Ad Astra sends an empty string for a field that does not apply to a kind of booking, and
+ * a row can be shorter than the field list when the shape changes. Both mean the same
+ * thing, which is that nothing is known, and nothing known is recorded as null so that it
+ * is never mistaken for a value and never reaches the dictionary as a blank entry.
+ *
+ * Trimmed and capped, because these are written into columns with a length and a name that
+ * arrives with trailing whitespace is the same name as one that does not. The cap given at
+ * each call is the width of the column the value lands in. MySQL refuses a value wider than
+ * its column rather than trimming it, and the refusal is caught per row, so a cap set wider
+ * than the column would cost the whole booking rather than the end of one field.
+ */
+function optional(value, maxLength) {
+  const text = String(value ?? '').trim();
+  return text ? text.slice(0, maxLength) : null;
+}
 
 // ---------------------------------------------------------------------------
 // Session
@@ -243,8 +262,16 @@ export async function runOnce() {
     return { upserted: 0, skipped: 0 };
   }
 
+  /*
+   * Move what has already happened into history rather than deleting it.
+   *
+   * This call used to destroy the booking, so VIA never retained a single completed
+   * reservation. Expired rows still leave the working set, which is what keeps that table
+   * the size of the rolling window rather than growing for ever, and nothing that reads it
+   * behaves differently. They are kept now. VISION.md has the reasoning.
+   */
   try {
-    await deleteExpiredReservations();
+    await archiveExpiredReservations();
   } catch (e) {
     if (!e.message.includes('Not implemented')) throw e;
   }
@@ -259,6 +286,26 @@ export async function runOnce() {
     const roomRaw     = row[6]  || '';
     const startTime   = row[8]  || '';
     const endTime     = row[9]  || '';
+
+    /*
+     * Everything else Ad Astra was already sending and the poller used to drop.
+     *
+     * The request has always asked for eighteen fields and stored four, so the identity of
+     * a booking, its type, its series, its section and its instructor came over the network
+     * and went on the floor. None of it can be recovered later, which is why it is captured
+     * now, before anything exists that would use it. VISION.md has the reasoning.
+     *
+     * Read through optional() so that a field Ad Astra does not send for this kind of
+     * booking, and a row shorter than the field list, both arrive as nothing rather than as
+     * an empty string or as a thrown error. The shape of these rows is Ad Astra's and it
+     * has changed before.
+     */
+    const activityId       = optional(row[0], 40);
+    const activityType     = optional(row[3], 32);
+    const instructor       = optional(row[10], 200);
+    const sectionId        = optional(row[13], 32);
+    const astraEventId     = optional(row[14], 40);
+    const parentActivityId = optional(row[16], 40);
 
     if (!buildingRaw || !roomRaw || !startTime || !endTime) {
       skipped++;
@@ -277,6 +324,12 @@ export async function runOnce() {
         start_time:  startTime,
         end_time:    endTime,
         source:      'astra',
+        activity_id:        activityId,
+        parent_activity_id: parentActivityId,
+        astra_event_id:     astraEventId,
+        activity_type:      activityType,
+        section_id:         sectionId,
+        instructor,
       });
       if (result?.affectedRows > 0) upserted++;
     } catch (e) {

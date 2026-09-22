@@ -117,10 +117,16 @@ describe('the served HTML', () => {
     expect(res.text).toContain('&lt;img');
   });
 
-  it('still serves the page when the database is unavailable', async () => {
+  /**
+   * The application is still sent when the database is away, so a person who
+   * followed the link gets a page that retries rather than a blank one. What
+   * has changed is the status: it used to be 200, and a 200 that cannot
+   * describe its page has to carry either a description of nothing or noindex.
+   * See the 503 tests below for why neither of those is safe to send.
+   */
+  it('still sends the application when the database is unavailable', async () => {
     getEventById.mockRejectedValue(new Error('database is down'));
     const res = await request(app).get('/events/12');
-    expect(res.status).toBe(200);
     expect(res.text).toContain('<div id="app">');
   });
 
@@ -128,5 +134,50 @@ describe('the served HTML', () => {
     const res = await request(app).get('/anything-else');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<div id="app">');
+  });
+});
+
+/**
+ * A page VIA could not describe answers 503 rather than 200.
+ *
+ * A 200 carrying noindex tells a crawler to forget the page, and Google acts
+ * on that immediately and takes weeks to undo it, so a minute of the database
+ * being away could cost the site its event pages. A 503 says come back, which
+ * is what is actually true, and a Retry-After says roughly when.
+ */
+describe('a page the server could not describe', () => {
+  it('asks a crawler to come back rather than telling it the page is gone', async () => {
+    getEventById.mockRejectedValue(new Error('the database is away'));
+    const res = await request(app).get('/events/12');
+    expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBeTruthy();
+    expect(res.text).not.toContain('noindex');
+  });
+
+  it('is never stored, by a browser or by the edge', async () => {
+    getEventById.mockRejectedValue(new Error('the database is away'));
+    const res = await request(app).get('/events/12');
+    expect(res.headers['cache-control']).toMatch(/no-store/);
+  });
+
+  /** A person who followed the link still gets the application, which retries. */
+  it('still sends the application, so a reader is not shown a blank page', async () => {
+    getEventById.mockRejectedValue(new Error('the database is away'));
+    const res = await request(app).get('/events/12');
+    expect(res.text).toContain('id="app"');
+  });
+
+  it('still answers 200 for a page it could describe', async () => {
+    getEventById.mockResolvedValue(EVENT);
+    const res = await request(app).get('/events/12');
+    expect(res.status).toBe(200);
+  });
+
+  /** An event that is really not there is a 200 that says not to keep it. */
+  it('answers 200 and noindex for an event that is genuinely gone', async () => {
+    getEventById.mockResolvedValue(null);
+    const res = await request(app).get('/events/12');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('noindex');
   });
 });

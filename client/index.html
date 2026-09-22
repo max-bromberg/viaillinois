@@ -6,6 +6,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!--
+      The two faces the first screen is set in.
+
+      Both are named in the stylesheet, so the browser only learns they exist
+      once it has fetched and parsed a stylesheet that is itself holding the
+      first paint. That puts a whole round trip between the paint and readable
+      text, and it is also what makes the page move: text lands in the fallback
+      face and reflows when the real one arrives. Asking for them here takes
+      that round trip out of both. The mono face is not here, because nothing
+      above the fold is set in it.
+
+      crossorigin is required even though these are our own files: a font is
+      fetched anonymously whatever the page says, and a preload that does not
+      say so is a second download rather than a head start.
+    -->
+    <link rel="preload" href="/fonts/BricolageGrotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/IBMPlexSans-latin.woff2" as="font" type="font/woff2" crossorigin />
+
+    <!--
       The server fills these in per page before sending the document, in
       server/middleware/htmlShell.js. What is here is the fallback for the
       development server and for the rare case where the server cannot describe

@@ -136,7 +136,7 @@
     <aside>
       {#if takeable}
         <div>
-          <h4>Take it with you</h4>
+          <h2>Take it with you</h2>
           <div class="stack">
             {#if onaddToCalendar}
               <Button variant="primary" icon="cal" onclick={onaddToCalendar}>Add to Google Calendar</Button>
@@ -149,7 +149,7 @@
       {/if}
       {#if shareable}
         <div>
-          <h4>Share</h4>
+          <h2>Share</h2>
           <div class="link">{url}</div>
           <div class="share">
             {@render code?.()}
@@ -163,7 +163,7 @@
       {/if}
       {#if onBoard}
         <div class="board cut" style="--cut: 14px">
-          <h4>You are on the {event.rso_name} board</h4>
+          <h2>You are on the {event.rso_name} board</h2>
           <div class="row">
             {#if onedit}<Button variant="secondary" size="sm" on="card" onclick={onedit}>Edit</Button>{/if}
             {#if oncancelEvent}
@@ -199,7 +199,7 @@
   }
 
   /* The board panel's heading sits closer to its buttons than a page heading. */
-  .board h4 {
+  .board h2 {
     margin-bottom: 8px;
   }
 

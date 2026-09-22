@@ -34,9 +34,18 @@
    * currently true. "Follow the system" is the whole of what auto means, and it
    * is the one stop whose meaning a person cannot guess from a picture.
    */
+  /*
+   * The name each stop is given.
+   *
+   * The middle one shows the word Auto, and it was named "Follow the system",
+   * so a voice control user saying "click Auto" was reaching for a control
+   * whose name does not contain what they can see. WCAG 2.5.3 asks that the
+   * name carry the visible word, so it leads with it and then says what it
+   * means.
+   */
   const STOPS = [
     { value: 'light', name: 'Light' },
-    { value: 'auto', name: 'Follow the system' },
+    { value: 'auto', name: 'Auto, following the system' },
     { value: 'dark', name: 'Dark' },
   ];
 

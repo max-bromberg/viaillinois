@@ -127,6 +127,34 @@
       "when": 1789445189249,
       "tag": "0017_event_views",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1789531589249,
+      "tag": "0018_event_updated_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1789617989249,
+      "tag": "0019_rso_discord_guilds",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1789704389249,
+      "tag": "0020_discord_notification_optins",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1789790789249,
+      "tag": "0021_facilities_retention",
+      "breakpoints": true
     }
   ]
 }

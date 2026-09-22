@@ -264,6 +264,9 @@
     }
   }
 
+  /** The frame the first drawing is waiting on, so leaving cancels it. */
+  let startFrame = null;
+
   onMount(() => {
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     reduced = motionQuery.matches;
@@ -272,11 +275,26 @@
 
     readTheme();
     lastWidth = window.innerWidth;
-    init();
 
-    if (ambientSchedule.shouldRun({ ambient, reduced })) {
-      ambientTimer = setTimeout(ambientPulse, ambientSchedule.nextDelay());
-    }
+    /*
+     * The board is decoration, and it was laid out and filled the moment it
+     * mounted, which is the same moment the browser is trying to paint the
+     * page somebody actually came for. Laying out a circuit and filling a
+     * canvas is work worth doing once there is something on the screen. Two
+     * frames, because one only gets as far as the frame being scheduled.
+     */
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      init();
+      if (ambientSchedule.shouldRun({ ambient, reduced })) {
+        ambientTimer = setTimeout(ambientPulse, ambientSchedule.nextDelay());
+      }
+    };
+    startFrame = requestAnimationFrame(() => {
+      startFrame = requestAnimationFrame(start);
+    });
 
     // The resting colour comes from the theme, so it has to be re-read when
     // the theme is switched.
@@ -291,6 +309,7 @@
   });
 
   onDestroy(() => {
+    if (startFrame !== null) cancelAnimationFrame(startFrame);
     clearTimeout(ambientTimer);
     if (rafId !== null) cancelAnimationFrame(rafId);
     clearTimeout(resizeTimer);

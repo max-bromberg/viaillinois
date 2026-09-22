@@ -1,441 +1,314 @@
 <script>
-  import { locationLabel } from '../lib/locationLabel.js';
-  import { campusDate, campusTime } from '../lib/campusTime.js';
-  import { LIGHT, DARK, DEFAULT_ACCENT, paletteOn, isDark } from '../lib/posterPalette.js';
-  import { organizationColor } from '../lib/organizationColor.js';
-  import { resolvedTheme } from '../stores/theme.js';
   import { onMount } from 'svelte';
+  import QRCode from 'qrcode';
   import { navigate } from '../lib/router.js';
   import { getEvent } from '../api/events.js';
   import { getRso } from '../api/rsos.js';
   import { showToast } from '../stores/ui.js';
-  import QRCode from 'qrcode';
-  import { Button, Field, Pad, Switch } from '../lib/components/ui/index.js';
+  import { organizationColor } from '../lib/organizationColor.js';
+  import { resolvedTheme } from '../stores/theme.js';
+  import { DEFAULT_ACCENT, isDark } from '../lib/posterPalette.js';
+  import { Button } from '../lib/components/ui/index.js';
+  import PosterCanvas from '../lib/poster/PosterCanvas.svelte';
+  import { drawPoster } from '../lib/poster/draw.js';
+  import PosterInspector from '../lib/poster/PosterInspector.svelte';
+  import {
+    addLayer, duplicateLayer, makeLayer, raiseLayer, removeLayer, updateLayer,
+  } from '../lib/poster/document.js';
+  import { TEMPLATES, posterFrom } from '../lib/poster/templates.js';
+  import { ensureFont, fontFor } from '../lib/poster/fonts.js';
+  import { canRedo, canUndo, newHistory, record, redo, undo } from '../lib/poster/history.js';
+  import { forgetDesign, readDesign, writeDesign } from '../lib/poster/storage.js';
 
   /**
-   * The four pieces of the poster a board can leave off, held as one list so
-   * that each is drawn as a switch rather than as four hand written toggles.
+   * The poster designer.
+   *
+   * It used to draw one fixed layout with a handful of switches over it. A
+   * board could change the colour of a poster and which of four pieces it
+   * carried, and nothing else: not where the title sat, not how large it was,
+   * not whether the room went above the hours, not whether there was a second
+   * picture. A board that wanted any of that went and made the poster
+   * somewhere else, and VIA lost the link square that is the one thing a
+   * poster made here does better than a poster made anywhere else.
+   *
+   * What this is now is an editor. A design starts from a template, which is
+   * the event already laid out in a shape somebody chose, and from there
+   * everything on the sheet is a layer: pick it, drag it, size it, set it in
+   * another face, recolour it, turn it, send it behind something else, copy
+   * it, take it off. Add as many blocks of words, pictures and shapes as the
+   * poster needs.
+   *
+   * The pieces of it are separate on purpose. The document and everything done
+   * to it are pure functions in lib/poster, so undo is a stack of documents,
+   * and the same drawing puts the poster on the screen and into the file that
+   * downloads, so the preview cannot lie about what a board is about to get.
    */
-  const PIECES = [
-    { key: 'description', label: 'Description' },
-    { key: 'dateAndTime', label: 'Date and time' },
-    { key: 'location',    label: 'Location' },
-    { key: 'tags',        label: 'Tags' },
-  ];
-
-  /** Which theme is which, in the words a board would use. */
-  const THEMES = [
-    { key: 'clean',   label: 'Clean' },
-    { key: 'dark',    label: 'Dark' },
-    { key: 'branded', label: 'The organization colour' },
-  ];
-
-  /** Where an uploaded image sits on the poster. */
-  const PLACES = [
-    { key: 'body',   label: 'In the body' },
-    { key: 'header', label: 'Across the header' },
-  ];
-
-  function setPiece(key, on) {
-    if (key === 'description') showDesc = on;
-    if (key === 'dateAndTime') showDateTime = on;
-    if (key === 'location') showLocation = on;
-    if (key === 'tags') showTags = on;
-  }
-
-  const pieceIsOn = (key, desc, when, where, tagged) =>
-    key === 'description' ? desc
-    : key === 'dateAndTime' ? when
-    : key === 'location' ? where
-    : tagged;
 
   const urlParams = new URLSearchParams(window.location.search);
-  const eventId   = parseInt(urlParams.get('event'));
-  const rsoId     = parseInt(urlParams.get('rso'));
+  const eventId = parseInt(urlParams.get('event'));
+  const rsoId = parseInt(urlParams.get('rso'));
 
-  let event = null, rso = null, loading = true, generating = false;
+  let event = $state(null);
+  let rso = $state(null);
+  let loading = $state(true);
+  let generating = $state(false);
+
   /**
-   * A poster is downloaded as an image and pinned up, so it is the one surface
-   * that cannot take its colours from the stylesheet. They come from
-   * client/src/lib/posterPalette.js, which is held against the token file by a
-   * test. This used to draw in an indigo and a set of slate greys that appear
-   * nowhere else on VIA.
+   * Whether the board has already been told this design is not being kept, so
+   * that they are told when it starts being true and not on every edit after.
    */
-  let rsoAccentDefault = DEFAULT_ACCENT;
-  let previewCanvas;
-  let renderTimer;
+  let warnedNotKept = false;
 
-  // ── Design config ─────────────────────────────────────────────────────────
-  let accentColor  = DEFAULT_ACCENT;
-  let bgColor      = LIGHT.ground;
-  let fontKey      = 'system-sans';
-  let activeTheme  = 'clean';
-  let showDesc     = true;
-  let showDateTime = true;
-  let showLocation = true;
-  let showTags     = true;
-  let callout      = '';
-  let customNote   = '';
-  let customImageSrc = null;
-  let customImageObj = null;
-  let imagePosition  = 'body'; // 'body' | 'header'
+  /** The accent a template draws in, which is the organization's own colour. */
+  let accent = $state(DEFAULT_ACCENT);
 
-  // ── Font library ──────────────────────────────────────────────────────────
-  const FONT_GROUPS = [
-    { label: 'System', fonts: [
-      { key: 'system-sans',  name: 'System Sans',  css: 'system-ui,-apple-system,sans-serif',      google: null },
-      { key: 'system-serif', name: 'System Serif', css: 'Georgia,Cambria,serif',                   google: null },
-      { key: 'system-mono',  name: 'System Mono',  css: "ui-monospace,'Courier New',monospace",    google: null },
-    ]},
-    { label: 'Sans-Serif', fonts: [
-      { key: 'inter',      name: 'Inter',        css: '"Inter",sans-serif',        google: 'Inter' },
-      { key: 'roboto',     name: 'Roboto',       css: '"Roboto",sans-serif',       google: 'Roboto' },
-      { key: 'open-sans',  name: 'Open Sans',    css: '"Open Sans",sans-serif',    google: 'Open+Sans' },
-      { key: 'lato',       name: 'Lato',         css: '"Lato",sans-serif',         google: 'Lato' },
-      { key: 'poppins',    name: 'Poppins',      css: '"Poppins",sans-serif',      google: 'Poppins' },
-      { key: 'nunito',     name: 'Nunito',       css: '"Nunito",sans-serif',       google: 'Nunito' },
-      { key: 'raleway',    name: 'Raleway',      css: '"Raleway",sans-serif',      google: 'Raleway' },
-      { key: 'montserrat', name: 'Montserrat',   css: '"Montserrat",sans-serif',   google: 'Montserrat' },
-      { key: 'dm-sans',    name: 'DM Sans',      css: '"DM Sans",sans-serif',      google: 'DM+Sans' },
-      { key: 'outfit',     name: 'Outfit',       css: '"Outfit",sans-serif',       google: 'Outfit' },
-      { key: 'figtree',    name: 'Figtree',      css: '"Figtree",sans-serif',      google: 'Figtree' },
-      { key: 'plus-jakarta', name: 'Plus Jakarta Sans', css: '"Plus Jakarta Sans",sans-serif', google: 'Plus+Jakarta+Sans' },
-    ]},
-    { label: 'Serif', fonts: [
-      { key: 'playfair',   name: 'Playfair Display',   css: '"Playfair Display",serif',   google: 'Playfair+Display' },
-      { key: 'merriweather', name: 'Merriweather',     css: '"Merriweather",serif',        google: 'Merriweather' },
-      { key: 'lora',       name: 'Lora',               css: '"Lora",serif',                google: 'Lora' },
-      { key: 'eb-garamond', name: 'EB Garamond',       css: '"EB Garamond",serif',         google: 'EB+Garamond' },
-      { key: 'cormorant',  name: 'Cormorant Garamond', css: '"Cormorant Garamond",serif',  google: 'Cormorant+Garamond' },
-      { key: 'spectral',   name: 'Spectral',           css: '"Spectral",serif',            google: 'Spectral' },
-    ]},
-    { label: 'Display', fonts: [
-      { key: 'bebas',     name: 'Bebas Neue',    css: '"Bebas Neue",sans-serif',  google: 'Bebas+Neue' },
-      { key: 'anton',     name: 'Anton',         css: '"Anton",sans-serif',       google: 'Anton' },
-      { key: 'oswald',    name: 'Oswald',        css: '"Oswald",sans-serif',      google: 'Oswald' },
-      { key: 'righteous', name: 'Righteous',     css: '"Righteous",sans-serif',   google: 'Righteous' },
-      { key: 'abril',     name: 'Abril Fatface', css: '"Abril Fatface",serif',    google: 'Abril+Fatface' },
-      { key: 'russo',     name: 'Russo One',     css: '"Russo One",sans-serif',   google: 'Russo+One' },
-    ]},
-    { label: 'Script', fonts: [
-      { key: 'pacifico',    name: 'Pacifico',       css: '"Pacifico",cursive',        google: 'Pacifico' },
-      { key: 'lobster',     name: 'Lobster',        css: '"Lobster",cursive',         google: 'Lobster' },
-      { key: 'dancing',     name: 'Dancing Script', css: '"Dancing Script",cursive',  google: 'Dancing+Script' },
-      { key: 'great-vibes', name: 'Great Vibes',    css: '"Great Vibes",cursive',     google: 'Great+Vibes' },
-    ]},
-    { label: 'Monospace', fonts: [
-      { key: 'space-mono',    name: 'Space Mono',    css: '"Space Mono",monospace',    google: 'Space+Mono' },
-      { key: 'ibm-plex-mono', name: 'IBM Plex Mono', css: '"IBM Plex Mono",monospace', google: 'IBM+Plex+Mono' },
-      { key: 'courier-prime', name: 'Courier Prime', css: '"Courier Prime",monospace', google: 'Courier+Prime' },
-    ]},
-  ];
+  /** The design, and everywhere it has been, so that undo has somewhere to go. */
+  let history = $state(newHistory(null));
+  let selectedId = $state(null);
 
-  $: allFonts     = FONT_GROUPS.flatMap(g => g.fonts);
-  $: selectedFont = allFonts.find(f => f.key === fontKey) ?? allFonts[0];
+  /**
+   * The pictures and the link squares, loaded once each and handed to the
+   * drawing already drawn. The nonce is bumped whenever something arrives, so
+   * that the drawing runs again for a picture or a face that was not there a
+   * moment ago.
+   */
+  let assets = $state({ images: {}, codes: {}, nonce: 0 });
 
-  // ── Reactive color roles ──────────────────────────────────────────────────
-  $: if (activeTheme === 'branded') bgColor = accentColor;
-  function applyTheme(t) {
-    activeTheme = t;
-    if      (t === 'dark')    bgColor = DARK.ground;
-    else if (t === 'branded') bgColor = accentColor;
-    else                      bgColor = LIGHT.ground;
+  const poster = $derived(history.present);
+  const selected = $derived(poster?.layers.find(layer => layer.id === selectedId) ?? null);
+  const eventUrl = $derived(`${window.location.origin}/events/${eventId}`);
+
+  /** Take a new document, remembering where the old one was. */
+  function change(next, reason = null) {
+    history = record(history, next, reason);
   }
 
-  $: ground      = paletteOn(bgColor);
-  $: onAccent    = paletteOn(accentColor);
-  $: bodyText    = ground.ink;
-  $: bodyMuted   = ground.muted;
-  $: headerText  = onAccent.ink;
-  $: qrDark      = ground.ink;
-  $: dividerColor = ground.line;
-  $: tags        = event?.tags ? event.tags.split(',').filter(Boolean) : [];
-  $: eventUrl    = `${window.location.origin}/events/${eventId}`;
-  $: accentRgb   = hexToRgb(accentColor);
-
-  // Re-render whenever any config dependency changes
-  $: configStamp = [accentColor, bgColor, fontKey, showDesc, showDateTime, showLocation,
-                    showTags, callout, customNote, imagePosition, customImageSrc].join('|');
-  $: if (previewCanvas && event && configStamp) scheduleRender();
-
-  function scheduleRender() {
-    clearTimeout(renderTimer);
-    renderTimer = setTimeout(() => renderToCanvas(previewCanvas), 90);
+  /** Change some properties of the layer that is selected. */
+  function changeSelected(properties, reason = null) {
+    if (!selected) return;
+    change(updateLayer(poster, selected.id, properties), reason);
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const isColorDark = isDark;
-  function hexToRgb(hex) {
-    const c = String(hex ?? '').replace('#', '');
-    if (c.length < 6) return hexToRgb(DEFAULT_ACCENT);
-    return `${parseInt(c.substr(0,2),16)},${parseInt(c.substr(2,2),16)},${parseInt(c.substr(4,2),16)}`;
-  }
-  const fmtDate = d => campusDate(d, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const fmtTime = d => campusTime(d);
-  function wrapText(ctx, text, maxWidth) {
-    const words = (text || '').split(' ');
-    const lines = []; let cur = '';
-    for (const w of words) {
-      const test = cur ? `${cur} ${w}` : w;
-      if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = w; }
-      else cur = test;
-    }
-    if (cur) lines.push(cur);
-    return lines;
-  }
-  // Draw image fitting within a box, maintaining aspect ratio; returns drawn height
-  function drawImageFit(ctx, img, x, y, maxW, maxH) {
-    const r = img.naturalWidth / img.naturalHeight;
-    let dw = maxW, dh = maxW / r;
-    if (dh > maxH) { dh = maxH; dw = maxH * r; }
-    ctx.drawImage(img, x + (maxW - dw) / 2, y, dw, dh);
-    return dh;
+  /** Lay the event out again from a template, throwing away what was there. */
+  function startFrom(key) {
+    forgetDesign(eventId);
+    history = newHistory(posterFrom(key, { event, rso, accent, eventUrl }));
+    selectedId = null;
   }
 
-  // ── Google Fonts loader ───────────────────────────────────────────────────
-  const loadedFonts = new Set();
-  async function ensureFont(font) {
-    if (!font.google) return;
-    if (!loadedFonts.has(font.key)) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = `https://fonts.googleapis.com/css2?family=${font.google}:ital,wght@0,400;0,700;1,400&display=swap`;
-      document.head.appendChild(link);
-      loadedFonts.add(font.key);
-    }
-    try {
-      await Promise.all([
-        document.fonts.load(`bold 48px "${font.name}"`),
-        document.fonts.load(`400 21px "${font.name}"`),
-      ]);
-    } catch {}
-  }
-
-  // ── QR + VIA logo overlay ─────────────────────────────────────────────────
-  // Logo viewBox: 1060 × 476 → ratio ≈ 2.227 (wide landscape)
-  const LOGO_RATIO = 1060 / 476;
-
-  async function makeQrCanvas(url, size) {
-    const qrEl = document.createElement('canvas');
-    await QRCode.toCanvas(qrEl, url, {
-      width: size, margin: 1, errorCorrectionLevel: 'H',
-      color: { dark: qrDark, light: bgColor },
+  /** Put something new on the poster, selected, because that is what was wanted. */
+  function add(kind, properties = {}) {
+    const layer = makeLayer(kind, {
+      x: 120,
+      y: 360,
+      ...(kind === 'qr' ? { href: eventUrl } : {}),
+      ...properties,
     });
-    await overlayLogo(qrEl);
-    return qrEl;
+    change(addLayer(poster, layer));
+    selectedId = layer.id;
   }
 
-  async function overlayLogo(qrCanvas) {
-    const ctx = qrCanvas.getContext('2d');
-    const sz  = qrCanvas.width;
+  // ── What the drawing needs loaded ───────────────────────────────────────
 
-    // Bounding area for logo: ~26% of QR width, centered
-    const areaW = Math.round(sz * 0.26);
-    const areaH = Math.round(areaW / LOGO_RATIO); // preserve 1060:476 ratio
-    const pad   = Math.max(3, Math.round(sz * 0.03));
+  /** Load a picture for every image layer that has one and has not been loaded. */
+  async function loadPictures(document_) {
+    for (const layer of document_.layers) {
+      if (layer.kind !== 'image' || !layer.src || assets.images[layer.id]?.src === layer.src) {
+        continue;
+      }
+      const picture = new Image();
+      picture.src = layer.src;
+      await picture.decode?.().catch(() => {});
+      assets = { ...assets, images: { ...assets.images, [layer.id]: picture }, nonce: assets.nonce + 1 };
+    }
+  }
 
-    const lx = Math.round((sz - areaW) / 2);
-    const ly = Math.round((sz - areaH) / 2);
+  /**
+   * The VIA mark, sitting in the middle of a link square.
+   *
+   * A square carries enough correction that a mark over its middle still
+   * scans, and the mark is what says the poster came from VIA. It is drawn on
+   * a pad of the square's own ground so that it is never read as part of the
+   * pattern, and inverted on a dark square so that it is visible at all.
+   */
+  async function markOn(square, layer) {
+    const context = square.getContext?.('2d');
+    if (!context) return;
+    const size = square.width;
+    const wide = Math.round(size * 0.26);
+    const tall = Math.round(wide / (1060 / 476));
+    const pad = Math.max(3, Math.round(size * 0.03));
+    const left = Math.round((size - wide) / 2);
+    const top = Math.round((size - tall) / 2);
 
-    const img = new Image();
-    img.src = '/via_logo_black.svg';
-    await new Promise(r => { img.onload = r; img.onerror = r; });
-    if (!img.naturalWidth) return;
+    const mark = new Image();
+    mark.src = '/via_logo_black.svg';
+    await new Promise(settle => { mark.onload = settle; mark.onerror = settle; });
+    if (!mark.naturalWidth) return;
 
-    // Background rect with padding
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(lx - pad, ly - pad, areaW + pad * 2, areaH + pad * 2);
-
-    if (isColorDark(bgColor)) {
-      ctx.save();
-      ctx.filter = 'invert(1)';
-      ctx.drawImage(img, lx, ly, areaW, areaH);
-      ctx.restore();
+    context.fillStyle = layer.background;
+    context.fillRect(left - pad, top - pad, wide + pad * 2, tall + pad * 2);
+    if (isDark(layer.background)) {
+      context.save();
+      context.filter = 'invert(1)';
+      context.drawImage(mark, left, top, wide, tall);
+      context.restore();
     } else {
-      ctx.drawImage(img, lx, ly, areaW, areaH);
+      context.drawImage(mark, left, top, wide, tall);
     }
   }
 
-  // ── Main render ───────────────────────────────────────────────────────────
-  async function renderToCanvas(canvas) {
-    if (!event) return;
-    const W = 800, H = 1050, M = 48;
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    const f   = selectedFont;
+  /** Draw a link square for every square layer whose colours or address changed. */
+  async function loadSquares(document_) {
+    for (const layer of document_.layers) {
+      if (layer.kind !== 'qr' || !layer.href) continue;
+      const asked = `${layer.href}|${layer.color}|${layer.background}`;
+      if (assets.codes[layer.id]?.asked === asked) continue;
 
-    await ensureFont(f);
-    const fc = f.css;
-
-    // Background
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, W, H);
-
-    // ── Header band ──────────────────────────────────────────────────────────
-    const BAND_H = (customImageObj && imagePosition === 'header') ? 230 : 185;
-    ctx.fillStyle = accentColor;
-    ctx.fillRect(0, 0, W, BAND_H);
-
-    // Custom image in header (right side, fit within band)
-    if (customImageObj && imagePosition === 'header') {
-      const imgH = BAND_H - 24;
-      const imgW = Math.min(imgH * (customImageObj.naturalWidth / customImageObj.naturalHeight), W - M * 2 - 220);
-      const ix = W - M - imgW;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(ix, 12, imgW, imgH);
-      ctx.clip();
-      drawImageFit(ctx, customImageObj, ix, 12, imgW, imgH);
-      ctx.restore();
-    }
-
-    // RSO name
-    ctx.fillStyle = headerText;
-    ctx.font = `bold 28px ${fc}`;
-    ctx.fillText(rso?.name || event.rso_name || '', M, Math.round(BAND_H * 0.52));
-    ctx.globalAlpha = 0.65;
-    ctx.font = `18px ${fc}`;
-    ctx.fillText('presents', M, Math.round(BAND_H * 0.73));
-    ctx.globalAlpha = 1;
-
-    // ── Body ─────────────────────────────────────────────────────────────────
-    // Left accent stripe
-    ctx.fillStyle = accentColor;
-    ctx.fillRect(0, BAND_H, 6, H - BAND_H);
-
-    let y = BAND_H + 52;
-
-    // Callout
-    if (callout.trim()) {
-      ctx.font = `bold 30px ${fc}`;
-      ctx.fillStyle = accentColor;
-      for (const line of wrapText(ctx, callout.trim(), W - M * 2).slice(0, 2)) {
-        ctx.fillText(line, M, y); y += 40;
-      }
-      y += 10;
-    }
-
-    // Title
-    ctx.fillStyle = bodyText;
-    ctx.font = `bold 48px ${fc}`;
-    for (const line of wrapText(ctx, event.title, W - M * 2).slice(0, 3)) {
-      ctx.fillText(line, M, y); y += 60;
-    }
-    y += 18;
-
-    // Custom image in body (below title)
-    if (customImageObj && imagePosition === 'body') {
-      const drawnH = drawImageFit(ctx, customImageObj, M, y, W - M * 2, 210);
-      y += drawnH + 22;
-    }
-
-    // Date / time / location
-    ctx.font = `21px ${fc}`;
-    ctx.fillStyle = bodyMuted;
-    if (showDateTime) {
-      // The date, the hour and the room are set as words. They used to be
-      // prefixed with emoji, which draw differently on every platform the
-      // poster is opened on, and the poster is a file somebody else opens.
-      ctx.fillText(fmtDate(event.start_time), M, y); y += 38;
-      ctx.fillText(`${fmtTime(event.start_time)} to ${fmtTime(event.end_time)}`, M, y); y += 38;
-    }
-    if (showLocation) {
-      ctx.fillText(locationLabel(event), M, y); y += 38;
-    }
-
-    // Description
-    if (showDesc && event.description && y < 720) {
-      y += 10;
-      ctx.font = `17px ${fc}`;
-      for (const line of wrapText(ctx, event.description, W - M * 2 - 20).slice(0, 3)) {
-        if (y < 745) { ctx.fillText(line, M, y); y += 25; }
+      try {
+        const square = window.document.createElement('canvas');
+        await QRCode.toCanvas(square, layer.href, {
+          width: 480, margin: 1, errorCorrectionLevel: 'H',
+          color: { dark: layer.color, light: layer.background },
+        });
+        await markOn(square, layer);
+        square.asked = asked;
+        assets = { ...assets, codes: { ...assets.codes, [layer.id]: square }, nonce: assets.nonce + 1 };
+      } catch {
+        // A square that could not be drawn leaves a gap rather than stopping
+        // the rest of the poster from being drawn.
       }
     }
-
-    // Tags
-    if (showTags && tags.length && y < 810) {
-      y = Math.max(y + 12, Math.min(y + 12, 795));
-      ctx.font = `bold 14px ${fc}`;
-      ctx.fillStyle = accentColor;
-      ctx.fillText(tags.join(',   '), M, y);
-    }
-
-    // Custom note
-    if (customNote.trim()) {
-      ctx.font = `italic 15px ${fc}`;
-      ctx.fillStyle = bodyMuted;
-      ctx.fillText(customNote.trim().slice(0, 90), M, 828);
-    }
-
-    // ── Footer ────────────────────────────────────────────────────────────────
-    ctx.strokeStyle = dividerColor;
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(M, 868); ctx.lineTo(W - M, 868); ctx.stroke();
-
-    ctx.fillStyle = bodyMuted;
-    ctx.font = `15px ${fc}`;
-    ctx.fillText('Scan for details', M, 922);
-
-    // QR + logo
-    try {
-      const qrEl = await makeQrCanvas(eventUrl, 160);
-      ctx.drawImage(qrEl, W - M - 160, 854, 160, 160);
-    } catch {}
   }
 
-  // ── Data ──────────────────────────────────────────────────────────────────
+  /**
+   * Put every face the poster uses in front of the browser and wait for it. A
+   * canvas draws with whatever is loaded at the moment it draws, so a poster
+   * drawn before its face arrived is set in the fallback, which is not what the
+   * board chose and not what would have downloaded.
+   */
+  async function loadFaces(document_) {
+    const keys = new Set(document_.layers.filter(one => one.kind === 'text').map(one => one.fontKey));
+    const faces = [...keys].map(key => fontFor(key)).filter(face => face?.google);
+    if (faces.length === 0) return;
+    await Promise.all(faces.map(face => ensureFont(face)));
+    assets = { ...assets, nonce: assets.nonce + 1 };
+  }
+
+  $effect(() => {
+    if (!poster) return;
+    const drawn = poster;
+    loadPictures(drawn);
+    loadSquares(drawn);
+    loadFaces(drawn);
+  });
+
+  /**
+   * Keep the design in this browser, against this event, as it is edited.
+   *
+   * The browser refuses a design larger than the few megabytes it gives a site,
+   * and it refuses it quietly. Left at that, a board member goes on working on
+   * something that stopped being saved several edits ago and finds out by
+   * reloading the page, which is the one moment the work cannot be got back. So
+   * a refusal is said out loud, and said once: the effect runs on every
+   * keystroke, and a warning on each of them would be its own kind of unusable.
+   */
+  $effect(() => {
+    if (!poster || loading) return;
+    const kept = writeDesign(eventId, poster);
+    if (kept) {
+      warnedNotKept = false;
+    } else if (!warnedNotKept) {
+      warnedNotKept = true;
+      showToast(
+        'This design is too large to keep in this browser, so it will not be here when you '
+        + 'come back. Download the poster before you close this page.',
+        'error',
+      );
+    }
+  });
+
+  // ── Data ────────────────────────────────────────────────────────────────
+
   onMount(async () => {
     if (isNaN(eventId) || isNaN(rsoId)) { navigate('/dashboard'); return; }
     try {
-      const [{ event: e }, { rso: r }] = await Promise.all([getEvent(eventId), getRso(rsoId)]);
-      event = e; rso = r;
+      const [{ event: loaded }, { rso: owner }] = await Promise.all([getEvent(eventId), getRso(rsoId)]);
+      event = loaded;
+      rso = owner;
       /**
        * An organization's colour is never shown as it was given, here least of
-       * all: a poster is pinned up beside other posters, so a neon that the feed
+       * all: a poster is pinned up beside other posters, so a neon the feed
        * would have calmed down would shout across a corridor.
        */
-      rsoAccentDefault = organizationColor(r?.logo_color, 'mark', $resolvedTheme);
-      accentColor = rsoAccentDefault;
-    } catch (err) { showToast(err.message, 'error'); }
-    finally { loading = false; }
+      accent = organizationColor(owner?.logo_color, 'mark', $resolvedTheme);
+
+      const kept = readDesign(eventId);
+      history = newHistory(kept ?? posterFrom(TEMPLATES[0].key, {
+        event: loaded, rso: owner, accent, eventUrl,
+      }));
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      loading = false;
+    }
   });
 
-  // ── Image upload ──────────────────────────────────────────────────────────
-  function handleImageUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // ── A picture off the board member's own machine ────────────────────────
+
+  /**
+   * How large a picture may be before the designer turns it down.
+   *
+   * A picture is kept inside the design, written as text, which is about a
+   * third larger again than the file it came from, and the whole design has to
+   * sit in the few megabytes a browser gives a site. Two megabytes leaves room
+   * for a second picture and for everything else on the sheet. A photograph
+   * straight off a phone is larger than this, which is exactly the case worth
+   * catching: it is turned down here, with the reason and what to do about it,
+   * rather than silently ending the saving of the design.
+   */
+  const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
+
+  function choosePicture(file) {
+    if (!file || !selected) return;
+
+    if (file.size > MAX_PICTURE_BYTES) {
+      showToast(
+        `That picture is too large to keep in this browser. Please choose one under ${
+          Math.round(MAX_PICTURE_BYTES / (1024 * 1024))} MB, or scale it down first.`,
+        'error',
+      );
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = ev => {
-      customImageSrc = ev.target.result;
-      const img = new Image();
-      img.onload = () => { customImageObj = img; scheduleRender(); };
-      img.src = ev.target.result;
-    };
+    reader.onload = () => changeSelected({ src: String(reader.result) });
+    reader.onerror = () => showToast('That picture could not be read.', 'error');
     reader.readAsDataURL(file);
   }
-  function clearImage() { customImageSrc = null; customImageObj = null; scheduleRender(); }
 
-  // ── Download ──────────────────────────────────────────────────────────────
+  // ── Download ────────────────────────────────────────────────────────────
+
   async function downloadPoster() {
-    if (!event || generating) return;
+    if (!poster || generating) return;
     generating = true;
     try {
-      const cv = document.createElement('canvas');
-      await renderToCanvas(cv);
-      const a = document.createElement('a');
-      a.download = `${(event.title||'event').replace(/[^a-z0-9]/gi,'-').toLowerCase()}-poster.png`;
-      a.href = cv.toDataURL('image/png');
-      a.click();
-    } catch { showToast('Could not generate poster', 'error'); }
-    finally { generating = false; }
-  }
+      const sheet = window.document.createElement('canvas');
+      sheet.width = poster.width;
+      sheet.height = poster.height;
+      const context = sheet.getContext('2d');
+      if (!context) throw new Error('This browser will not draw a poster.');
+      drawPoster(context, poster, assets);
 
-  function resetAll() {
-    accentColor = rsoAccentDefault; bgColor = LIGHT.ground;
-    fontKey = 'system-sans'; activeTheme = 'clean';
-    showDesc = showDateTime = showLocation = showTags = true;
-    callout = ''; customNote = '';
-    customImageSrc = null; customImageObj = null; imagePosition = 'body';
+      const link = window.document.createElement('a');
+      link.download = `${(event?.title ?? 'event').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-poster.png`;
+      link.href = sheet.toDataURL('image/png');
+      link.click();
+    } catch {
+      showToast('Could not draw the poster', 'error');
+    } finally {
+      generating = false;
+    }
   }
 </script>
 
@@ -450,167 +323,113 @@
     </Button>
     <h1 class="title">The poster designer</h1>
     <p class="about">
-      The poster is drawn as you change it, and what you see here is what downloads.
+      Everything on the sheet is yours to move. Press a piece of the poster to
+      pick it up, drag it where you want it, and change what it says and how it
+      is set in the panel beside it. The poster is drawn as you change it, and
+      what you see here is what downloads.
     </p>
   </div>
 
-  <div class="both">
-
-    <!-- ── What the poster is made of ─────────────────────────────────────── -->
-    <div class="asking">
-      <div class="resetting">
-        <Button variant="quiet" size="sm" onclick={resetAll}>Put everything back as it was</Button>
-      </div>
-
-      <fieldset class="group">
-        <legend>Theme</legend>
-        <div class="choices">
-          {#each THEMES as theme}
-            <button
-              type="button" class="check" aria-pressed={activeTheme === theme.key}
-              on:click={() => applyTheme(theme.key)}
-            >
-              <Pad hollow={activeTheme !== theme.key} />
-              <span>{theme.label}</span>
-            </button>
-          {/each}
-        </div>
-      </fieldset>
-
-      <fieldset class="group">
-        <legend>Colours</legend>
-        <div class="fld">
-          <label for="poster-accent">Accent</label>
-          <div class="in">
-            <Pad />
-            <input id="poster-accent" type="color" class="swatch" bind:value={accentColor} />
-            <span class="mono hex">{accentColor}</span>
-            {#if accentColor !== rsoAccentDefault}
-              <Button
-                variant="quiet" size="sm"
-                onclick={() => { accentColor = rsoAccentDefault; if (activeTheme === 'branded') bgColor = rsoAccentDefault; }}
-              >Back to the organization colour</Button>
-            {/if}
+  {#if loading}
+    <div class="bone" aria-hidden="true"></div>
+  {:else if !poster}
+    <p class="help">That event is not on VIA, so there is nothing to make a poster of.</p>
+  {:else}
+    <div class="both">
+      <!-- ── The poster, and what can be put on it ────────────────────────── -->
+      <div class="showing">
+        <div class="tools">
+          <div class="adding">
+            <Button variant="secondary" size="sm" onclick={() => add('text')}>Add words</Button>
+            <Button variant="secondary" size="sm" onclick={() => add('image')}>Add a picture</Button>
+            <Button variant="secondary" size="sm" onclick={() => add('shape')}>Add a shape</Button>
+            <Button variant="secondary" size="sm" onclick={() => add('qr')}>Add a link square</Button>
+          </div>
+          <div class="stepping">
+            <Button
+              variant="quiet" size="sm" disabled={!canUndo(history)}
+              onclick={() => { history = undo(history); }}
+            >Undo</Button>
+            <Button
+              variant="quiet" size="sm" disabled={!canRedo(history)}
+              onclick={() => { history = redo(history); }}
+            >Redo</Button>
           </div>
         </div>
-        <div class="fld">
-          <label for="poster-bg">Background</label>
-          <div class="in">
-            <Pad />
-            <input
-              id="poster-bg" type="color" class="swatch" bind:value={bgColor}
-              on:input={() => activeTheme = ''}
-            />
-            <span class="mono hex">{bgColor}</span>
-          </div>
-        </div>
-      </fieldset>
 
-      <fieldset class="group">
-        <legend>Typeface</legend>
-        <div class="fld">
-          <label for="poster-font">The face the poster is set in</label>
-          <div class="in">
-            <Pad />
-            <select
-              id="poster-font" bind:value={fontKey}
-              style="font-family: {selectedFont.css}; background: var(--paper)"
-            >
-              {#each FONT_GROUPS as group}
-                <optgroup label={group.label}>
-                  {#each group.fonts as font}
-                    <option value={font.key} style="font-family: {font.css}">{font.name}</option>
-                  {/each}
-                </optgroup>
-              {/each}
-            </select>
-          </div>
-          <p class="help" style="font-family: {selectedFont.css}">
-            The quick brown fox jumps over the lazy dog.
+        <PosterCanvas
+          {poster}
+          {selectedId}
+          {assets}
+          onselect={id => { selectedId = id; }}
+          onchange={(next, reason) => change(next, reason)}
+        />
+
+        <div class="under">
+          <Button
+            variant="primary" icon="arrow"
+            disabled={generating}
+            busy={generating}
+            onclick={downloadPoster}
+          >
+            {generating ? 'Drawing the poster' : 'Download the poster'}
+          </Button>
+          <p class="help">
+            800 by 1050 pixels, which prints and posts well. Your design is kept
+            in this browser, on this machine, so you can come back to it. Nobody
+            else on the board sees it, and it does not follow you to another
+            computer.
           </p>
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset class="group">
-        <legend>An image of your own</legend>
-        {#if customImageSrc}
-          <img src={customImageSrc} alt="What this poster carries" class="shown" />
-          <Button variant="secondary" size="sm" onclick={clearImage}>Take the image off</Button>
-          <div class="choices">
-            {#each PLACES as place}
-              <button
-                type="button" class="check" aria-pressed={imagePosition === place.key}
-                on:click={() => imagePosition = place.key}
-              >
-                <Pad hollow={imagePosition !== place.key} />
-                <span>{place.label}</span>
+      <!-- ── The layers, and what the selected one is made of ─────────────── -->
+      <div class="asking">
+        <fieldset class="group">
+          <legend>Start again from</legend>
+          <div class="templates">
+            {#each TEMPLATES as template}
+              <button type="button" class="template" onclick={() => startFrom(template.key)}>
+                <b>{template.name}</b>
+                <span>{template.about}</span>
               </button>
             {/each}
           </div>
-        {:else}
-          <label class="upload">
-            <span>Add an image</span>
-            <input type="file" accept="image/*" on:change={handleImageUpload} />
-          </label>
-        {/if}
-      </fieldset>
+        </fieldset>
 
-      <fieldset class="group">
-        <legend>What the poster carries</legend>
-        <div class="settings">
-          {#each PIECES as piece}
-            {@const on = pieceIsOn(piece.key, showDesc, showDateTime, showLocation, showTags)}
-            <div class="setting">
-              <Switch label={piece.label} checked={on} onchange={next => setPiece(piece.key, next)} />
-              <span>{piece.label}</span>
-            </div>
-          {/each}
-        </div>
-      </fieldset>
+        <fieldset class="group">
+          <legend>What is on the poster</legend>
+          <ul class="layers">
+            {#each [...poster.layers].reverse() as layer (layer.id)}
+              <li>
+                <button
+                  type="button"
+                  class="layer"
+                  class:picked={layer.id === selectedId}
+                  aria-pressed={layer.id === selectedId}
+                  onclick={() => { selectedId = layer.id; }}
+                >
+                  <span class="what">{layer.name}</span>
+                  {#if layer.hidden}<span class="off">off the poster</span>{/if}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </fieldset>
 
-      <fieldset class="group">
-        <legend>Words of your own</legend>
-        <Field
-          label="Callout" id="poster-callout" bind:value={callout} maxlength="60"
-          placeholder="Free food from six"
-          help="Set large on the poster, in the accent colour."
+        <PosterInspector
+          layer={selected}
+          background={poster.background}
+          onchange={properties => changeSelected(properties)}
+          onbackground={colour => change({ ...poster, background: colour }, 'ground')}
+          onraise={steps => change(raiseLayer(poster, selected.id, steps))}
+          onremove={() => { change(removeLayer(poster, selected.id)); selectedId = null; }}
+          onduplicate={() => change(duplicateLayer(poster, selected.id))}
+          onpicture={choosePicture}
         />
-        <Field
-          label="A note at the foot" id="poster-note" bind:value={customNote} maxlength="90"
-          placeholder="Open to every student"
-          help="Set small, near the bottom of the poster."
-        />
-      </fieldset>
-    </div>
-
-    <!-- ── The poster itself ──────────────────────────────────────────────── -->
-    <div class="showing">
-      <div class="tools">
-        <Button
-          variant="primary" icon="arrow"
-          disabled={!event || generating || loading}
-          busy={generating}
-          onclick={downloadPoster}
-        >
-          {generating ? 'Drawing the poster' : 'Download the poster'}
-        </Button>
       </div>
-
-      {#if loading}
-        <div class="bone" aria-hidden="true"></div>
-      {:else if event}
-        <canvas
-          bind:this={previewCanvas}
-          class="poster-preview"
-          style="border-color: {accentColor}"
-          aria-label="The poster as it will download"
-        ></canvas>
-        <p class="help">800 by 1050 pixels, which prints and posts well.</p>
-      {:else}
-        <p class="help">That event is not on VIA, so there is nothing to make a poster of.</p>
-      {/if}
     </div>
-  </div>
+  {/if}
 </div>
 
 <style>
@@ -645,21 +464,49 @@
     max-width: 62ch;
   }
 
+  /*
+   * The poster comes first and the controls stand beside it, because the
+   * poster is the thing being made and the controls are what is being done to
+   * it. On a phone the controls fall under the poster.
+   */
   .both {
     display: grid;
-    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 330px;
     gap: 40px;
     align-items: start;
+  }
+
+  .showing {
+    display: grid;
+    gap: 16px;
+    justify-items: start;
+  }
+
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    align-items: center;
+  }
+
+  .adding,
+  .stepping {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+
+  .under {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+    max-width: 640px;
   }
 
   .asking {
     display: grid;
     gap: 26px;
     align-content: start;
-  }
-
-  .resetting {
-    justify-self: start;
   }
 
   .group {
@@ -669,14 +516,9 @@
     display: grid;
     gap: 12px;
     align-content: start;
-    justify-items: start;
   }
 
-  /*
-   * The name of a group is a label on the group, in the display face at the
-   * size a field label takes. It used to be set in small uppercase above the
-   * group, which is the eyebrow label the design does not use.
-   */
+  /* The name of a group is a label on it, in the display face at label size. */
   .group legend {
     font-family: var(--display);
     font-stretch: 80%;
@@ -685,168 +527,114 @@
     padding: 0;
   }
 
-  .choices {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 20px;
+  .templates {
+    display: grid;
+    gap: 2px;
   }
 
-  .check {
+  .template {
     font: inherit;
-    font-size: 14.5px;
+    text-align: left;
     background: none;
     border: 0;
-    padding: 0;
-    gap: 10px;
-    color: var(--ink);
+    padding: 8px 10px;
     cursor: pointer;
+    display: grid;
+    gap: 2px;
+    color: var(--ink);
   }
 
-  .check[aria-pressed="false"] span {
-    color: var(--muted);
+  .template:hover {
+    background: var(--well);
   }
 
-  .check:focus-visible {
+  .template:focus-visible {
     outline: 2px solid var(--primary);
-    outline-offset: 4px;
+    outline-offset: -2px;
   }
 
-  .fld {
-    width: 100%;
+  .template b {
+    font-family: var(--display);
+    font-stretch: 85%;
+    font-weight: 700;
+    font-size: 14.5px;
   }
 
-  .fld .in select {
-    font: inherit;
-    font-size: 16px;
-    border: 0;
-    color: var(--ink);
-    outline: 0;
-    width: 100%;
-    padding: 2px 0;
-  }
-
-  .swatch {
-    width: 44px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    background: none;
-    cursor: pointer;
-    flex: none;
-  }
-
-  .hex {
-    font-family: var(--mono);
+  .template span {
     font-size: 13px;
     color: var(--muted);
   }
 
-  .help {
-    font-size: 12.5px;
-    color: var(--muted);
+  .layers {
+    list-style: none;
     margin: 0;
-    max-width: 52ch;
-  }
-
-  .settings {
+    padding: 0;
     display: grid;
-    gap: 10px;
+    gap: 1px;
+    max-height: 260px;
+    overflow: auto;
   }
 
-  .setting {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 14.5px;
-  }
-
-  /*
-   * The upload target is the field's line rather than a dashed rectangle, and
-   * the input itself is taken out of the flow but left reachable by keyboard.
-   */
-  .upload {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 32px;
-    font-family: var(--display);
-    font-stretch: 85%;
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--primary);
-    border-bottom: 2px solid var(--line-strong);
-    padding: 6px 0;
+  .layer {
+    font: inherit;
+    font-size: 14px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 7px 10px;
     cursor: pointer;
-  }
-
-  .upload:focus-within {
-    border-bottom-color: var(--primary);
-  }
-
-  .upload input {
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    position: absolute;
-  }
-
-  .shown {
-    width: 100%;
-    max-height: 96px;
-    object-fit: cover;
-  }
-
-  .showing {
-    display: grid;
-    gap: 16px;
-    justify-items: start;
-    min-width: 0;
-  }
-
-  .tools {
+    color: var(--ink);
     display: flex;
-    flex-wrap: wrap;
-    gap: 18px;
-    align-items: center;
+    gap: 10px;
+    align-items: baseline;
   }
 
-  /*
-   * The poster floats above the page while it is being worked on, which is the
-   * one thing on a board tool that carries a shadow.
-   */
-  .poster-preview {
-    display: block;
-    width: 100%;
-    max-width: 520px;
-    border: 2px solid var(--line-strong);
+  .layer:hover {
+    background: var(--well);
   }
 
-  /* Loading draws the shape of the poster in the well colour, with no shimmer. */
+  .layer.picked {
+    background: var(--primary-soft);
+    color: var(--primary-soft-fg);
+  }
+
+  .layer:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+
+  .what {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .off {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .help {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    max-width: 62ch;
+  }
+
+  /* What stands where the poster will be until the event has arrived. */
   .bone {
     width: 100%;
-    max-width: 520px;
+    max-width: 640px;
     aspect-ratio: 800 / 1050;
     background: var(--well);
   }
 
   @media (max-width: 900px) {
     .both {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 28px;
     }
-  }
-
-  /*
-   * A field written out here rather than taken from the Field component still
-   * has to carry the state on its line, so the rule and the pad turn primary
-   * when whatever sits between them has the focus.
-   */
-  .fld .in:focus-within {
-    border-color: var(--primary);
-    box-shadow: 0 2px 0 0 var(--primary);
-  }
-
-  .fld .in:focus-within :global(.pad) {
-    --h: var(--primary);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
   }
 </style>

@@ -7,6 +7,7 @@ import { createReadingRouter } from './reading.js';
 import { createOutboxRouter } from './outbox.js';
 import { createActingRouter } from './acting.js';
 import { createCalendarsRouter } from './calendars.js';
+import { createGuildsRouter } from './guilds.js';
 
 /**
  * The internal service API, served to the Discord bot on the private network.
@@ -46,6 +47,7 @@ export function createInternalRouter({ version, onDenied }) {
   router.use(createOutboxRouter());
   router.use(createActingRouter());
   router.use(createCalendarsRouter());
+  router.use(createGuildsRouter());
 
   router.use((_req, res) => {
     sendApiError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.');

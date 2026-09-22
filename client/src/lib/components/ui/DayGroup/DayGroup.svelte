@@ -67,10 +67,10 @@
       a day at a time. "Today" on its own does not say which day it is, so the
       date travels with it, and the part already on screen is not read twice.
     -->
-    <h3>
+    <h2>
       <b>{name}</b>
       <span><time datetime={machine}>{date}</time></span>
-    </h3>
+    </h2>
     <Pad hollow={!today} tone={today ? 'var(--signal)' : undefined} breathing={today} pace={today ? '2s' : null} />
   </div>
   <div>{@render children?.()}</div>
@@ -82,7 +82,7 @@
    * from .day .dh b and the date from .day .dh span, which is what the reference
    * render was approved on, so the heading is a wrapper and nothing more.
    */
-  h3 {
+  h2 {
     font: inherit;
     margin: 0;
     display: contents;

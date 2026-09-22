@@ -57,6 +57,12 @@
     --sky-evening:linear-gradient(180deg,#ffd2bb 0%,#fbe3d9 30%,#d9f1f1 68%,var(--paper) 100%);
     --sky-night:linear-gradient(180deg,#0f2224 0%,#1c3538 45%,#4b5f60 80%,var(--paper) 100%);
     --sky-night-top:#0f2224;
+    /* The colour each sky begins at, which is the colour at the top of the band.
+       A control standing up there fills with it, so that it reads as a button on
+       the sky rather than a hole cut in one. */
+    --sky-morning-top:#fff1d6;
+    --sky-afternoon-top:#d8f3f3;
+    --sky-evening-top:#ffd2bb;
     /* How wide the band, the page and the footer are allowed to run. */
     --wrap:1320px;
     --sky-ink:var(--ink);
@@ -91,6 +97,9 @@
       --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
       --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
       --sky-night-top:#05090a;
+      --sky-morning-top:#2a2416;
+      --sky-afternoon-top:#0f2e2f;
+      --sky-evening-top:#3a1b12;
       --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
       --lamp:22%;--lamp-hover:38%;--lamp-poster:26%;
       --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
@@ -117,6 +126,9 @@
     --sky-evening:linear-gradient(180deg,#3a1b12 0%,#2a1712 30%,#0f2e2f 68%,var(--paper) 100%);
     --sky-night:linear-gradient(180deg,#05090a 0%,#0a1516 45%,#0f2224 80%,var(--paper) 100%);
     --sky-night-top:#05090a;
+    --sky-morning-top:#2a2416;
+    --sky-afternoon-top:#0f2e2f;
+    --sky-evening-top:#3a1b12;
     --g-current:linear-gradient(160deg,#52d0d5 0%,#2fc4c8 60%,#0a9a9e 100%);
     --lamp:22%;--lamp-hover:38%;--lamp-poster:26%;
     --shadow-float:0 2px 6px rgba(0,0,0,.5),0 20px 48px -12px rgba(0,0,0,.7);
@@ -208,7 +220,7 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke
 .empty b{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:30px;line-height:1;display:block}
 .empty p{color:var(--ink-2);font-size:14px;margin-top:8px;max-width:44ch}
 .st{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:14px}
-.skyband{background:var(--sky-evening);--cut:44px;padding:0 0 34px;position:relative;overflow:hidden}
+.skyband{background:var(--sky-evening);--btn-fill:var(--sky-evening-top);--cut:44px;padding:0 0 34px;position:relative;overflow:hidden}
 .skyband.night{background:var(--sky-night);--btn-fill:var(--sky-night-top);--sky-ink:#e6f0f0;--ink:#e6f0f0;--ink-2:#c3d3d3;--muted:#8fa8a8;--faint:#5f7879;--signal:#ff8a66;--signal-text:#ff8a66;color:#e6f0f0}
 .nav{height:64px;display:flex;align-items:center;gap:26px;padding:0 28px}
 .nav .w{font-family:var(--display);font-stretch:75%;font-weight:600;font-size:14px;color:var(--ink-2);margin-left:-12px}
@@ -385,7 +397,6 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.9;stroke
 .btn.danger.cut::before{background:var(--paper)}
 .btn.primary.cut{--w:0px;background:var(--ink)}
 .btn.primary.cut::before{background:var(--g-current)}
-.skyband .btn.secondary.cut::before{background:transparent}
 .btn:focus-visible,.btn.focus{outline:none}
 .btn.cut:focus-visible,.btn.cut.focus{--w:3px;background:var(--primary)}
 .btn.primary.cut:focus-visible,.btn.primary.cut.focus{--w:3px;background:var(--ink)}

@@ -150,3 +150,21 @@ describe('Poster', () => {
     expect(container.textContent).toContain('Cancelled');
   });
 });
+
+/**
+ * The card heads the event with an h1 and then headed each of its panels with
+ * an h4, skipping two levels. A screen reader moving by heading reads that as
+ * two missing sections, and the outline is also what an assistant reads to
+ * work out what a page is made of. The size each one is set at is the
+ * stylesheet's business and has not moved.
+ */
+describe('where the panels sit in the outline', () => {
+  it('heads each panel one level under the event, not three', () => {
+    const { container } = render(Poster, {
+      event: EVENT, url: 'https://viaillinois.com/events/1', onBoard: true,
+      onaddToCalendar: () => {}, oncopyLink: () => {},
+    });
+    expect(container.querySelector('h4')).toBe(null);
+    expect(container.querySelectorAll('h2').length).toBeGreaterThan(0);
+  });
+});

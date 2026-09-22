@@ -143,3 +143,102 @@ export async function createRso(data) {
 export async function deleteRso(rsoId) {
   return query('DELETE FROM RSOs WHERE rso_id = ?', [rsoId])
 }
+
+/**
+ * The organizations that have something to show a reader.
+ *
+ * An organization with no public event has an empty page, and an empty page is
+ * exactly the thin content a search engine discovers and then declines to
+ * index, so only the ones with at least one public event that was not called
+ * off are published. The counts and the dates are what the page and the
+ * sitemap both need, so they are read here rather than in a second query per
+ * organization.
+ *
+ * @returns {Promise<Array<{ rso_id, name, description, founded_year, logo_color,
+ *   event_count, upcoming_count, last_change }>>}
+ */
+export async function getPublicOrganizations() {
+  return query(
+    `SELECT
+        r.rso_id,
+        r.name,
+        r.description,
+        r.founded_year,
+        r.logo_color,
+        COUNT(e.event_id) AS event_count,
+        SUM(CASE WHEN e.start_time >= NOW() THEN 1 ELSE 0 END) AS upcoming_count,
+        MAX(e.updated_at) AS last_change
+     FROM RSOs r
+     JOIN Events e
+       ON e.rso_id = r.rso_id
+      AND e.is_private = FALSE
+      AND e.cancelled_at IS NULL
+     GROUP BY r.rso_id, r.name, r.description, r.founded_year, r.logo_color
+     ORDER BY r.name`
+  )
+}
+
+/** One published organization, or nothing where it has no public events. */
+export async function getPublicOrganization(rsoId) {
+  const rows = await query(
+    `SELECT
+        r.rso_id,
+        r.name,
+        r.description,
+        r.founded_year,
+        r.logo_color,
+        COUNT(e.event_id) AS event_count,
+        SUM(CASE WHEN e.start_time >= NOW() THEN 1 ELSE 0 END) AS upcoming_count,
+        MAX(e.updated_at) AS last_change
+     FROM RSOs r
+     JOIN Events e
+       ON e.rso_id = r.rso_id
+      AND e.is_private = FALSE
+      AND e.cancelled_at IS NULL
+     WHERE r.rso_id = ?
+     GROUP BY r.rso_id, r.name, r.description, r.founded_year, r.logo_color`,
+    [rsoId]
+  )
+  return rows[0] ?? null
+}
+
+/**
+ * The public events of one organization, the ones still to come first and the
+ * recent ones after them.
+ *
+ * Both are on the page because both are what somebody deciding whether to
+ * follow an organization is reading for: what is next, and whether anything
+ * has been happening. A cancelled event is left off, as it is everywhere a
+ * listing is drawn for somebody who is not on the board.
+ *
+ * @param {number} rsoId
+ * @param {{ upcomingLimit?: number, pastLimit?: number }} [limits]
+ */
+export async function getPublicEventsForRso(rsoId, { upcomingLimit = 50, pastLimit = 20 } = {}) {
+  const columns = `
+      e.event_id, e.title, e.description, e.start_time, e.end_time,
+      e.is_private, e.cancelled_at, e.rso_id, r.name AS rso_name,
+      e.location_text, l.building, l.room_number,
+      GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ', ') AS tags`
+
+  const from = `
+     FROM Events e
+     JOIN RSOs r ON e.rso_id = r.rso_id
+     LEFT JOIN Locations l ON e.location_id = l.location_id
+     LEFT JOIN Event_Tags t ON e.event_id = t.event_id
+    WHERE e.rso_id = ? AND e.is_private = FALSE AND e.cancelled_at IS NULL`
+
+  const [upcoming, past] = await Promise.all([
+    query(
+      `SELECT ${columns} ${from} AND e.start_time >= NOW()
+       GROUP BY e.event_id ORDER BY e.start_time ASC LIMIT ?`,
+      [rsoId, upcomingLimit]
+    ),
+    query(
+      `SELECT ${columns} ${from} AND e.start_time < NOW()
+       GROUP BY e.event_id ORDER BY e.start_time DESC LIMIT ?`,
+      [rsoId, pastLimit]
+    ),
+  ])
+  return { upcoming, past }
+}

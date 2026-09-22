@@ -17,9 +17,14 @@ export async function callGetRSOStats(rsoId) {
 
 /**
  * Atomically create an event + tags under SERIALIZABLE isolation.
+ *
+ * Another event in the room refuses the write. A facility reservation does not,
+ * and is reported back instead, because it is very often the organization's own
+ * booking arriving here before the event is entered.
+ *
  * @param {{ rso_id, created_by, location_id, title, description, start_time, end_time, is_private }} eventData
  * @param {string[]} tagNames
- * @returns {Promise<{ eventId?: number, conflict?: true, unauthorized?: true }>}
+ * @returns {Promise<{ eventId?: number, reserved?: boolean, conflict?: true, unauthorized?: true }>}
  */
 export async function createEventTransactional(eventData, tagNames = [], isGlobalAdmin = false) {
   const conn = await pool.getConnection()
@@ -29,26 +34,35 @@ export async function createEventTransactional(eventData, tagNames = [], isGloba
 
     // Advanced query 1. Only a room can be double booked. An event with no room,
     // or one whose location is free text, has nothing to collide with.
+    //
+    // The two kinds of occupancy are answered differently. Another event is a
+    // clash, because a room given to two events is something VIA created and
+    // can refuse. A reservation collected from Ad Astra or from Tableau is not,
+    // because it is very often the organization's own booking, which reaches
+    // VIA days or weeks before anybody enters the event. Refusing those turned
+    // an organization away from the room it had actually booked. The
+    // reservation is reported instead, and the event is written.
+    let reserved = false
     if (eventData.location_id) {
-      const [conflicts] = await conn.query(
-        `SELECT location_id FROM (
-           SELECT location_id FROM Events
+      const [occupied] = await conn.query(
+        `SELECT DISTINCT source FROM (
+           SELECT 'event' AS source FROM Events
            WHERE location_id = ? AND start_time < ? AND end_time > ? AND cancelled_at IS NULL
            UNION ALL
-           SELECT location_id FROM Facility_Reservations
+           SELECT 'reservation' AS source FROM Facility_Reservations
            WHERE location_id = ? AND start_time < ? AND end_time > ?
-         ) AS occupied
-         LIMIT 1`,
+         ) AS occupied`,
         [
           eventData.location_id, eventData.end_time,   eventData.start_time,
           eventData.location_id, eventData.end_time,   eventData.start_time,
         ]
       )
 
-      if (conflicts.length > 0) {
+      if (occupied.some(row => row.source === 'event')) {
         await conn.rollback()
         return { conflict: true }
       }
+      reserved = occupied.length > 0
     }
 
     // Advanced query 2
@@ -86,7 +100,7 @@ export async function createEventTransactional(eventData, tagNames = [], isGloba
     await recordEventCreatedOnConnection(conn, eventId)
 
     await conn.commit()
-    return { eventId }
+    return { eventId, reserved }
   } catch (err) {
     await conn.rollback()
     throw err

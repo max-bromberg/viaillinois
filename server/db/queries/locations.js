@@ -19,12 +19,14 @@ export async function upsertLocation(building, roomNumber, capacity = 30) {
 }
 
 /**
- * Get location IDs that are occupied during a time window.
- * Used by intelligentScheduler to filter out busy rooms.
+ * Get location IDs that are occupied during a time window, with where each
+ * reading came from.
+ * Used by intelligentScheduler to filter out busy rooms, and by the booking
+ * check, which answers an event and a reservation differently.
  * @param {string} startTime - ISO datetime
  * @param {string} endTime   - ISO datetime
  * @param {number} [excludeEventId] - Optional event ID to exclude from conflict check (for updates)
- * @returns {Promise<Array<{ location_id: number }>>}
+ * @returns {Promise<Array<{ location_id: number, source: 'event'|'reservation' }>>}
  */
 export async function getOccupiedDuring(startTime, endTime, excludeEventId) {
   let eventCondition = ''
@@ -36,11 +38,11 @@ export async function getOccupiedDuring(startTime, endTime, excludeEventId) {
   params.push(endTime, startTime)
   return query(
     `
-    SELECT DISTINCT location_id FROM (
-      SELECT location_id FROM Events
+    SELECT DISTINCT location_id, source FROM (
+      SELECT location_id, 'event' AS source FROM Events
       WHERE start_time < ? AND end_time > ? AND cancelled_at IS NULL ${eventCondition}
       UNION ALL
-      SELECT location_id FROM Facility_Reservations
+      SELECT location_id, 'reservation' AS source FROM Facility_Reservations
       WHERE start_time < ? AND end_time > ?
     ) AS occupied_locations
     `,

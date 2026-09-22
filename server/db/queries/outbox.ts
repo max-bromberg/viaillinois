@@ -456,3 +456,52 @@ export async function recordLinkRevoked(
     payload: { discord_user_id: discordUserId, net_id: netId },
   });
 }
+
+/**
+ * A board disconnected its Discord server from the dashboard.
+ *
+ * The binding lives in the bot's database, so the website cannot clear it. It
+ * clears its own mirror, so the board sees the answer at once, and leaves this
+ * for the bot to apply where the binding actually is. The bot is not asked
+ * synchronously, because a board should not be told their request failed
+ * because the bot happened to be restarting.
+ */
+export async function recordGuildUnbound(
+  { guildId, rsoId }: { guildId: string, rsoId: number },
+) {
+  return writeOutbox({
+    kind: 'guild.unbound', subjectType: 'guild', subjectId: guildId, rsoId,
+    payload: { guild_id: guildId, rso_id: rsoId },
+  });
+}
+
+/**
+ * Somebody changed, on the website, what they want to hear about.
+ *
+ * Following an organization and asking for a reminder both belong to the bot,
+ * because the bot is what sends the message, and the website cannot reach the
+ * tables they live in. So the choice is written to the website's own mirror,
+ * which is what the page reads back, and left here for the bot to apply where
+ * it counts.
+ *
+ * The subject is the organization or the event, and wanted says which way the
+ * control was moved. Both directions are entries, because stopping is a change
+ * the bot has to hear about exactly as much as starting.
+ */
+export async function recordOptInChanged(
+  { discordUserId, subject, subjectId, wanted }:
+  { discordUserId: string, subject: 'rso' | 'event', subjectId: number, wanted: boolean },
+) {
+  return writeOutbox({
+    kind: 'optin.changed',
+    subjectType: subject,
+    subjectId,
+    rsoId: subject === 'rso' ? subjectId : null,
+    payload: {
+      discord_user_id: discordUserId,
+      subject,
+      subject_id: subjectId,
+      wanted,
+    },
+  });
+}

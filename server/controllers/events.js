@@ -4,7 +4,7 @@ import * as rsoDb from '../db/queries/rso.js';
 import * as advancedDb from '../db/queries/advanced.js';
 import * as seriesDb from '../db/queries/eventSeries.js';
 import { planSeries, splitByBusyRoom } from '../services/recurringEvents.js';
-import { checkConflict } from '../services/conflictDetector.js';
+import { occupancyInRoom } from '../services/conflictDetector.js';
 import { timeOfDay, durationMinutes, addMinutes, toWallClock } from '../lib/recurrence.js';
 import { readPaging, PAGING_LIMITS } from '../lib/pagination.js';
 import { recordDenial } from '../services/denialRecorder.js';
@@ -207,7 +207,10 @@ export async function createEvent(req, res, next) {
     );
     if (result.conflict)     return res.status(409).json({ error: 'Location is already booked for this time' });
     if (result.unauthorized) return res.status(403).json({ error: 'RSO editor access required' });
-    res.status(201).json({ event_id: result.eventId });
+    // A room the facilities sources show as reserved does not refuse the event,
+    // because the reservation is very often the organization's own. The answer
+    // carries it so that the board is told what the room already shows.
+    res.status(201).json({ event_id: result.eventId, reserved: result.reserved === true });
   } catch (err) { next(err); }
 }
 
@@ -218,10 +221,15 @@ export async function createEvent(req, res, next) {
  * what boards were doing instead, and it is why feeds went stale halfway
  * through a term.
  *
- * A week whose room is already taken is left out rather than failing the whole
+ * A week whose room another event has is left out rather than failing the whole
  * series, and the response says which dates those were, so the board can see
  * what happened and book those weeks somewhere else. A repeat where every week
  * is taken is a conflict, and nothing is written.
+ *
+ * A week whose room is merely reserved is kept and reported instead. The
+ * reservation is very often the organization's own booking, which reaches VIA
+ * from the facilities sources before anybody enters the repeat, so refusing it
+ * turned an organization away from the room it had actually booked.
  */
 export async function createEventSeries(req, res, next) {
   try {
@@ -243,11 +251,12 @@ export async function createEventSeries(req, res, next) {
 
     let occurrences = plan.occurrences;
     let skipped = [];
+    let reserved = [];
     if (location_id) {
       const busy = await seriesDb.busyInRoom(
         location_id, plan.occurrences[0].start, plan.occurrences.at(-1).end
       );
-      ({ keep: occurrences, skipped } = splitByBusyRoom(plan.occurrences, busy));
+      ({ keep: occurrences, skipped, reserved } = splitByBusyRoom(plan.occurrences, busy));
       if (occurrences.length === 0) {
         return res.status(409).json({ error: 'Location is already booked for every date in this repeat' });
       }
@@ -268,6 +277,7 @@ export async function createEventSeries(req, res, next) {
       event_ids: eventIds,
       created: eventIds.length,
       skipped,
+      reserved,
     });
   } catch (err) { next(err); }
 }
@@ -349,9 +359,14 @@ export async function updateEvent(req, res, next) {
     // organizer moved on its own.
     if (scope === 'one' || !event.series_id) {
       // Two events with no room cannot collide, so there is nothing to check.
+      // Another event in the room refuses the edit. A reservation does not, and
+      // travels back in the answer instead, because it is very often this
+      // organization's own booking.
+      let reserved = false;
       if (location_id && start_time && end_time) {
-        const conflict = await checkConflict(location_id, start_time, end_time, eventId);
-        if (conflict) return res.status(409).json({ error: 'Location is already booked for this time' });
+        const occupied = await occupancyInRoom(location_id, start_time, end_time, eventId);
+        if (occupied.event) return res.status(409).json({ error: 'Location is already booked for this time' });
+        reserved = occupied.reservation;
       }
       await eventsDb.updateEvent(eventId, {
         location_id, location_text, title, description, start_time, end_time, is_private, ...note,
@@ -370,7 +385,7 @@ export async function updateEvent(req, res, next) {
       // join, and it names what changed by comparing the event as it stood
       // with the event as it now is.
       await outbox.recordEventUpdated(event, { reason: readReason(req.body) });
-      return res.json({ ok: true, updated: 1 });
+      return res.json({ ok: true, updated: 1, reserved });
     }
 
     // The form posts what a browser date and time field holds, with a T where
@@ -390,20 +405,24 @@ export async function updateEvent(req, res, next) {
     const covered = await seriesDb.occurrencesOfSeries(event.series_id, { from });
     const projected = projectOccurrences(covered, startOfDay, minutes);
 
-    // Moving a whole series into a room somebody else has booked cannot quietly
-    // leave those weeks behind: the events already exist, so the answer is no,
-    // with the weeks that are in the way named.
+    // Moving a whole series into a room another event has cannot quietly leave
+    // those weeks behind: the events already exist, so the answer is no, with
+    // the weeks that are in the way named. A week the room is merely reserved
+    // on is allowed and named, since that booking is very often this
+    // organization's own.
+    let reservedWeeks = [];
     if (location_id && projected.length > 0) {
       const busy = await seriesDb.busyInRoom(
         location_id, projected[0].start, projected.at(-1).end, { excludeSeriesId: event.series_id }
       );
-      const { skipped } = splitByBusyRoom(projected, busy);
+      const { skipped, reserved } = splitByBusyRoom(projected, busy);
       if (skipped.length > 0) {
         return res.status(409).json({
           error: 'Location is already booked on some of these dates',
           conflicts: skipped,
         });
       }
+      reservedWeeks = reserved;
     }
 
     const result = await seriesDb.applyToSeries(event.series_id, {
@@ -422,7 +441,7 @@ export async function updateEvent(req, res, next) {
     // is what names the fields that changed.
     await outbox.recordSeriesUpdated(event.series_id, { affectedEventIds: reached, sample: event });
 
-    res.json({ ok: true, updated: result.affectedRows });
+    res.json({ ok: true, updated: result.affectedRows, reserved: reservedWeeks });
   } catch (err) { next(err); }
 }
 

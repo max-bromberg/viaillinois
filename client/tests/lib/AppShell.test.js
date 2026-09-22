@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, waitFor } from '@testing-library/svelte';
 
 const getMe = vi.hoisted(() => vi.fn());
@@ -44,7 +46,9 @@ describe('the shell', () => {
     const { container } = render(App);
     await waitFor(() => expect(container.querySelector('.nav')).toBeTruthy());
     const going = [...container.querySelectorAll('.nav .links a')].map(link => link.getAttribute('href'));
-    expect(going).toEqual(['/', '/calendar', '/midterms', '/about']);
+    expect(going).toEqual([
+      '/', '/calendar', '/organizations', '/midterms', '/notifications', '/about',
+    ]);
   });
 
   it('marks the page that is open', async () => {
@@ -163,5 +167,59 @@ describe('the sky in the shell', () => {
     await waitFor(() => expect(container.querySelector('.clock .d')).toBeTruthy());
     const { campusSky } = await import('../../src/lib/campusTime.js');
     expect(container.querySelector('.clock .d').textContent).toContain(`${campusSky(new Date()).sky} over Urbana`);
+  });
+});
+
+/**
+ * Two things the document does before anything has loaded.
+ *
+ * The three faces are named in the stylesheet, so the browser only learns they
+ * exist once it has fetched and parsed a stylesheet that is itself holding the
+ * first paint. Asking for the two the page is set in up front takes a round
+ * trip out of the path to readable text, and out of the reflow that lands when
+ * a face swaps in under text already painted in the fallback.
+ *
+ * The page body is also given a height to start at. Without one, the body is
+ * nothing tall until the feed arrives, and everything under it moves down the
+ * moment it does, which is what the layout shift on the front page was.
+ */
+describe('the document the server sends', () => {
+  const shell = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+
+  it.each([
+    'BricolageGrotesque-latin.woff2',
+    'IBMPlexSans-latin.woff2',
+  ])('asks for %s before the stylesheet names it', file => {
+    const preload = new RegExp(`<link[^>]+rel="preload"[^>]*${file}[^>]*>`);
+    const tag = preload.exec(shell)?.[0] ?? '';
+    expect(tag, `expected a preload for ${file}`).not.toBe('');
+    expect(tag).toContain('as="font"');
+    // A font is fetched anonymously whatever the page says, so a preload that
+    // does not say so fetches it a second time.
+    expect(tag).toContain('crossorigin');
+  });
+
+  it('asks for nothing it does not use on the first screen', () => {
+    const preloads = shell.match(/rel="preload"[^>]*as="font"/g) ?? [];
+    expect(preloads.length).toBeLessThanOrEqual(2);
+  });
+});
+
+/**
+ * The page body starts tall enough that the footer does not jump.
+ *
+ * Every page begins with nothing in it and fills once the feed, the event or
+ * the organization arrives. With no height of its own, the body is nothing
+ * tall at first paint and the footer sits directly under the band, so
+ * everything below the fold moves the moment the content lands. That was the
+ * whole of the layout shift on the inner pages, which measured well into what
+ * Core Web Vitals calls poor.
+ */
+describe('how much the page moves while it loads', () => {
+  it('holds a height for the body before anything is in it', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/App.svelte'), 'utf8');
+    const body = /\.page-body\s*\{([^}]*)\}/.exec(source)?.[1] ?? '';
+    expect(body, 'expected a .page-body rule').not.toBe('');
+    expect(body).toMatch(/min-height:/);
   });
 });

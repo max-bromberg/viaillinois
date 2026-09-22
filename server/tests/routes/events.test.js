@@ -213,6 +213,25 @@ describe('POST /api/v1/events', () => {
     expect((await post({ ...body, location_id: 7 })).status).toBe(409);
   });
 
+  /**
+   * A room that is reserved rather than taken by another event is no longer a
+   * refusal. The organization very often reserved it itself, and the booking
+   * reached VIA from the facilities sources before the event was entered.
+   */
+  it('creates the event when the room is only reserved, and says so', async () => {
+    createEventTransactional.mockResolvedValue({ eventId: 5, reserved: true });
+    const res = await post({ ...body, location_id: 7 });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ event_id: 5, reserved: true });
+  });
+
+  it('says nothing about a reservation when there is none', async () => {
+    createEventTransactional.mockResolvedValue({ eventId: 5 });
+    const res = await post({ ...body, location_id: 7 });
+    expect(res.status).toBe(201);
+    expect(res.body.reserved).toBe(false);
+  });
+
   it('reports missing RSO permission', async () => {
     createEventTransactional.mockResolvedValue({ unauthorized: true });
     expect((await post(body)).status).toBe(403);

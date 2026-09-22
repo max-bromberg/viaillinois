@@ -29,6 +29,8 @@ import shareCardRouter from './routes/shareCard.js';
 import adminRouter    from './routes/admin.js';
 import schedulerRouter from './routes/scheduler.js';
 import { createInternalRouter } from './routes/internal/index.js';
+import discordRouter from './routes/discord.js';
+import notificationOptInsRouter from './routes/notificationOptIns.js';
 import semesterRouter  from './routes/semester.js';
 import personalCalendarRouter from './routes/personalCalendar.js';
 import tagsRouter      from './routes/tags.js';
@@ -183,6 +185,12 @@ app.use('/api/v1/scheduler',  schedulerRouter);
 app.use('/internal/v1', createInternalRouter({ version: APP_VERSION, onDenied: recordDenial }));
 // A term calendar changes once a year, and every form and search reads it.
 app.use('/api/v1/semester',   publicFor({ browserSeconds: 300, edgeSeconds: 3600 }), semesterRouter);
+// The two addresses that add the Discord bot, which are the same for everybody
+// and change only when the Discord application does, so the edge may keep them.
+app.use('/api/v1/discord',    publicFor({ browserSeconds: 300, edgeSeconds: 3600 }), discordRouter);
+// What one person asked to be told about. Nobody else's to read and nobody
+// else's to keep, so it stays on the private default set for the whole prefix.
+app.use('/api/v1/me',         notificationOptInsRouter);
 // A person's own calendar, fetched by a calendar application on their phone,
 // which has no cookie and no service token and holds only the address. Off the
 // /api/v1 prefix because it is a file somebody subscribes to rather than part
