@@ -4,6 +4,8 @@ All notable changes to VIA are recorded here. Versions follow semantic versionin
 
 ## Unreleased
 
+- VIA now records when Ad Astra and Tableau each last showed a room booking, and keeps that in the history of bookings that have happened. Nothing removes a booking that a source stops reporting, so a booking that was cancelled or moved used to reach history looking exactly like one that went ahead, and a moved booking reached it twice. Each facilities poll also records the span of dates it covered and how many rows it failed to write, which is what lets a booking not seen since a clean poll be read later as one the source dropped. Nothing a person sees changes yet.
+
 ## 0.9.0 (2026-09-21)
 
 - 

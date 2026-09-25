@@ -155,6 +155,13 @@
       "when": 1789790789249,
       "tag": "0021_facilities_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1789877189249,
+      "tag": "0022_facilities_last_seen",
+      "breakpoints": true
     }
   ]
 }

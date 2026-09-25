@@ -255,6 +255,14 @@ export const facilityReservations = mysqlTable("Facility_Reservations", {
 	 */
 	astraFirstSeen: datetime("astra_first_seen", { mode: 'string'}),
 	tableauFirstSeen: datetime("tableau_first_seen", { mode: 'string'}),
+	/*
+	 * When each source last showed this booking, which is how a booking that was cancelled
+	 * or moved is told apart from one that went ahead. Nothing removes a row a source stops
+	 * reporting, so without these a phantom reaches history looking exactly like a booking
+	 * that happened. Migration 0022 has the reasoning.
+	 */
+	astraLastSeen: datetime("astra_last_seen", { mode: 'string'}),
+	tableauLastSeen: datetime("tableau_last_seen", { mode: 'string'}),
 },
 (table) => [
 	index("idx_facility_reservations_activity").on(table.activityId),
@@ -313,6 +321,10 @@ export const facilityReservationHistory = mysqlTable("Facility_Reservation_Histo
 	source: reservationSource('source').default('astra').notNull(),
 	astraFirstSeen: datetime("astra_first_seen", { mode: 'string'}),
 	tableauFirstSeen: datetime("tableau_first_seen", { mode: 'string'}),
+	// Carried across from the working set, so that history can say which of its bookings
+	// a source had stopped reporting before the day came.
+	astraLastSeen: datetime("astra_last_seen", { mode: 'string'}),
+	tableauLastSeen: datetime("tableau_last_seen", { mode: 'string'}),
 	archivedAt: datetime("archived_at", { mode: 'string'}).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [

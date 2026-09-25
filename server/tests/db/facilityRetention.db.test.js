@@ -241,6 +241,38 @@ describe('keeping reservations after they have happened', () => {
 
     expect(second.astra_first_seen).toBe(first.astra_first_seen);
   });
+
+  /**
+   * The last sighting is what tells a booking that went ahead from one that was
+   * cancelled or moved, since nothing removes a row a source stops reporting. It has to
+   * move forward with every poll from its own source and with nothing else.
+   */
+  it('moves the last sighting forward for the source that reported, and only that one', async () => {
+    await reservations.upsertReservation(booking({ source: 'astra' }));
+    await reservations.upsertReservation(booking({ source: 'tableau', customer: 'IEEE' }));
+    const conn = await mysql.createConnection(testDbConfig);
+    await conn.query(
+      `UPDATE Facility_Reservations
+          SET astra_last_seen = '2020-01-01 00:00:00', tableau_last_seen = '2020-01-01 00:00:00'`);
+    await conn.end();
+
+    await reservations.upsertReservation(booking({ source: 'astra' }));
+    const working = await reservations.findReservation(1, PAST.start, PAST.end);
+
+    expect(String(working.astra_last_seen)).not.toMatch(/^2020-01-01/);
+    expect(working.astra_last_seen >= working.astra_first_seen).toBe(true);
+    expect(String(working.tableau_last_seen)).toMatch(/^2020-01-01/);
+  });
+
+  it('carries the last sighting from each source into history', async () => {
+    await reservations.upsertReservation(booking({ source: 'astra' }));
+    await reservations.upsertReservation(booking({ source: 'tableau', customer: 'IEEE' }));
+
+    await reservations.archiveExpiredReservations();
+    const [kept] = await reservations.getHistoryOverlapping('2020-01-01 00:00:00', '2020-12-31 00:00:00');
+    expect(kept.astra_last_seen).toBeTruthy();
+    expect(kept.tableau_last_seen).toBeTruthy();
+  });
 });
 
 /**

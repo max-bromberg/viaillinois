@@ -39,6 +39,19 @@ export async function upsertReservation(reservation) {
   const tableauFirstSeen = source === 'tableau' ? now : null
 
   /*
+   * When each source last showed this booking, which is the only way a booking that was
+   * cancelled or moved can be told apart from one that went ahead.
+   *
+   * Nothing removes a row that a source stops reporting, so a cancelled booking keeps its
+   * place in the working set until its date passes and is then archived like any other.
+   * The same value as first seen, because this sighting is both, but kept the opposite
+   * way: first seen holds the earliest sighting and last seen takes every new one. Only
+   * the reporting source moves, since a poll from one source says nothing about the other.
+   */
+  const astraLastSeen = astraFirstSeen
+  const tableauLastSeen = tableauFirstSeen
+
+  /*
    * Everything Ad Astra says beyond where and when is written only when it arrives.
    * Tableau sends none of it, so a Tableau poll must not blank what Ad Astra recorded, and
    * a field Ad Astra stops sending must leave the last known value alone rather than
@@ -48,8 +61,8 @@ export async function upsertReservation(reservation) {
     `INSERT INTO Facility_Reservations
        (location_id, customer, event_name, start_time, end_time, source, scraped_at,
         activity_id, parent_activity_id, astra_event_id, activity_type, section_id, instructor,
-        astra_first_seen, tableau_first_seen)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        astra_first_seen, tableau_first_seen, astra_last_seen, tableau_last_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        customer = IF(VALUES(customer) != '', VALUES(customer), customer),
        event_name = IF(VALUES(event_name) != '', VALUES(event_name), event_name),
@@ -62,11 +75,13 @@ export async function upsertReservation(reservation) {
        section_id = COALESCE(VALUES(section_id), section_id),
        instructor = COALESCE(VALUES(instructor), instructor),
        astra_first_seen = COALESCE(astra_first_seen, VALUES(astra_first_seen)),
-       tableau_first_seen = COALESCE(tableau_first_seen, VALUES(tableau_first_seen))`,
+       tableau_first_seen = COALESCE(tableau_first_seen, VALUES(tableau_first_seen)),
+       astra_last_seen = COALESCE(VALUES(astra_last_seen), astra_last_seen),
+       tableau_last_seen = COALESCE(VALUES(tableau_last_seen), tableau_last_seen)`,
     [
       location_id, customer, event_name, start_time, end_time, source, now,
       activity_id, parent_activity_id, astra_event_id, activity_type, section_id, instructor,
-      astraFirstSeen, tableauFirstSeen,
+      astraFirstSeen, tableauFirstSeen, astraLastSeen, tableauLastSeen,
     ]
   )
 }
@@ -172,11 +187,11 @@ export async function archiveExpiredReservations() {
       `INSERT INTO Facility_Reservation_History
          (location_id, start_time, end_time, activity_id, parent_activity_id, astra_event_id, section_id,
           event_name_id, customer_id, instructor_id, activity_type_id,
-          source, astra_first_seen, tableau_first_seen)
+          source, astra_first_seen, tableau_first_seen, astra_last_seen, tableau_last_seen)
        SELECT
          r.location_id, r.start_time, r.end_time, r.activity_id, r.parent_activity_id,
          r.astra_event_id, r.section_id, en.text_id, cu.text_id, ins.text_id, at.text_id,
-         r.source, r.astra_first_seen, r.tableau_first_seen
+         r.source, r.astra_first_seen, r.tableau_first_seen, r.astra_last_seen, r.tableau_last_seen
        FROM Facility_Reservations r
        LEFT JOIN Facility_Text en  ON en.value  = LEFT(r.event_name, ${TEXT_LENGTH})    AND r.event_name <> ''
        LEFT JOIN Facility_Text cu  ON cu.value  = LEFT(r.customer, ${TEXT_LENGTH})      AND r.customer <> ''
@@ -276,7 +291,8 @@ export async function getHistoryOverlapping(startTime, endTime, { limit = 5000 }
        cu.value  AS customer,
        ins.value AS instructor,
        at.value  AS activity_type,
-       h.source, h.astra_first_seen, h.tableau_first_seen, h.archived_at
+       h.source, h.astra_first_seen, h.tableau_first_seen,
+       h.astra_last_seen, h.tableau_last_seen, h.archived_at
      FROM Facility_Reservation_History h
      LEFT JOIN Facility_Text en  ON en.text_id  = h.event_name_id
      LEFT JOIN Facility_Text cu  ON cu.text_id  = h.customer_id

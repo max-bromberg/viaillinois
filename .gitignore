@@ -138,9 +138,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Superpowers plugin working dirs
-docs/superpowers/
-
 # Subagent-driven development working dirs
 .superpowers/
 
@@ -151,7 +148,6 @@ via-schema-only.sql
 assignment/
 doc/
 memory/
-docs/data-ingestion-db-changes.md
 
 # Verified database dumps written by the cutover. BACKUP_DIR defaults to this
 # directory, which sits inside the deployment checkout, and the cutover refuses
