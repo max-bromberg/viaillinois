@@ -103,3 +103,21 @@ describe('reporting what the export offers', () => {
     log.mockRestore();
   });
 });
+
+/** The same record of what one poll covered, for Tableau. */
+describe('what a Tableau poll covered', () => {
+  it('reports the first and last start time it wrote', async () => {
+    const { upsertFacilityLocation, upsertReservation } = await import('../../db/queries/facilityReservations.js');
+    upsertFacilityLocation.mockResolvedValueOnce(7).mockResolvedValueOnce(7);
+    upsertReservation.mockResolvedValueOnce({ affectedRows: 1 }).mockResolvedValueOnce({ affectedRows: 1 });
+    downloadTableauCsv.mockResolvedValue(SAMPLE_CSV);
+
+    const result = await runOnce();
+
+    expect(result.coverage).toEqual({
+      first_start: '2026-04-15 10:00:00',
+      last_start: '2026-04-16 14:00:00',
+    });
+    expect(result.failed).toBe(0);
+  });
+});

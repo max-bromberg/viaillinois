@@ -29,7 +29,7 @@ import {
 
 import { downloadTableauCsv } from './tableauSession.js';
 import { resolveBuilding, resolveRoom } from '../lib/locationNormalizer.js';
-import { runWithLogging } from '../lib/pollerUtils.js';
+import { runWithLogging, coverageTracker } from '../lib/pollerUtils.js';
 
 const DEFAULT_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
@@ -156,6 +156,8 @@ export async function runOnce() {
 
   let upserted = 0;
   let skipped = 0;
+  let failed = 0;
+  const coverage = coverageTracker();
 
   for (const row of rows) {
     const building    = resolveBuilding(row['Building']  || '');
@@ -187,8 +189,10 @@ export async function runOnce() {
       });
       // affectedRows === 0 means INSERT IGNORE skipped a duplicate, which is correct behaviour
       if (result?.affectedRows > 0) upserted++;
+      coverage.note(startTime);
     } catch (e) {
       if (!e.message.includes('Not implemented')) {
+        failed++;
         console.error(`[facilities] Row error (${building} ${room}): ${e.message}`);
       } else {
         upserted++; // count rows even when SQL stubs are pending
@@ -196,7 +200,12 @@ export async function runOnce() {
     }
   }
 
-  return { upserted, skipped };
+  /*
+   * What this poll covered, and how many rows it failed to write, which the poll log keeps.
+   * A booking's last sighting only means something against a poll that would have shown it,
+   * so the next piece of work can tell a booking the source dropped from one it still holds.
+   */
+  return { upserted, skipped, failed, coverage: coverage.span() };
 }
 
 // ---------------------------------------------------------------------------

@@ -90,3 +90,44 @@ describe('startPollerRun()', () => {
     expect(logId).toBeUndefined();
   });
 });
+
+/**
+ * What a facilities poll covered.
+ *
+ * A booking whose last sighting predates a poll was not in that poll, but that only
+ * means something for a poll that covered the booking's date and wrote every row it
+ * received. So each facilities poll records the span of start times it wrote and how many
+ * rows it failed to write, because a booking that failed to write was not seen and must
+ * not later be read as a booking the source dropped.
+ *
+ * A row that failed is not a run that failed. The admin page reads the error count as the
+ * run having failed, and one bad row out of six thousand is not that, so the count of
+ * failed rows sits beside the span rather than in the error count.
+ */
+describe('recording what a facilities poll covered', () => {
+  const coverage = { first_start: '2026-09-25 08:00:00', last_start: '2027-03-23 21:00:00' };
+
+  it('records the span of start times the poll wrote', async () => {
+    const runOnceFn = vi.fn().mockResolvedValue({ upserted: 5, skipped: 0, failed: 0, coverage });
+    await runWithLogging('astra', runOnceFn);
+    expect(finalizePollLog).toHaveBeenCalledWith(99, expect.objectContaining({
+      errorCount: 0,
+      metadata: { coverage, failed: 0 },
+    }));
+  });
+
+  it('records a row the poll failed to write without calling the run a failure', async () => {
+    const runOnceFn = vi.fn().mockResolvedValue({ upserted: 4, skipped: 0, failed: 1, coverage });
+    await runWithLogging('facilities', runOnceFn);
+    expect(finalizePollLog).toHaveBeenCalledWith(99, expect.objectContaining({
+      errorCount: 0,
+      metadata: { coverage, failed: 1 },
+    }));
+  });
+
+  it('records no span for a poll that wrote nothing', async () => {
+    const runOnceFn = vi.fn().mockResolvedValue({ upserted: 0, skipped: 0 });
+    await runWithLogging('astra', runOnceFn);
+    expect(finalizePollLog).toHaveBeenCalledWith(99, expect.objectContaining({ metadata: null }));
+  });
+});

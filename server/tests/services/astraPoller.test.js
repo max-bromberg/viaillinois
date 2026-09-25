@@ -89,7 +89,12 @@ describe('astraPoller.runOnce()', () => {
     expect(upsertFacilityLocation).toHaveBeenCalledTimes(2);
     expect(upsertReservation).toHaveBeenCalledTimes(2);
     expect(upsertReservation).toHaveBeenCalledWith(expect.objectContaining({ source: 'astra' }));
-    expect(result).toEqual({ upserted: 2, skipped: 0 });
+    expect(result).toEqual({
+      upserted: 2,
+      skipped: 0,
+      failed: 0,
+      coverage: { first_start: '2026-04-16 09:00:00', last_start: '2026-04-16 14:00:00' },
+    });
   });
 
   it('passes both session cookies (stripped of attributes) to the data API', async () => {
@@ -113,7 +118,7 @@ describe('astraPoller.runOnce()', () => {
     ]);
 
     const result = await runOnce();
-    expect(result).toEqual({ upserted: 0, skipped: 4 });
+    expect(result).toEqual({ upserted: 0, skipped: 4, failed: 0, coverage: null });
   });
 
   it('returns { upserted: 0, skipped: 0 } when API returns empty array', async () => {
@@ -291,5 +296,42 @@ describe('a field longer than the column that holds it', () => {
     expect(written.activity_type).toHaveLength(32);
     expect(written.section_id).toHaveLength(32);
     expect(written.instructor).toHaveLength(200);
+  });
+});
+
+/**
+ * What one poll covered, which is what lets a booking's last sighting be read later.
+ *
+ * A booking not seen since a poll that covered its date was not in that poll, which is
+ * how a cancelled or moved booking is told apart from one that went ahead. The span is
+ * of the rows the poll actually wrote, and a row that failed to write is counted, so a
+ * poll that lost a row is never mistaken for one that saw everything.
+ */
+describe('what a poll covered', () => {
+  it('reports the first and last start time it wrote, in the database format', async () => {
+    mockSession();
+    mockDataFetch(SAMPLE_ROWS);
+
+    const result = await runOnce();
+
+    expect(result.coverage).toEqual({
+      first_start: '2026-04-16 09:00:00',
+      last_start: '2026-04-16 14:00:00',
+    });
+    expect(result.failed).toBe(0);
+  });
+
+  it('counts a row it failed to write, and leaves it out of the span', async () => {
+    mockSession();
+    mockDataFetch(SAMPLE_ROWS);
+    upsertReservation.mockRejectedValueOnce(new Error("Data too long for column 'event_name'"));
+
+    const result = await runOnce();
+
+    expect(result.failed).toBe(1);
+    expect(result.coverage).toEqual({
+      first_start: '2026-04-16 14:00:00',
+      last_start: '2026-04-16 14:00:00',
+    });
   });
 });
