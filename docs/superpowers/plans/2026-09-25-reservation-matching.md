@@ -16,7 +16,7 @@ because it stops a loss, and it is the ground every later step stands on.
 
 ## Step 1: the tables
 
-1. A `db` test that migrations create `Reservation_Matches` and
+1. A `db` test that migrations create `RSO_Aliases`, `Reservation_Matches` and
    `Reservation_Match_Decisions` with the columns, keys and absent cascades the spec
    describes. Watch it fail.
 2. Migration 0023 and the Drizzle declarations. The schema declaration test and the
@@ -27,16 +27,32 @@ because it stops a loss, and it is the ground every later step stands on.
    mocked client for the rules, `db` tests for the real statements.
 4. A test and a guard that a booking rejected for an organization is never proposed to
    it again.
+5. `server/db/queries/rsoAliases.ts` in Drizzle: list, add and remove, refusing a
+   duplicate within one organization, a length outside two to forty characters, and an
+   eleventh alias.
+
+## Step 1b: organizations enter their aliases
+
+Its own pull request, so aliases start accumulating while the matcher is built.
+
+1. Route tests for `GET`, `POST` and `DELETE` under `/api/rsos/:id/aliases`: the
+   `requireRSOAdmin` guard, a global admin removing any alias, organization scoping,
+   and every refusal from step 1.
+2. The controller and routes.
+3. The "Other names" field on the organization's settings, with client tests, and the
+   sentence saying what the names are used for.
+4. A changelog entry.
 
 ## Step 2: the matcher
 
-1. A report of activity type codes, with counts and a sample of names for each, run
-   by hand against production through the cutover's own tooling rather than by manual
-   SQL. It answers the spec's first open question and decides the class filter.
-2. The three signals as pure functions over a booking and the organizations and
-   events near it, each returning a confidence and its evidence. Unit tested
-   exhaustively, including short names, accents, several organizations sharing a word,
-   events with no room and bookings with no name.
+1. A report of activity type codes, with counts and a sample of names for each, on the
+   admin page behind `requireGlobalAdmin`, because manual SQL against production is
+   ruled out. It answers the spec's first open question and decides the class filter.
+2. The three signals as pure functions over a booking and the organizations, their
+   aliases and the events near it, each returning a confidence and its evidence. Unit
+   tested exhaustively, including short aliases against longer words ("ACM" against
+   "ACME"), accents, an alias two organizations share, events with no room and bookings
+   with no name.
 3. `server/services/reservationMatcher.js`: read the working set, apply the filter and
    the signals, and write proposals. It runs on its own timer and after each facilities
    poll, and is started and stopped beside the pollers in `server/index.js`.
